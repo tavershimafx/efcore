@@ -1,8 +1,10 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
+using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -504,6 +506,541 @@ public class ChangeTracker : IResettableService
     /// </remarks>
     public virtual void Clear()
         => StateManager.Clear();
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry"/> for the entity with the given primary key value in the change tracker, if it is being
+    ///     tracked. <see langword="null" /> is returned if no entity with the given key value is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <param name="entityType">The type of entity to find.</param>
+    /// <param name="keyValue">The value of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry? FindEntry(Type entityType, object? keyValue)
+    {
+        var internalEntityEntry = CreateFinder(entityType, null).FindEntry(new[] { keyValue });
+
+        return internalEntityEntry == null ? null : new EntityEntry(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry"/> for the entity with the given primary key values in the change tracker, if it is being
+    ///     tracked. <see langword="null" /> is returned if no entity with the given key values is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <param name="entityType">The type of entity to find.</param>
+    /// <param name="keyValues">The values of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry? FindEntry(Type entityType, IEnumerable<object?> keyValues)
+    {
+        Check.NotNull(keyValues, nameof(keyValues));
+
+        var internalEntityEntry = CreateFinder(entityType, null).FindEntry(keyValues);
+
+        return internalEntityEntry == null ? null : new EntityEntry(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry{TEntity}"/> for the entity with the given primary key value in the change tracker, if it is
+    ///     being tracked. <see langword="null" /> is returned if no entity with the given key value is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of entity to find.</typeparam>
+    /// <typeparam name="TKey">The type of the primary key property.</typeparam>
+    /// <param name="keyValue">The value of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry<TEntity>? FindEntry<TEntity, TKey>(TKey keyValue)
+        where TEntity : class
+    {
+        var internalEntityEntry = CreateFinder(typeof(TEntity), null).FindEntry(keyValue);
+
+        return internalEntityEntry == null ? null : new EntityEntry<TEntity>(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry{TEntity}"/> for the entity with the given primary key values in the change tracker, if it is
+    ///     being tracked. <see langword="null" /> is returned if no entity with the given key values is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of entity to find.</typeparam>
+    /// <param name="keyValues">The values of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry<TEntity>? FindEntry<TEntity>(IEnumerable<object?> keyValues)
+        where TEntity : class
+    {
+        var internalEntityEntry = CreateFinder(typeof(TEntity), null).FindEntry(keyValues);
+
+        return internalEntityEntry == null ? null : new EntityEntry<TEntity>(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry"/> for the entity with the given primary key value in the change tracker, if it is being
+    ///     tracked. <see langword="null" /> is returned if no entity with the given key value is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="keyValue">The value of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry? FindEntry(string entityTypeName, object? keyValue)
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+
+        var internalEntityEntry = CreateFinder(null, entityTypeName).FindEntry(new[] { keyValue });
+
+        return internalEntityEntry == null ? null : new EntityEntry(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry"/> for the entity with the given primary key values in the change tracker, if it is being
+    ///     tracked. <see langword="null" /> is returned if no entity with the given key values is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="keyValues">The values of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry? FindEntry(string entityTypeName, IEnumerable<object?> keyValues)
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+        Check.NotNull(keyValues, nameof(keyValues));
+
+        var internalEntityEntry = CreateFinder(null, entityTypeName).FindEntry(keyValues);
+
+        return internalEntityEntry == null ? null : new EntityEntry(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry{TEntity}"/> for the entity with the given primary key value in the change tracker, if it is
+    ///     being tracked. <see langword="null" /> is returned if no entity with the given key value is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of entity to find.</typeparam>
+    /// <typeparam name="TKey">The type of the primary key property.</typeparam>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="keyValue">The value of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry<TEntity>? FindEntry<TEntity, TKey>(string entityTypeName, TKey keyValue)
+        where TEntity : class
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+
+        var internalEntityEntry = CreateFinder(typeof(TEntity), entityTypeName).FindEntry(new object?[] { keyValue });
+
+        return internalEntityEntry == null ? null : new EntityEntry<TEntity>(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Finds an <see cref="EntityEntry{TEntity}"/> for the entity with the given primary key values in the change tracker, if it is
+    ///     being tracked. <see langword="null" /> is returned if no entity with the given key values is being tracked.
+    ///     This method never queries the database.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-change-tracking">EF Core change tracking</see> for more information and examples.
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of entity to find.</typeparam>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="keyValues">The values of the primary key for the entity to be found.</param>
+    /// <returns>An entry for the entity found, or <see langword="null" />.</returns>
+    public virtual EntityEntry<TEntity>? FindEntry<TEntity>(string entityTypeName, IEnumerable<object?> keyValues)
+        where TEntity : class
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+
+        var internalEntityEntry = CreateFinder(typeof(TEntity), entityTypeName).FindEntry(keyValues);
+
+        return internalEntityEntry == null ? null : new EntityEntry<TEntity>(TryDetectChanges(internalEntityEntry));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityType">The type of entity to find.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries(Type entityType, string propertyName, object? propertyValue)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries().Where(e => e.Metadata.ClrType == entityType && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry{TEntity}" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <typeparam name="TEntity">The type of entities to get entries for.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry<TEntity>> GetEntries<TEntity>(string propertyName, object? propertyValue)
+        where TEntity : class
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries<TEntity>().Where(e => Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityType">The type of entity to find.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <typeparam name="TValue">The type of the property value.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries<TValue>(Type entityType, string propertyName, TValue propertyValue)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries().Where(e => e.Metadata.ClrType == entityType && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given property
+    ///     matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <typeparam name="TEntity">The type of entities to get entries for.</typeparam>
+    /// <typeparam name="TValue">The type of the property value.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry<TEntity>> GetEntries<TEntity, TValue>(string propertyName, TValue propertyValue)
+        where TEntity : class
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries<TEntity>().Where(e => Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the values of the given properties
+    ///     matches the given values. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityType">The type of entity to find.</param>
+    /// <param name="propertyNames">The name of the properties to match.</param>
+    /// <param name="propertyValues">The values of the properties to match.</param>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries(
+        Type entityType, IEnumerable<string> propertyNames, IEnumerable<object?> propertyValues)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return ImmutableArray<EntityEntry>.Empty;
+        //return Entries().Where(e => e.Metadata.ClrType == entityType && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries(string entityTypeName, string propertyName, object? propertyValue)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries().Where(e => e.Metadata.Name == entityTypeName && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry{TEntity}" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <typeparam name="TEntity">The type of entities to get entries for.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry<TEntity>> GetEntries<TEntity>(string entityTypeName, string propertyName, object? propertyValue)
+        where TEntity : class
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries<TEntity>().Where(e => e.Metadata.Name == entityTypeName && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given
+    ///     property matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <typeparam name="TValue">The type of the property value.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries<TValue>(string entityTypeName, string propertyName, TValue propertyValue)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries().Where(e => e.Metadata.Name == entityTypeName && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the the value of the given property
+    ///     matches the given value. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="propertyName">The name of the property to match.</param>
+    /// <param name="propertyValue">The value of the property to match.</param>
+    /// <typeparam name="TEntity">The type of entities to get entries for.</typeparam>
+    /// <typeparam name="TValue">The type of the property value.</typeparam>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry<TEntity>> GetEntries<TEntity, TValue>(
+        string entityTypeName, string propertyName, TValue propertyValue)
+        where TEntity : class
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return Entries<TEntity>().Where(e => e.Metadata.Name == entityTypeName && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    /// <summary>
+    ///     Returns an <see cref="EntityEntry" /> for each entity being tracked by the context where the values of the given properties
+    ///     matches the given values. The entries provide access to change tracking information and operations for each entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method is frequently used to get the entities with a given foreign key, primary key, or alternate key values.
+    ///         Lookups using a key property like this is more efficient than lookups on other property values.
+    ///     </para>
+    ///     <para>
+    ///         This method calls <see cref="DetectChanges" /> to ensure all entries returned reflect up-to-date state.
+    ///         Use <see cref="AutoDetectChangesEnabled" /> to prevent DetectChanges from being called automatically.
+    ///     </para>
+    ///     <para>
+    ///         Note that modification of entity state while iterating over the returned enumeration may result in
+    ///         an <see cref="InvalidOperationException" /> indicating that the collection was modified while enumerating.
+    ///         To avoid this, create a defensive copy using <see cref="Enumerable.ToList{TSource}" /> or similar before iterating.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type to find, which may be a shared-type entity type.</param>
+    /// <param name="propertyNames">The name of the properties to match.</param>
+    /// <param name="propertyValues">The values of the properties to match.</param>
+    /// <returns>An entry for each entity being tracked.</returns>
+    public virtual IEnumerable<EntityEntry> GetEntries(
+        string entityTypeName, IEnumerable<string> propertyNames, IEnumerable<object?> propertyValues)
+    {
+        TryDetectChanges();
+
+        // Use value comparer
+        return ImmutableArray<EntityEntry>.Empty;
+        //return Entries().Where(e => e.Metadata.ClrType == entityType && Equals(e.Property(propertyName).CurrentValue, propertyValue));
+    }
+
+    private IEntityFinder CreateFinder(Type? type, string? sharedTypeName)
+    {
+        var entityType = sharedTypeName != null
+            ? _model.FindEntityType(sharedTypeName)
+            : _model.FindEntityType(type!);
+
+        if (entityType == null)
+        {
+            if (type != null)
+            {
+                if (_model.IsShared(type))
+                {
+                    throw new InvalidOperationException(CoreStrings.InvalidSetSharedType(type.ShortDisplayName()));
+                }
+
+                var findSameTypeName = _model.FindSameTypeNameWithDifferentNamespace(type);
+                //if the same name exists in your entity types we will show you the full namespace of the type
+                if (!string.IsNullOrEmpty(findSameTypeName))
+                {
+                    throw new InvalidOperationException(
+                        CoreStrings.InvalidSetSameTypeWithDifferentNamespace(type.DisplayName(), findSameTypeName));
+                }
+            }
+
+            throw new InvalidOperationException(CoreStrings.InvalidSetType(
+                sharedTypeName ?? type!.ShortDisplayName()));
+        }
+
+        if (entityType.FindPrimaryKey() == null)
+        {
+            throw new InvalidOperationException(CoreStrings.InvalidSetKeylessOperation(
+                sharedTypeName ?? type!.ShortDisplayName()));
+        }
+
+        return Context.GetDependencies().EntityFinderFactory.Create(entityType);
+    }
+
+    private InternalEntityEntry TryDetectChanges(InternalEntityEntry internalEntityEntry)
+    {
+        if (AutoDetectChangesEnabled && !_model.SkipDetectChanges)
+        {
+            ChangeDetector.DetectChanges(internalEntityEntry);
+        }
+
+        return internalEntityEntry;
+    }
 
     /// <summary>
     ///     <para>

@@ -1366,8 +1366,8 @@ public class ChangeTrackerTest
             AssertTrackedEvent(context, 1, EntityState.Added, tracking[0], tracked[0], fromQuery: false);
             AssertTrackedEvent(context, 2, EntityState.Added, tracking[1], tracked[1], fromQuery: false);
 
-            context.Entry(context.Cats.Find(1)!).State = EntityState.Unchanged;
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Modified;
+            context.ChangeTracker.FindEntry<Cat, int>(1)!.State = EntityState.Unchanged;
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Modified;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(2, changed.Count);
@@ -1377,8 +1377,8 @@ public class ChangeTrackerTest
             AssertChangedEvent(context, 1, EntityState.Added, EntityState.Unchanged, changing[0], changed[0]);
             AssertChangedEvent(context, 2, EntityState.Added, EntityState.Modified, changing[1], changed[1]);
 
-            context.Entry(context.Cats.Find(1)!).State = EntityState.Added;
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Deleted;
+            context.ChangeTracker.FindEntry<Cat, int>(1)!.State = EntityState.Added;
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Deleted;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(4, changed.Count);
@@ -1386,8 +1386,8 @@ public class ChangeTrackerTest
             AssertChangedEvent(context, 1, EntityState.Unchanged, EntityState.Added, changing[2], changed[2]);
             AssertChangedEvent(context, 2, EntityState.Modified, EntityState.Deleted, changing[3], changed[3]);
 
-            context.Remove(context.Cats.Find(1)!);
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Detached;
+            context.Remove(context.ChangeTracker.FindEntry<Cat, int>(1)!.Entity);
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Detached;
 
             Assert.False(context.ChangeTracker.HasChanges());
 
@@ -1404,14 +1404,14 @@ public class ChangeTrackerTest
 
             context.AddRange(new Cat(1), new Cat(2));
 
-            context.Entry(context.Cats.Find(1)!).State = EntityState.Unchanged;
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Modified;
+            context.ChangeTracker.FindEntry<Cat, int>(1)!.State = EntityState.Unchanged;
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Modified;
 
-            context.Entry(context.Cats.Find(1)!).State = EntityState.Added;
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Deleted;
+            context.ChangeTracker.FindEntry<Cat, int>(1)!.State = EntityState.Added;
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Deleted;
 
-            context.Remove(context.Cats.Find(1)!);
-            context.Entry(context.Cats.Find(2)!).State = EntityState.Detached;
+            context.Remove(context.ChangeTracker.FindEntry<Cat, int>(1)!.Entity);
+            context.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Detached;
 
             Assert.Equal(2, tracked.Count);
             Assert.Equal(6, changed.Count);
@@ -1545,7 +1545,7 @@ public class ChangeTrackerTest
             Assert.Equal(2, tracked2.Count);
             Assert.Empty(changed2);
 
-            context2.Entry(context2.Cats.Find(1)!).State = EntityState.Modified;
+            context2.ChangeTracker.FindEntry<Cat, int>(2)!.State = EntityState.Modified;
 
             Assert.Equal(2, tracked2.Count);
             Assert.Single(changed2);
@@ -1559,7 +1559,7 @@ public class ChangeTrackerTest
         Assert.Equal(2, tracked1.Count);
         Assert.Empty(changed1);
 
-        context.Entry(context.Cats.Find(1)!).State = EntityState.Modified;
+        context.ChangeTracker.FindEntry<Cat, int>(1)!.State = EntityState.Modified;
 
         Assert.Equal(2, tracked1.Count);
         Assert.Single(changed1);

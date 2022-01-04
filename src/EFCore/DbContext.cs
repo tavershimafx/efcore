@@ -357,7 +357,7 @@ public class DbContext :
     ///     <para>
     ///         See <see href="https://aka.ms/efcore-docs-query">Querying data with EF Core</see>,
     ///         <see href="https://aka.ms/efcore-docs-change-tracking">Changing tracking</see>, and
-    ///         <see href="https://aka.ms/efcore-docs-shared-types">Shared entity types</see>  for more information and examples.
+    ///         <see href="https://aka.ms/efcore-docs-shared-types">Shared entity types</see> for more information and examples.
     ///     </para>
     /// </remarks>
     /// <param name="name">The name for the shared-type entity type to use.</param>
@@ -1122,16 +1122,51 @@ public class DbContext :
         Check.NotNull(entity, nameof(entity));
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         TryDetectChanges(entry);
 
         return entry;
     }
 
-    private EntityEntry<TEntity> EntryWithoutDetectChanges<TEntity>(TEntity entity)
+    /// <summary>
+    ///     Gets an <see cref="EntityEntry{TEntity}" /> for the given entity. The entry provides
+    ///     access to change tracking information and operations for the entity.
+    /// </summary>
+    /// <remarks>
+    ///     See <see href="https://aka.ms/efcore-docs-entity-entries">Accessing tracked entities in EF Core</see> for more information and
+    ///     examples.
+    /// </remarks>
+    /// <typeparam name="TEntity">The type of the entity.</typeparam>
+    /// <param name="entityTypeName">The full name of the entity type, which may be a shared-type entity type.</param>
+    /// <param name="entity">The entity to get the entry for.</param>
+    /// <returns>The entry for the given entity.</returns>
+    public virtual EntityEntry<TEntity> Entry<TEntity>(string entityTypeName, TEntity entity)
         where TEntity : class
-        => new(DbContextDependencies.StateManager.GetOrCreateEntry(entity));
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+        Check.NotNull(entity, nameof(entity));
+        CheckDisposed();
+
+        var entry = EntryWithoutDetectChanges(entityTypeName, entity);
+
+        TryDetectChanges(entry);
+
+        return entry;
+    }
+
+    private EntityEntry<TEntity> EntryWithoutDetectChanges<TEntity>(string? entityTypeName, TEntity entity)
+        where TEntity : class
+    {
+        if (entityTypeName != null)
+        {
+            var entityType = ContextServices.Model.FindEntityType(entityTypeName);
+            // TODO: Check for bad type.
+            return new(DbContextDependencies.StateManager.GetOrCreateEntry(entity, entityType));
+        }
+
+        return new(DbContextDependencies.StateManager.GetOrCreateEntry(entity));
+    }
 
     /// <summary>
     ///     Gets an <see cref="EntityEntry" /> for the given entity. The entry provides
@@ -1155,15 +1190,55 @@ public class DbContext :
         Check.NotNull(entity, nameof(entity));
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         TryDetectChanges(entry);
 
         return entry;
     }
 
-    private EntityEntry EntryWithoutDetectChanges(object entity)
-        => new(DbContextDependencies.StateManager.GetOrCreateEntry(entity));
+    /// <summary>
+    ///     Gets an <see cref="EntityEntry" /> for the given entity. The entry provides
+    ///     access to change tracking information and operations for the entity.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This method may be called on an entity that is not tracked. You can then
+    ///         set the <see cref="EntityEntry.State" /> property on the returned entry
+    ///         to have the context begin tracking the entity in the specified state.
+    ///     </para>
+    ///     <para>
+    ///         See <see href="https://aka.ms/efcore-docs-entity-entries">Accessing tracked entities in EF Core</see> for more information and
+    ///         examples.
+    ///     </para>
+    /// </remarks>
+    /// <param name="entityTypeName">The full name of the entity type, which may be a shared-type entity type.</param>
+    /// <param name="entity">The entity to get the entry for.</param>
+    /// <returns>The entry for the given entity.</returns>
+    public virtual EntityEntry Entry(string entityTypeName, object entity)
+    {
+        Check.NotEmpty(entityTypeName, nameof(entityTypeName));
+        Check.NotNull(entity, nameof(entity));
+        CheckDisposed();
+
+        var entry = EntryWithoutDetectChanges(entityTypeName, entity);
+
+        TryDetectChanges(entry);
+
+        return entry;
+    }
+
+    private EntityEntry EntryWithoutDetectChanges(string? entityTypeName, object entity)
+    {
+        if (entityTypeName != null)
+        {
+            var entityType = ContextServices.Model.FindEntityType(entityTypeName);
+            // TODO: Check for bad type.
+            return new(DbContextDependencies.StateManager.GetOrCreateEntry(entity, entityType));
+        }
+
+        return new(DbContextDependencies.StateManager.GetOrCreateEntry(entity));
+    }
 
     private void SetEntityState(InternalEntityEntry entry, EntityState entityState)
     {
@@ -1266,7 +1341,7 @@ public class DbContext :
     {
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(Check.NotNull(entity, nameof(entity)));
+        var entry = EntryWithoutDetectChanges(null, Check.NotNull(entity, nameof(entity)));
 
         await SetEntityStateAsync(entry.GetInfrastructure(), EntityState.Added, cancellationToken)
             .ConfigureAwait(false);
@@ -1400,7 +1475,7 @@ public class DbContext :
         Check.NotNull(entity, nameof(entity));
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         var initialState = entry.State;
         if (initialState == EntityState.Detached)
@@ -1423,7 +1498,7 @@ public class DbContext :
         EntityState entityState)
         where TEntity : class
     {
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         SetEntityState(entry.GetInfrastructure(), entityState);
 
@@ -1494,7 +1569,7 @@ public class DbContext :
     {
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(Check.NotNull(entity, nameof(entity)));
+        var entry = EntryWithoutDetectChanges(null, Check.NotNull(entity, nameof(entity)));
 
         await SetEntityStateAsync(entry.GetInfrastructure(), EntityState.Added, cancellationToken)
             .ConfigureAwait(false);
@@ -1622,7 +1697,7 @@ public class DbContext :
         Check.NotNull(entity, nameof(entity));
         CheckDisposed();
 
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         var initialState = entry.State;
         if (initialState == EntityState.Detached)
@@ -1642,7 +1717,7 @@ public class DbContext :
 
     private EntityEntry SetEntityState(object entity, EntityState entityState)
     {
-        var entry = EntryWithoutDetectChanges(entity);
+        var entry = EntryWithoutDetectChanges(null, entity);
 
         SetEntityState(entry.GetInfrastructure(), entityState);
 
