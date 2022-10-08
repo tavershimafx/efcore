@@ -19,7 +19,7 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
     [ConditionalFact] // Issue #28392
     public virtual void Can_update_and_delete_with_bigint_FK_and_int_PK()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         var principalEmpty = LoadAndValidateEmpty();
@@ -57,6 +57,8 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
 
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
 
+        scope.Dispose();
+
         PrincipalIntLong LoadAndValidateEmpty()
         {
             var loaded = Load().Single(e => e.OptionalSingle == null);
@@ -92,7 +94,7 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
     [ConditionalFact] // Issue #28392
     public virtual void Can_update_and_delete_with_tinyint_FK_and_smallint_PK()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         var principalEmpty = LoadAndValidateEmpty();
@@ -130,6 +132,8 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
 
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
 
+        scope.Dispose();
+
         PrincipalShortByte LoadAndValidateEmpty()
         {
             var loaded = Load().Single(e => e.OptionalSingle == null);
@@ -165,7 +169,7 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
     [ConditionalFact] // Issue #28392
     public virtual void Can_update_and_delete_with_string_FK_and_GUID_PK()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         var principalEmpty = LoadAndValidateEmpty();
@@ -203,6 +207,8 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
 
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
 
+        scope.Dispose();
+
         PrincipalStringGuid LoadAndValidateEmpty()
         {
             var loaded = Load().Single(e => e.OptionalSingle == null);
@@ -238,7 +244,7 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
     [ConditionalFact] // Issue #28392
     public virtual void Can_update_and_delete_composite_keys_mismatched_in_store()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         var principalEmpty = LoadAndValidateEmpty();
@@ -276,6 +282,8 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
 
         Assert.Equal(9, context.ChangeTracker.Entries().Count());
 
+        scope.Dispose();
+
         PrincipalComposite LoadAndValidateEmpty()
         {
             var loaded = Load().Single(e => e.OptionalSingle == null);
@@ -311,7 +319,7 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
     [ConditionalFact]
     public virtual void Queries_work_but_SaveChanges_fails_when_composite_keys_incompatible_in_store()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         context.Database.ExecuteSqlRaw(
@@ -334,12 +342,14 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
             RelationalStrings.StoredKeyTypesNotConvertable(
                 nameof(OptionalSingleBadComposite.PrincipalId3), "uniqueidentifier", "int", nameof(PrincipalBadComposite.Id3)),
             Assert.Throws<InvalidOperationException>(() => context.SaveChanges()).Message);
+
+        scope.Dispose();
     }
 
     [ConditionalFact]
     public virtual void Queries_work_but_SaveChanges_fails_when_keys_incompatible_in_store()
     {
-        using var _ = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
+        var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled);
         using var context = new MismatchedKeyTypesContext(Fixture);
 
         context.Database.ExecuteSqlRaw(
@@ -362,6 +372,8 @@ public class MismatchedKeyTypesSqlServerTest : IClassFixture<MismatchedKeyTypesS
             RelationalStrings.StoredKeyTypesNotConvertable(
                 nameof(OptionalSingleBad.PrincipalId), "uniqueidentifier", "bigint", nameof(PrincipalBad.Id)),
             Assert.Throws<TargetInvocationException>(() => context.SaveChanges()).InnerException!.Message);
+
+        scope.Dispose();
     }
 
     protected class MismatchedKeyTypesContextNoFks : MismatchedKeyTypesContext
