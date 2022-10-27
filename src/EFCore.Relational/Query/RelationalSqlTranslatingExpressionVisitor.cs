@@ -711,6 +711,7 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
         var innerExpression = Visit(memberExpression.Expression);
 
         return TryBindMember(innerExpression, MemberIdentity.Create(memberExpression.Member))
+            ?? TryBindJsonCollectionNavigation(innerExpression, MemberIdentity.Create(memberExpression.Member))
             ?? (TranslationFailed(memberExpression.Expression, innerExpression, out var sqlInnerExpression)
                 ? QueryCompilationContext.NotTranslatedExpression
                 : Dependencies.MemberTranslatorProvider.Translate(
@@ -883,6 +884,95 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
 
                 goto SubqueryTranslation;
             }
+
+            if (!method.IsStatic
+                && method.Name == "get_Item")
+            {
+                if (methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne
+                    && mcne.Subquery is MethodCallExpression subqueryMethod
+                    && subqueryMethod.Method.IsGenericMethod
+                    && subqueryMethod.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
+                    && subqueryMethod.Arguments[0] is JsonQueryExpression jsonQuery)
+                {
+                    var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
+                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+
+                    var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
+
+                    return new EntityReferenceExpression(
+                        new RelationalEntityShaperExpression(
+                            mcne.Navigation.TargetEntityType,
+                            newJsonQuery,
+                            nullable: true));
+                }
+                else
+                {
+                    var visited = Visit(methodCallExpression.Object);
+                    if (visited is MaterializeCollectionNavigationExpression mcne2)
+                    {
+                        var subquery = mcne2.Subquery;
+                        if (subquery is MethodCallExpression subqueryMethod2
+                            && subqueryMethod2.Method.IsGenericMethod
+                            && subqueryMethod2.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                        {
+                            subquery = subqueryMethod2.Arguments[0];
+                        }
+
+                        if (subquery is JsonQueryExpression jsonQuery2)
+                        {
+                            var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
+                            collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+
+                            var newJsonQuery = jsonQuery2.BindCollectionElement(collectionIndexExpression);
+
+                            return new EntityReferenceExpression(
+                                new RelationalEntityShaperExpression(
+                                    mcne2.Navigation.TargetEntityType,
+                                    newJsonQuery,
+                                    nullable: true));
+                        }
+                    }
+
+
+                    //if (visited is MaterializeCollectionNavigationExpression mcne2
+                    //    && mcne2.Subquery is MethodCallExpression subqueryMethod2
+                    //    && subqueryMethod2.Method.IsGenericMethod
+                    //    && subqueryMethod2.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
+                    //    && subqueryMethod2.Arguments[0] is JsonQueryExpression jsonQuery2)
+                    //{
+                    //    var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
+                    //    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+
+                    //    var newJsonQuery = jsonQuery2.BindCollectionElement(collectionIndexExpression);
+
+                    //    return new EntityReferenceExpression(
+                    //        new RelationalEntityShaperExpression(
+                    //            mcne2.Navigation.TargetEntityType,
+                    //            newJsonQuery,
+                    //            nullable: true));
+                    //}
+                }
+            }
+            //{
+            //    if (mcne.Subquery is MethodCallExpression subqueryMethod
+            //        && subqueryMethod.Method.IsGenericMethod
+            //        && subqueryMethod.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
+            //        && subqueryMethod.Arguments[0] is JsonQueryExpression jsonQuery)
+            //    {
+            //        var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
+            //        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+
+            //        var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
+
+            //        return new EntityReferenceExpression(
+            //            new RelationalEntityShaperExpression(
+            //                mcne.Navigation.TargetEntityType,
+            //                newJsonQuery,
+            //                nullable: true));
+            //    }
+
+            //    throw new InvalidOperationException("bad match for json array access");
+            //}
 
             scalarArguments = new List<SqlExpression>();
             if (!TryTranslateAsEnumerableExpression(methodCallExpression.Object, out enumerableExpression)
@@ -1153,10 +1243,62 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
             return BindProperty(entityReferenceExpression, property);
         }
 
+        //if (entityType.IsMappedToJson())
+        //{
+        //    var navigation = member.MemberInfo != null
+        //        ? entityType.FindNavigation(member.MemberInfo)
+        //        : entityType.FindNavigation(member.Name!);
+
+        //    if (navigation != null
+        //        && entityReferenceExpression.ParameterEntity != null)
+        //    {
+        //        var valueBufferExpression = Visit(entityReferenceExpression.ParameterEntity.ValueBufferExpression);
+        //        if (valueBufferExpression is JsonQueryExpression jsonQueryExpression)
+        //        {
+        //            var foo = jsonQueryExpression.BindNavigation(navigation);
+        //            return 
+        //        }
+
+        //    }
+        //}
+
         AddTranslationErrorDetails(
             CoreStrings.QueryUnableToTranslateMember(
                 member.Name,
                 entityReferenceExpression.EntityType.DisplayName()));
+
+        return null;
+    }
+
+    private Expression? TryBindJsonCollectionNavigation(Expression? source, MemberIdentity member)
+    {
+        if (source is not EntityReferenceExpression entityReferenceExpression)
+        {
+            return null;
+        }
+
+        var entityType = entityReferenceExpression.EntityType;
+        if (entityType.IsMappedToJson())
+        {
+            var navigation = member.MemberInfo != null
+                ? entityType.FindNavigation(member.MemberInfo)
+                : entityType.FindNavigation(member.Name!);
+
+            if (navigation != null && navigation.IsCollection && entityReferenceExpression.ParameterEntity != null)
+            {
+                var valueBufferExpression = Visit(entityReferenceExpression.ParameterEntity.ValueBufferExpression);
+                if (valueBufferExpression is JsonQueryExpression jsonQueryExpression)
+                {
+                    var boundExpression = jsonQueryExpression.BindNavigation(navigation);
+                    //var shaper = new RelationalEntityShaperExpression(
+                    //    navigation.TargetEntityType, boundExpression, nullable: true);
+
+                    //return new MaterializeCollectionNavigationExpression(shaper, navigation);
+
+                    return new MaterializeCollectionNavigationExpression(boundExpression, navigation);
+                }
+            }
+        }
 
         return null;
     }

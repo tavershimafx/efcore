@@ -318,7 +318,52 @@ public class SqlServerQuerySqlGenerator : QuerySqlGenerator
 
         Visit(jsonScalarExpression.JsonColumn);
 
-        Sql.Append($",'{string.Join("", jsonScalarExpression.Path.Select(e => e.ToString()))}')");
+        // TODO: need to do this propertly now that path contains sql expression
+
+        //Sql.Append($",'{string.Join("", jsonScalarExpression.Path.Select(e => e.ToString()))}')");
+
+        Sql.Append(",'");
+        foreach (var pathSegment in jsonScalarExpression.Path)
+        {
+            Sql.Append((pathSegment.Key == "$" ? "" : ".") + pathSegment.Key);
+            if (pathSegment.CollectionIndexExpression != null)
+            {
+                Sql.Append("[");
+
+                if (pathSegment.CollectionIndexExpression is SqlConstantExpression)
+                {
+                    Visit(pathSegment.CollectionIndexExpression);
+                }
+                else
+                {
+                    Sql.Append("' + ");
+
+                    Sql.Append(" CAST(");
+                    Visit(pathSegment.CollectionIndexExpression);
+                    Sql.Append(" AS ");
+
+                    Sql.Append(_typeMappingSource.GetMapping(typeof(string)).StoreType);
+                    //Sql.Append(pathSegment.CollectionIndexExpression.TypeMapping!.StoreType);
+                    Sql.Append(")");
+                    Sql.Append(" + '");
+                }
+
+                //if (pathSegment.CollectionIndexExpression is SqlConstantExpression sqlConstant
+                //    && sqlConstant.Value != null)
+                //{
+                //    Sql.Append(sqlConstant.Value.ToString()!);
+                //}
+                //else
+                //{
+                //    Visit(pathSegment.CollectionIndexExpression);
+                //}
+
+                Sql.Append("]");
+            }
+        }
+
+        Sql.Append("')");
+
 
         if (jsonScalarExpression.Type != typeof(JsonElement))
         {

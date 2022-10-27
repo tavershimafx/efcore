@@ -597,7 +597,80 @@ FROM [JsonEntitiesBasic] AS [j]
         await base.Json_collection_element_access_in_predicate(async);
 
         AssertSql(
-            @"");
+"""
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_variable(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_variable(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_column(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_column(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST([j].[Id] AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_complex_expression1(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_complex_expression1(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(CASE
+    WHEN [j].[Id] = 1 THEN 0
+    ELSE 1
+END AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c1'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_complex_expression2(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_complex_expression2(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST((
+    SELECT MAX([j].[Id])
+    FROM [JsonEntitiesBasic] AS [j]) AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_nested_mix(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_nested_mix(async);
+
+        AssertSql(
+"""
+@__prm_0='0'
+
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf[' +  CAST([j].[Id] - 1 AS nvarchar(max)) + '].SomethingSomething') AS nvarchar(max)) = N'e1_c2_c1_c1'
+""");
     }
 
     public override async Task Json_scalar_required_null_semantics(bool async)

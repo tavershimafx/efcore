@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace Microsoft.EntityFrameworkCore.Query;
@@ -162,6 +163,32 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     }
 
     /// <summary>
+    ///     Binds a collection element access with this JSON query expression to get the SQL representation.
+    /// </summary>
+    /// <param name="collectionIndexExpression">The collection index to bind.</param>
+    public virtual JsonQueryExpression BindCollectionElement(SqlExpression collectionIndexExpression)
+    {
+        var newPath = Path.Take(Path.Count - 1).ToList();
+        var lastPathSegment = Path.Last();
+        if (lastPathSegment.CollectionIndexExpression != null)
+        {
+            throw new InvalidOperationException("Already accessing collection element.");
+        }
+
+        newPath.Add(new PathSegment(lastPathSegment.Key, collectionIndexExpression));
+
+        return new JsonQueryExpression(
+            EntityType,
+            JsonColumn,
+            _keyPropertyMap,
+            newPath,
+            Type,
+            collection: false,
+            // TODO: is this the right nullable?
+            nullable: true);
+    }
+
+    /// <summary>
     ///     Makes this JSON query expression nullable.
     /// </summary>
     /// <returns>A new expression which has <see cref="IsNullable" /> property set to true.</returns>
@@ -188,6 +215,8 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     {
         expressionPrinter.Append("JsonQueryExpression(");
         expressionPrinter.Visit(JsonColumn);
+
+        // TODO: proper visit for the Path, now that it has sqlexpression
         expressionPrinter.Append($", {string.Join("", Path.Select(e => e.ToString()))})");
     }
 
@@ -201,7 +230,23 @@ public class JsonQueryExpression : Expression, IPrintableExpression
             newKeyPropertyMap[property] = (ColumnExpression)visitor.Visit(column);
         }
 
-        return Update(jsonColumn, newKeyPropertyMap);
+        var newPath = new List<PathSegment>();
+        foreach (var pathSegment in Path)
+        {
+            if (pathSegment.CollectionIndexExpression != null)
+            {
+                var newCollectionIndexExpression = (SqlExpression)visitor.Visit(pathSegment.CollectionIndexExpression);
+                if (newCollectionIndexExpression != pathSegment.CollectionIndexExpression)
+                {
+                    newPath.Add(new PathSegment(pathSegment.Key, newCollectionIndexExpression));
+                    continue;
+                }
+            }
+
+            newPath.Add(pathSegment);
+        }
+
+        return Update(jsonColumn, newKeyPropertyMap, newPath);
     }
 
     /// <summary>
@@ -210,14 +255,17 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     /// </summary>
     /// <param name="jsonColumn">The <see cref="JsonColumn" /> property of the result.</param>
     /// <param name="keyPropertyMap">The map of key properties and columns they map to.</param>
+    /// <param name="path">The list of path segments leading to the entity from the root of the JSON stored in the column.</param>
     /// <returns>This expression if no children changed, or an expression with the updated children.</returns>
     public virtual JsonQueryExpression Update(
         ColumnExpression jsonColumn,
-        IReadOnlyDictionary<IProperty, ColumnExpression> keyPropertyMap)
+        IReadOnlyDictionary<IProperty, ColumnExpression> keyPropertyMap,
+        List<PathSegment> path)
         => jsonColumn != JsonColumn
             || keyPropertyMap.Count != _keyPropertyMap.Count
             || keyPropertyMap.Zip(_keyPropertyMap, (n, o) => n.Value != o.Value).Any(x => x)
-                ? new JsonQueryExpression(EntityType, jsonColumn, keyPropertyMap, Path, Type, IsCollection, IsNullable)
+            || path.Zip(Path, (n, o) => n.CollectionIndexExpression != o.CollectionIndexExpression).Any(x => x)
+                ? new JsonQueryExpression(EntityType, jsonColumn, keyPropertyMap, path, Type, IsCollection, IsNullable)
                 : this;
 
     /// <inheritdoc />

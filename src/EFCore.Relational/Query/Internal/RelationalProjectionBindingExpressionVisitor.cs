@@ -212,6 +212,14 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                                 methodCallExpression.Method.GetGenericArguments()[0]);
                         }
                     }
+                    else if (methodCallExpression.Method.Name == "get_Item"
+                        && methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne)
+                    {
+
+                        // TODO: giga hack?
+                        var source = Visit(mcne);
+
+                    }
                     else
                     {
                         var subquery = _queryableMethodTranslatingExpressionVisitor.TranslateSubquery(methodCallExpression);
