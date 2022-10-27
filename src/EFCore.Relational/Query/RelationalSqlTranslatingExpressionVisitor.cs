@@ -889,21 +889,39 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
                 && method.Name == "get_Item")
             {
                 if (methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne
-                    && mcne.Subquery is MethodCallExpression subqueryMethod
-                    && subqueryMethod.Method.IsGenericMethod
-                    && subqueryMethod.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
-                    && subqueryMethod.Arguments[0] is JsonQueryExpression jsonQuery)
+                    && mcne.Navigation.TargetEntityType.IsMappedToJson())
                 {
-                    var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
-                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                    var subquery = mcne.Subquery;
+                    if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
+                    {
+                        // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                        if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                            && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                        {
+                            // TODO: only strip x => x or Includes!
+                            methodCallSubquery = selectSourceMethod;
+                        }
 
-                    var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
+                        if (methodCallSubquery.Method.IsGenericMethod
+                            && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                        {
+                            subquery = methodCallSubquery.Arguments[0];
+                        }
+                    }
 
-                    return new EntityReferenceExpression(
-                        new RelationalEntityShaperExpression(
-                            mcne.Navigation.TargetEntityType,
-                            newJsonQuery,
-                            nullable: true));
+                    if (subquery is JsonQueryExpression jsonQuery)
+                    {
+                        var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
+                        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+
+                        var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
+
+                        return new EntityReferenceExpression(
+                            new RelationalEntityShaperExpression(
+                                mcne.Navigation.TargetEntityType,
+                                newJsonQuery,
+                                nullable: true));
+                    }
                 }
                 else
                 {
@@ -911,19 +929,29 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
                     if (visited is MaterializeCollectionNavigationExpression mcne2)
                     {
                         var subquery = mcne2.Subquery;
-                        if (subquery is MethodCallExpression subqueryMethod2
-                            && subqueryMethod2.Method.IsGenericMethod
-                            && subqueryMethod2.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                        if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
                         {
-                            subquery = subqueryMethod2.Arguments[0];
+                            // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                            if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                                && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                            {
+                                // TODO: only strip x => x or Includes!
+                                methodCallSubquery = selectSourceMethod;
+                            }
+
+                            if (methodCallSubquery.Method.IsGenericMethod
+                                && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                            {
+                                subquery = methodCallSubquery.Arguments[0];
+                            }
                         }
 
-                        if (subquery is JsonQueryExpression jsonQuery2)
+                        if (subquery is JsonQueryExpression jsonQuery)
                         {
                             var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
                             collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
 
-                            var newJsonQuery = jsonQuery2.BindCollectionElement(collectionIndexExpression);
+                            var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
 
                             return new EntityReferenceExpression(
                                 new RelationalEntityShaperExpression(
@@ -932,47 +960,8 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
                                     nullable: true));
                         }
                     }
-
-
-                    //if (visited is MaterializeCollectionNavigationExpression mcne2
-                    //    && mcne2.Subquery is MethodCallExpression subqueryMethod2
-                    //    && subqueryMethod2.Method.IsGenericMethod
-                    //    && subqueryMethod2.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
-                    //    && subqueryMethod2.Arguments[0] is JsonQueryExpression jsonQuery2)
-                    //{
-                    //    var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
-                    //    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
-
-                    //    var newJsonQuery = jsonQuery2.BindCollectionElement(collectionIndexExpression);
-
-                    //    return new EntityReferenceExpression(
-                    //        new RelationalEntityShaperExpression(
-                    //            mcne2.Navigation.TargetEntityType,
-                    //            newJsonQuery,
-                    //            nullable: true));
-                    //}
                 }
             }
-            //{
-            //    if (mcne.Subquery is MethodCallExpression subqueryMethod
-            //        && subqueryMethod.Method.IsGenericMethod
-            //        && subqueryMethod.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable
-            //        && subqueryMethod.Arguments[0] is JsonQueryExpression jsonQuery)
-            //    {
-            //        var collectionIndexExpression = (SqlExpression)Visit(arguments[0]);
-            //        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
-
-            //        var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression);
-
-            //        return new EntityReferenceExpression(
-            //            new RelationalEntityShaperExpression(
-            //                mcne.Navigation.TargetEntityType,
-            //                newJsonQuery,
-            //                nullable: true));
-            //    }
-
-            //    throw new InvalidOperationException("bad match for json array access");
-            //}
 
             scalarArguments = new List<SqlExpression>();
             if (!TryTranslateAsEnumerableExpression(methodCallExpression.Object, out enumerableExpression)

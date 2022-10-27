@@ -592,6 +592,63 @@ FROM [JsonEntitiesBasic] AS [j]
 """);
     }
 
+    public override async Task Json_collection_element_access_in_projection_using_parameter(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_parameter(async);
+
+        AssertSql(
+"""
+SELECT [j].[OwnedCollectionRoot], [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_column(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_column(async);
+
+        AssertSql(
+"""
+SELECT [j].[OwnedCollectionRoot], [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested(async);
+
+        AssertSql(
+"""
+SELECT [j].[OwnedCollectionRoot], [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_scalar(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_scalar(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Date') AS datetime2)
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_collection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_collection(async);
+
+        AssertSql(
+"""
+SELECT [j].[OwnedCollectionRoot], [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
     public override async Task Json_collection_element_access_in_predicate(bool async)
     {
         await base.Json_collection_element_access_in_predicate(async);

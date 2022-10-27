@@ -636,6 +636,57 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_using_parameter(bool async)
+    {
+        var prm = 0;
+
+        return AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[prm]).AsNoTracking());
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_using_column(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[x.Id]).AsNoTracking());
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_nested(bool async)
+    {
+        var prm = 1;
+
+        return AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm]).AsNoTracking());
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_nested_project_scalar(bool async)
+    {
+        var prm = 1;
+
+        return AssertQueryScalar(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm].Date));
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_nested_project_collection(bool async)
+    {
+        var prm = 1;
+
+        return AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm].OwnedCollectionLeaf));
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
     public virtual Task Json_collection_element_access_in_predicate(bool async)
         => AssertQueryScalar(
             async,

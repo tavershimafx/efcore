@@ -182,7 +182,7 @@ public class JsonQueryExpression : Expression, IPrintableExpression
             JsonColumn,
             _keyPropertyMap,
             newPath,
-            Type,
+            EntityType.ClrType,
             collection: false,
             // TODO: is this the right nullable?
             nullable: true);

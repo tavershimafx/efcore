@@ -2,6 +2,8 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.Diagnostics.Metrics;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
 namespace Microsoft.EntityFrameworkCore.Query.Internal;
@@ -212,14 +214,22 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                                 methodCallExpression.Method.GetGenericArguments()[0]);
                         }
                     }
-                    else if (methodCallExpression.Method.Name == "get_Item"
-                        && methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne)
-                    {
+                    //else if (methodCallExpression.Method.Name == "get_Item")
+                    //{
+                    //    if (TryBuildJsonQueryFromNavigationChain(methodCallExpression.Object!, out var jsonQuery))
+                    //    {
 
-                        // TODO: giga hack?
-                        var source = Visit(mcne);
+                    //    }
 
-                    }
+                    //    var fubar = _sqlTranslator.Translate(methodCallExpression.Object!);
+
+                    //    if (methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne
+                    //        && mcne.Navigation.TargetEntityType.IsMappedToJson())
+                    //    {
+                    //        // TODO: giga hack?
+                    //        var source = Visit(mcne);
+                    //    }
+                    //}
                     else
                     {
                         var subquery = _queryableMethodTranslatingExpressionVisitor.TranslateSubquery(methodCallExpression);
@@ -243,6 +253,31 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                     }
                 }
 
+                var (jsonQueryExpression2, navigation) = BuildJsonQueryFromNavigationChain(expression);
+                if (jsonQueryExpression2 != null)
+                {
+                    _clientProjections!.Add(jsonQueryExpression2);
+
+                    if (jsonQueryExpression2.IsCollection)
+                    {
+                        return new CollectionResultExpression(
+                            new ProjectionBindingExpression(
+                                _selectExpression, _clientProjections!.Count - 1, jsonQueryExpression2.Type),
+                            navigation,
+                            navigation!.ClrType.GetSequenceType());
+                    }
+                    else
+                    {
+                        new RelationalEntityShaperExpression(
+                            jsonQueryExpression2.EntityType,
+                            new ProjectionBindingExpression(
+                                _selectExpression,
+                                _clientProjections!.Count - 1,
+                                jsonQueryExpression2.Type),
+                            jsonQueryExpression2.IsNullable);
+                    }
+                }
+
                 return base.Visit(expression);
             }
             else
@@ -261,6 +296,64 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
 
         return base.Visit(expression);
     }
+
+    private (JsonQueryExpression?, INavigation?) BuildJsonQueryFromNavigationChain(Expression expression)
+    {
+        if (expression is MethodCallExpression methodCallExpression
+            && methodCallExpression.Method.Name == "get_Item")
+        {
+            var (caller, lastNavigation) = BuildJsonQueryFromNavigationChain(methodCallExpression.Object!);
+            if (caller != null && caller.IsCollection)
+            {
+                var collectionIndex = _sqlTranslator.Translate(methodCallExpression.Arguments[0]);
+                if (collectionIndex != null)
+                {
+                    return (caller.BindCollectionElement(collectionIndex), lastNavigation);
+                }
+            }
+        }
+        else if (expression is MemberExpression memberExpression
+            && memberExpression.Expression != null)
+        {
+            var (caller, lastNavigation) = BuildJsonQueryFromNavigationChain(memberExpression.Expression);
+            if (caller != null && !caller.IsCollection)
+            {
+                var navigation = caller.EntityType.FindNavigation(memberExpression.Member);
+                if (navigation != null)
+                {
+                    return (caller.BindNavigation(navigation), navigation);
+                }
+            }
+        }
+        else if (expression is MaterializeCollectionNavigationExpression mcne
+            && mcne.Navigation.TargetEntityType.IsMappedToJson())
+        {
+            var subquery = mcne.Subquery;
+            if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
+            {
+                // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                    && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                {
+                    methodCallSubquery = selectSourceMethod;
+                }
+
+                if (methodCallSubquery.Method.IsGenericMethod
+                    && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                {
+                    subquery = methodCallSubquery.Arguments[0];
+                }
+            }
+
+            if (subquery is JsonQueryExpression jsonQueryExpression)
+            {
+                return (jsonQueryExpression, (INavigation)mcne.Navigation);
+            }
+        }
+
+        return (null, null);
+    }
+
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
