@@ -584,10 +584,9 @@ WHERE [j].[Discriminator] = N'JsonEntityInheritanceDerived'
     {
         await base.Json_collection_element_access_in_projection_basic(async);
 
-        // array element access in projection is currently done on the client - issue 28648
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0]'), [j].[Id], 0
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -598,7 +597,9 @@ FROM [JsonEntitiesBasic] AS [j]
 
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+@__prm_0='0'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id], @__prm_0
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -620,7 +621,9 @@ FROM [JsonEntitiesBasic] AS [j]
 
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+@__prm_0='1'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id], 0, @__prm_0
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -644,8 +647,11 @@ FROM [JsonEntitiesBasic] AS [j]
 
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+@__prm_0='1'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf'), [j].[Id], 0, @__prm_0
 FROM [JsonEntitiesBasic] AS [j]
+ORDER BY [j].[Id]
 """);
     }
 

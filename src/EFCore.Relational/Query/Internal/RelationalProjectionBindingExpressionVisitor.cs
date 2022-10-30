@@ -214,22 +214,6 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                                 methodCallExpression.Method.GetGenericArguments()[0]);
                         }
                     }
-                    //else if (methodCallExpression.Method.Name == "get_Item")
-                    //{
-                    //    if (TryBuildJsonQueryFromNavigationChain(methodCallExpression.Object!, out var jsonQuery))
-                    //    {
-
-                    //    }
-
-                    //    var fubar = _sqlTranslator.Translate(methodCallExpression.Object!);
-
-                    //    if (methodCallExpression.Object is MaterializeCollectionNavigationExpression mcne
-                    //        && mcne.Navigation.TargetEntityType.IsMappedToJson())
-                    //    {
-                    //        // TODO: giga hack?
-                    //        var source = Visit(mcne);
-                    //    }
-                    //}
                     else
                     {
                         var subquery = _queryableMethodTranslatingExpressionVisitor.TranslateSubquery(methodCallExpression);
@@ -268,7 +252,7 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                     }
                     else
                     {
-                        new RelationalEntityShaperExpression(
+                        return new RelationalEntityShaperExpression(
                             jsonQueryExpression2.EntityType,
                             new ProjectionBindingExpression(
                                 _selectExpression,

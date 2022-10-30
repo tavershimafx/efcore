@@ -1529,7 +1529,7 @@ public sealed partial class SelectExpression : TableExpressionBase
 
                         remappedConstant = Constant(newDictionary);
                     }
-                    else if (constantValue is ValueTuple<int, List<ValueTuple<IProperty, int>>, string[]> tuple)
+                    else if (constantValue is ValueTuple<int, List<ValueTuple<IProperty, int>>, string[], int[]> tuple)
                     {
                         var newList = new List<ValueTuple<IProperty, int>>();
                         foreach (var item in tuple.Item2)
@@ -1537,7 +1537,13 @@ public sealed partial class SelectExpression : TableExpressionBase
                             newList.Add((item.Item1, projectionIndexMap[item.Item2]));
                         }
 
-                        remappedConstant = Constant((projectionIndexMap[tuple.Item1], newList, tuple.Item3));
+                        var newCollectionIndexes = new int[tuple.Item4.Length];
+                        for (var i = 0; i < tuple.Item4.Length; i++)
+                        {
+                            newCollectionIndexes[i] = projectionIndexMap[tuple.Item4[i]];
+                        }
+
+                        remappedConstant = Constant((projectionIndexMap[tuple.Item1], newList, tuple.Item3, newCollectionIndexes));
                     }
                     else
                     {
@@ -1656,7 +1662,17 @@ public sealed partial class SelectExpression : TableExpressionBase
                 keyInfo.Add((keyProperty, AddToProjection(keyColumn)));
             }
 
-            return Constant((jsonColumnIndex, keyInfo, additionalPath));
+            var collectionIndexes = new List<int>();
+            // we need to add all the collection indexes to projection - so that we can build the ordinal key array when we create shaper
+            foreach (var pathElement in jsonScalarToAdd.Path)
+            {
+                if (pathElement.CollectionIndexExpression != null)
+                {
+                    collectionIndexes.Add(AddToProjection(pathElement.CollectionIndexExpression));
+                }
+            }
+
+            return Constant((jsonColumnIndex, keyInfo, additionalPath, collectionIndexes.ToArray()));
         }
 
         static IReadOnlyList<IProperty> GetMappedKeyProperties(IKey key)

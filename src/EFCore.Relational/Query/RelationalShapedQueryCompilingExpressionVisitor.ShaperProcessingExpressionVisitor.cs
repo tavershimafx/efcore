@@ -416,14 +416,14 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 {
                     if (!_variableShaperMapping.TryGetValue(entityShaperExpression.ValueBufferExpression, out var accessor))
                     {
-                        if (GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[]>
+                        if (GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int[]>
                             jsonProjectionIndex)
                         {
                             // json entity at the root
                             var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
                                 jsonProjectionIndex,
-                                entityShaperExpression.EntityType,
-                                isCollection: false);
+                                entityShaperExpression.EntityType);//,
+                                //isCollection: false);
 
                             var shaperResult = CreateJsonShapers(
                                 entityShaperExpression.EntityType,
@@ -510,13 +510,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 case CollectionResultExpression collectionResultExpression
                     when collectionResultExpression.Navigation is INavigation navigation
                     && GetProjectionIndex(collectionResultExpression.ProjectionBindingExpression)
-                        is ValueTuple<int, List<(IProperty, int)>, string[]> jsonProjectionIndex:
+                        is ValueTuple<int, List<(IProperty, int)>, string[], int[]> jsonProjectionIndex:
                 {
                     // json entity collection at the root
                     var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
                         jsonProjectionIndex,
-                        navigation.TargetEntityType,
-                        isCollection: true);
+                        navigation.TargetEntityType);//,
+                        //isCollection: true);
 
                     var shaperResult = CreateJsonShapers(
                         navigation.TargetEntityType,
@@ -781,13 +781,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                         // json include case
                         if (projectionBindingExpression != null
-                            && GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[]>
+                            && GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int[]>
                                 jsonProjectionIndex)
                         {
                             var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
                                 jsonProjectionIndex,
-                                includeExpression.Navigation.TargetEntityType,
-                                includeExpression.Navigation.IsCollection);
+                                includeExpression.Navigation.TargetEntityType);//,
+                                //includeExpression.Navigation.IsCollection);
 
                             var shaperResult = CreateJsonShapers(
                                 includeExpression.Navigation.TargetEntityType,
@@ -1236,16 +1236,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         }
 
         private (ParameterExpression, ParameterExpression) JsonShapingPreProcess(
-            ValueTuple<int, List<(IProperty, int)>, string[]> projectionIndex,
-            IEntityType entityType,
-            bool isCollection)
+            ValueTuple<int, List<(IProperty, int)>, string[], int[]> projectionIndex,
+            IEntityType entityType)
         {
             var jsonColumnProjectionIndex = projectionIndex.Item1;
             var keyInfo = projectionIndex.Item2;
             var additionalPath = projectionIndex.Item3;
+            var collectionIndexes = projectionIndex.Item4;
 
             var keyValuesParameter = Expression.Parameter(typeof(object[]));
-            var keyValues = new Expression[keyInfo.Count];
+            var keyValues = new Expression[keyInfo.Count + collectionIndexes.Length];
 
             for (var i = 0; i < keyInfo.Count; i++)
             {
@@ -1259,6 +1259,28 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         projection.Expression.TypeMapping!,
                         keyInfo[i].Item1.ClrType,
                         keyInfo[i].Item1),
+                    typeof(object));
+            }
+
+            // need to add collection indexes to the key values
+            // this is for the scenarios where we traverse thru element of the collection in projection
+            // e.g. Select(x => x.JsonCollectionRoot[0].JsonCollectionBranch[2].JsonCollectionLeaf)
+            // keys need to be Id of the entity, plus the collection indexes - 0 and 2
+            for (var i = 0; i < collectionIndexes.Length; i++)
+            {
+                var projection = _selectExpression.Projection[collectionIndexes[i]];
+
+                keyValues[keyInfo.Count + i] = Expression.Convert(
+                    CreateGetValueExpression(
+                        _dataReaderParameter,
+                        collectionIndexes[i],
+                        nullable: true,
+                        //IsNullableProjection(projection),
+                        projection.Expression.TypeMapping!,
+                        typeof(int?),
+                        property: null),
+                        //keyInfo[i].Item1.ClrType,
+                        //keyInfo[i].Item1),
                     typeof(object));
             }
 
