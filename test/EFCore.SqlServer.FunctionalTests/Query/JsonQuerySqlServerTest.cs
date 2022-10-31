@@ -655,9 +655,9 @@ ORDER BY [j].[Id]
 """);
     }
 
-    public override async Task Json_collection_element_access_in_predicate(bool async)
+    public override async Task Json_collection_element_access_in_predicate_using_constant(bool async)
     {
-        await base.Json_collection_element_access_in_predicate(async);
+        await base.Json_collection_element_access_in_predicate_using_constant(async);
 
         AssertSql(
 """
@@ -677,7 +677,7 @@ WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) <
 
 SELECT [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
-WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) IS NULL)
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) IS NULL)
 """);
     }
 
@@ -689,7 +689,7 @@ WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarcha
 """
 SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
 FROM [JsonEntitiesBasic] AS [j]
-WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST([j].[Id] AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST([j].[Id] AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
 """);
     }
 
@@ -701,7 +701,7 @@ WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST([j].[Id] AS nvarcha
 """
 SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
 FROM [JsonEntitiesBasic] AS [j]
-WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST(CASE
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(CASE
     WHEN [j].[Id] = 1 THEN 0
     ELSE 1
 END AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c1'
@@ -716,7 +716,7 @@ END AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c1'
 """
 SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
 FROM [JsonEntitiesBasic] AS [j]
-WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST((
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST((
     SELECT MAX([j].[Id])
     FROM [JsonEntitiesBasic] AS [j]) AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
 """);
@@ -732,7 +732,7 @@ WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' +  CAST((
 
 SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
 FROM [JsonEntitiesBasic] AS [j]
-WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf[' +  CAST([j].[Id] - 1 AS nvarchar(max)) + '].SomethingSomething') AS nvarchar(max)) = N'e1_c2_c1_c1'
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf[' + CAST([j].[Id] - 1 AS nvarchar(max)) + '].SomethingSomething') AS nvarchar(max)) = N'e1_c2_c1_c1'
 """);
     }
 

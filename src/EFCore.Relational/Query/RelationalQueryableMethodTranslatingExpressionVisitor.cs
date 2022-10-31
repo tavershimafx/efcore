@@ -1623,6 +1623,85 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                 return TryExpand(source, MemberIdentity.Create(navigationName))
                     ?? methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
             }
+            else if (methodCallExpression.Method.Name == "get_Item"
+                && methodCallExpression.Method.DeclaringType != null
+                && methodCallExpression.Method.DeclaringType.IsGenericType
+                && methodCallExpression.Method.DeclaringType.GetGenericTypeDefinition() is Type genericTypeDefinition
+                && genericTypeDefinition == typeof(List<>))
+            {
+                var caller = Visit(methodCallExpression.Object);
+                var jsonQueryExpression = caller as JsonQueryExpression;
+                if (jsonQueryExpression == null
+                    && caller is MaterializeCollectionNavigationExpression mcne
+                    && mcne.Navigation.TargetEntityType.IsMappedToJson())
+                {
+                    var subquery = mcne.Subquery;
+                    if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
+                    {
+                        // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                        if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                            && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                        {
+                            // TODO: only strip x => x or Includes!
+                            methodCallSubquery = selectSourceMethod;
+                        }
+
+                        if (methodCallSubquery.Method.IsGenericMethod
+                            && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                        {
+                            subquery = methodCallSubquery.Arguments[0];
+                        }
+                    }
+
+                    jsonQueryExpression = subquery as JsonQueryExpression;
+                }
+
+                if (jsonQueryExpression != null)
+                {
+                    var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[0]!);
+                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                    var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                    return new RelationalEntityShaperExpression(
+                        jsonQueryExpression.EntityType,
+                        newJsonQuery,
+                        nullable: true);
+                }
+
+                //if (caller is MaterializeCollectionNavigationExpression mcne
+                //    && mcne.Navigation.TargetEntityType.IsMappedToJson())
+                //{
+                //    var subquery = mcne.Subquery;
+                //    if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
+                //    {
+                //        // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                //        if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                //            && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                //        {
+                //            // TODO: only strip x => x or Includes!
+                //            methodCallSubquery = selectSourceMethod;
+                //        }
+
+                //        if (methodCallSubquery.Method.IsGenericMethod
+                //            && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                //        {
+                //            subquery = methodCallSubquery.Arguments[0];
+                //        }
+                //    }
+
+                //    if (subquery is JsonQueryExpression jsonQuery)
+                //    {
+                //        var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[0]!);
+                //        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                //        var newJsonQuery = jsonQuery.BindCollectionElement(collectionIndexExpression!);
+
+                //        return new RelationalEntityShaperExpression(
+                //            mcne.Navigation.TargetEntityType,
+                //            newJsonQuery,
+                //            nullable: true);
+                //    }
+                //}
+            }
 
             return base.VisitMethodCall(methodCallExpression);
         }
