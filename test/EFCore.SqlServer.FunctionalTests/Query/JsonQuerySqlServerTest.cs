@@ -586,7 +586,7 @@ WHERE [j].[Discriminator] = N'JsonEntityInheritanceDerived'
 
         AssertSql(
 """
-SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0]'), [j].[Id], 0
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0]'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -636,7 +636,7 @@ FROM [JsonEntitiesBasic] AS [j]
 """
 @__prm_0='1'
 
-SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].Date') AS datetime2)
+SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].Date') AS datetime2)
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
