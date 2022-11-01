@@ -694,6 +694,25 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_nested_project_collection_anonymous_projection(bool async)
+    {
+        var prm = 1;
+
+        return AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .Select(x => new { x.Id, x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm].OwnedCollectionLeaf })
+                .AsNoTracking(),
+            elementSorter: e => e.Id,
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.Id, a.Id);
+                AssertCollection(e.OwnedCollectionLeaf, a.OwnedCollectionLeaf, ordered: true);
+            });
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
     public virtual Task Json_collection_element_access_in_predicate_using_constant(bool async)
         => AssertQueryScalar(
             async,

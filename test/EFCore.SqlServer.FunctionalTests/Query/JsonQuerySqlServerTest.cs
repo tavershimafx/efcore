@@ -655,6 +655,19 @@ ORDER BY [j].[Id]
 """);
     }
 
+    public override async Task Json_collection_element_access_in_projection_nested_project_collection_anonymous_projection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_collection_anonymous_projection(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id], JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
     public override async Task Json_collection_element_access_in_predicate_using_constant(bool async)
     {
         await base.Json_collection_element_access_in_predicate_using_constant(async);

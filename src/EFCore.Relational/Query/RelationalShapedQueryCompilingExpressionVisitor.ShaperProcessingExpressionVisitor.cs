@@ -1030,21 +1030,21 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 {
                     var (jsonElementParameter, keyPropertyValuesParameter) = _jsonMaterializationContextParameterMapping[mappingParameter];
 
-                    //return property!.IsPrimaryKey()
-                    //    ?  Expression.MakeIndex(
-                    //        keyPropertyValuesParameter,
-                    //        _objectArrayIndexerPropertyInfo,
-                    //        new[] { Expression.Constant(index) })
-                    //    : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
-
                     return property!.IsPrimaryKey()
-                        ? property.IsShadowProperty()
-                            ? Expression.Convert(Expression.Constant(true), typeof(object))
-                            : Expression.MakeIndex(
-                                keyPropertyValuesParameter,
-                                _objectArrayIndexerPropertyInfo,
-                                new[] { Expression.Constant(index) })
+                        ? Expression.MakeIndex(
+                            keyPropertyValuesParameter,
+                            _objectArrayIndexerPropertyInfo,
+                            new[] { Expression.Constant(index) })
                         : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
+
+                    //return property!.IsPrimaryKey()
+                    //    ? property.IsShadowProperty()
+                    //        ? Expression.Convert(Expression.Constant(true), typeof(object))
+                    //        : Expression.MakeIndex(
+                    //            keyPropertyValuesParameter,
+                    //            _objectArrayIndexerPropertyInfo,
+                    //            new[] { Expression.Constant(index) })
+                    //    : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
                 }
 
                 int projectionIndex;

@@ -1581,7 +1581,41 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
     }
 
     private Expression ExpandSharedTypeEntities(SelectExpression selectExpression, Expression lambdaBody)
-        => _sharedTypeEntityExpandingExpressionVisitor.Expand(selectExpression, lambdaBody);
+    {
+        var result = _sharedTypeEntityExpandingExpressionVisitor.Expand(selectExpression, lambdaBody);
+
+        // nav expansion doesn't put MCNE around some collections, e.g. x.JsonCollection[0].AnotherJsonCollection
+        // we expect final result to be wrapped in MCNE if the result is (JSON) collection
+        // so we add missing expressions on top level only
+        result = new MissingJsonMaterializeCollectionNavigationAddingVisitor().Visit(result);
+
+        return result;
+    }
+
+    private class MissingJsonMaterializeCollectionNavigationAddingVisitor : ExpressionVisitor
+    {
+        [return: NotNullIfNotNull("expression")]
+        public override Expression? Visit(Expression? expression)
+        {
+            if (expression is JsonQueryExpression jsonQueryExpression
+                && jsonQueryExpression.IsCollection)
+            {
+                var navigation = jsonQueryExpression.EntityType.FindOwnership()!.GetNavigation(pointsToPrincipal: false)!;
+
+                return new MaterializeCollectionNavigationExpression(
+                    jsonQueryExpression,
+                    navigation);
+            }
+
+            // TODO: what else?
+            if (expression is NewExpression)
+            {
+                return base.Visit(expression);
+            }
+
+            return expression;
+        }
+    }
 
     private sealed class SharedTypeEntityExpandingExpressionVisitor : ExpressionVisitor
     {
