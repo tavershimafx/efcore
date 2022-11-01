@@ -5,6 +5,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 
@@ -1029,11 +1030,20 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 {
                     var (jsonElementParameter, keyPropertyValuesParameter) = _jsonMaterializationContextParameterMapping[mappingParameter];
 
+                    //return property!.IsPrimaryKey()
+                    //    ?  Expression.MakeIndex(
+                    //        keyPropertyValuesParameter,
+                    //        _objectArrayIndexerPropertyInfo,
+                    //        new[] { Expression.Constant(index) })
+                    //    : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
+
                     return property!.IsPrimaryKey()
-                        ? Expression.MakeIndex(
-                            keyPropertyValuesParameter,
-                            _objectArrayIndexerPropertyInfo,
-                            new[] { Expression.Constant(index) })
+                        ? property.IsShadowProperty()
+                            ? Expression.Convert(Expression.Constant(true), typeof(object))
+                            : Expression.MakeIndex(
+                                keyPropertyValuesParameter,
+                                _objectArrayIndexerPropertyInfo,
+                                new[] { Expression.Constant(index) })
                         : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
                 }
 

@@ -1630,6 +1630,41 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                 && genericTypeDefinition == typeof(List<>))
             {
                 var caller = Visit(methodCallExpression.Object);
+                //if (caller is MaterializeCollectionNavigationExpression mcne
+                //    && mcne.Navigation.TargetEntityType.IsMappedToJson())
+                //{
+                //    var subquery = mcne.Subquery;
+                //    if (subquery is MethodCallExpression methodCallSubquery && methodCallSubquery.Method.IsGenericMethod)
+                //    {
+                //        // strip .Select(x => x) and .AsQueryable() from the JsonCollectionResultExpression
+                //        if (methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.Select
+                //            && methodCallSubquery.Arguments[0] is MethodCallExpression selectSourceMethod)
+                //        {
+                //            // TODO: only strip x => x or Includes!
+                //            methodCallSubquery = selectSourceMethod;
+                //        }
+
+                //        if (methodCallSubquery.Method.IsGenericMethod
+                //            && methodCallSubquery.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                //        {
+                //            subquery = methodCallSubquery.Arguments[0];
+                //        }
+                //    }
+
+                //    if (subquery is JsonQueryExpression jsonQueryExpression)
+                //    {
+                //        var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[0]!);
+                //        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                //        var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                //        return new RelationalEntityShaperExpression(
+                //            jsonQueryExpression.EntityType,
+                //            newJsonQuery,
+                //            nullable: true);
+                //    }
+                //    //jsonQueryExpression = subquery as JsonQueryExpression;
+                //}
+
                 var jsonQueryExpression = caller as JsonQueryExpression;
                 if (jsonQueryExpression == null
                     && caller is MaterializeCollectionNavigationExpression mcne
@@ -1752,6 +1787,13 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
             if (TryGetJsonQueryExpression(entityShaperExpression, out var jsonQueryExpression))
             {
                 var newJsonQueryExpression = jsonQueryExpression.BindNavigation(navigation);
+
+                //return navigation.IsCollection
+                //    ? new MaterializeCollectionNavigationExpression(newJsonQueryExpression, navigation)
+                //    : new RelationalEntityShaperExpression(
+                //        navigation.TargetEntityType,
+                //        newJsonQueryExpression,
+                //        nullable: entityShaperExpression.IsNullable || !navigation.ForeignKey.IsRequired);
 
                 return navigation.IsCollection
                     ? newJsonQueryExpression

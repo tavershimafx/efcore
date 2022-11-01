@@ -599,7 +599,7 @@ FROM [JsonEntitiesBasic] AS [j]
 """
 @__prm_0='0'
 
-SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' +  CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id], @__prm_0
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -610,7 +610,7 @@ FROM [JsonEntitiesBasic] AS [j]
 
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' + CAST([j].[Id] AS nvarchar(max)) + ']'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -623,7 +623,7 @@ FROM [JsonEntitiesBasic] AS [j]
 """
 @__prm_0='1'
 
-SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id], 0, @__prm_0
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
@@ -649,7 +649,7 @@ FROM [JsonEntitiesBasic] AS [j]
 """
 @__prm_0='1'
 
-SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' +  CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf'), [j].[Id], 0, @__prm_0
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 ORDER BY [j].[Id]
 """);
