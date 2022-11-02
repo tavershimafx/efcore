@@ -1656,7 +1656,7 @@ public sealed partial class SelectExpression : TableExpressionBase
                 keyInfo.Add((keyProperty, AddToProjection(keyColumn)));
             }
 
-            var collectionIndexes = new List<int?>();
+            var collectionIndexes2 = new List<(int?, bool)>();
             foreach (var pathElement in jsonScalarToAdd.Path)
             {
                 if (pathElement.CollectionIndexExpression != null)
@@ -1676,6 +1676,27 @@ public sealed partial class SelectExpression : TableExpressionBase
                     }
                 }
             }
+
+            //var collectionIndexes = new List<int?>();
+            //foreach (var pathElement in jsonScalarToAdd.Path)
+            //{
+            //    if (pathElement.CollectionIndexExpression != null)
+            //    {
+            //        // for constant collection indexes we can inject them into the structure and use those values
+            //        // when building ordinal key for this entity in shaper
+            //        // this allows us to run collection access as tracking query still (if the parent entity is also in projection)
+            //        // for non-constants we would have to project their values out, which sometimes is problematic
+            //        // so instead we mark those values as null in the collectionIndexes array and force query to be non-tracking
+            //        if (pathElement.CollectionIndexExpression is SqlConstantExpression sqlConstant)
+            //        {
+            //            collectionIndexes.Add((int)sqlConstant.Value!);
+            //        }
+            //        else
+            //        {
+            //            collectionIndexes.Add(null);
+            //        }
+            //    }
+            //}
 
             return Constant((jsonColumnIndex, keyInfo, additionalPath, collectionIndexes.ToArray()));
         }
