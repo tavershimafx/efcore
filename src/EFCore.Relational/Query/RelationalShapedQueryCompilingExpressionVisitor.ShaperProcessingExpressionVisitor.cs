@@ -417,7 +417,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 {
                     if (!_variableShaperMapping.TryGetValue(entityShaperExpression.ValueBufferExpression, out var accessor))
                     {
-                        if (GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], (int?, bool)[]>
+                        if (GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int>
                             jsonProjectionIndex)
                         {
                             // json entity at the root
@@ -511,7 +511,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 case CollectionResultExpression collectionResultExpression
                     when collectionResultExpression.Navigation is INavigation navigation
                     && GetProjectionIndex(collectionResultExpression.ProjectionBindingExpression)
-                        is ValueTuple<int, List<(IProperty, int)>, string[], (int?, bool)[]> jsonProjectionIndex:
+                        is ValueTuple<int, List<(IProperty, int)>, string[], int> jsonProjectionIndex:
                 {
                     // json entity collection at the root
                     var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
@@ -782,7 +782,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                         // json include case
                         if (projectionBindingExpression != null
-                            && GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], (int?, bool)[]>
+                            && GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int>
                                 jsonProjectionIndex)
                         {
                             var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
@@ -1036,15 +1036,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             _objectArrayIndexerPropertyInfo,
                             new[] { Expression.Constant(index) })
                         : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
-
-                    //return property!.IsPrimaryKey()
-                    //    ? property.IsShadowProperty()
-                    //        ? Expression.Convert(Expression.Constant(true), typeof(object))
-                    //        : Expression.MakeIndex(
-                    //            keyPropertyValuesParameter,
-                    //            _objectArrayIndexerPropertyInfo,
-                    //            new[] { Expression.Constant(index) })
-                    //    : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
                 }
 
                 int projectionIndex;
@@ -1246,17 +1237,17 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         }
 
         private (ParameterExpression, ParameterExpression) JsonShapingPreProcess(
-            ValueTuple<int, List<(IProperty, int)>, string[], (int?, bool)[]> projectionIndex,
+            ValueTuple<int, List<(IProperty, int)>, string[], int> projectionIndex,
             IEntityType entityType,
             bool isCollection)
         {
             var jsonColumnProjectionIndex = projectionIndex.Item1;
             var keyInfo = projectionIndex.Item2;
             var additionalPath = projectionIndex.Item3;
-            var collectionIndexes = projectionIndex.Item4;
+            var specifiedCollectionIndexesCount = projectionIndex.Item4;
 
             var keyValuesParameter = Expression.Parameter(typeof(object[]));
-            var keyValues = new Expression[keyInfo.Count + collectionIndexes.Length];
+            var keyValues = new Expression[keyInfo.Count + specifiedCollectionIndexesCount];
 
             for (var i = 0; i < keyInfo.Count; i++)
             {
@@ -1273,40 +1264,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     typeof(object));
             }
 
-            // need to add collection indexes to the key values
-            // this is for the scenarios where we traverse thru element of the collection in projection
-            // e.g. Select(x => x.JsonCollectionRoot[0].JsonCollectionBranch[2].JsonCollectionLeaf)
-            // keys need to be Id of the entity, plus the collection indexes - 0 and 2
-            for (var i = 0; i < collectionIndexes.Length; i++)
+            for (var i = 0; i < specifiedCollectionIndexesCount; i++)
             {
-                Expression keyValue;
-
-                if (collectionIndexes[i].Item2)
-                {
-                    // key comes from collection indexer that is a constant - we have the index value itself and can add it directly
-                    keyValue = Expression.Constant(collectionIndexes[i].Item1);
-                }
-                else if (collectionIndexes[i].Item1 is int keyProjectionIndex)
-                {
-                    // key comes from collection indexer that is a parameter - we project the parameter and store it's projection index here
-                    // so need to extract it's value from the projection
-                    var projection = _selectExpression.Projection[keyProjectionIndex];
-                    keyValue = CreateGetValueExpression(
-                        _dataReaderParameter,
-                        keyProjectionIndex,
-                        nullable: true,
-                        projection.Expression.TypeMapping!,
-                        typeof(int?),
-                        property: null);
-                }
-                else
-                {
-                    // key comes from collection indexer that is some other (complex) expression - we don't store it, so we don't know it's value
-                    // it's ok since it's a shadow ordinal key, but we force no tracking query in this case
-                    keyValue = Expression.Constant(null, typeof(object));
-                }
-
-                keyValues[keyInfo.Count + i] = Expression.Convert(keyValue, typeof(object));
+                keyValues[keyInfo.Count + i] = Expression.Convert(
+                    Expression.Constant(0), typeof(object));
             }
 
             var keyValuesInitialize = Expression.NewArrayInit(typeof(object), keyValues);
