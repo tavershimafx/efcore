@@ -26,13 +26,29 @@ public class PathSegment
     }
 
     /// <summary>
+    ///     Creates a new instance of the <see cref="PathSegment" /> class.
+    /// </summary>
+    /// <param name="key">A key which is being accessed in the JSON.</param>
+    /// <param name="collectionIndexExpression">A collection index which is being accessed in the JSON.</param>
+    public PathSegment(string key, SqlExpression collectionIndexExpression)
+        : this(key)
+    {
+        CollectionIndexExpression = collectionIndexExpression;
+    }
+
+    /// <summary>
     ///     The key which is being accessed in the JSON.
     /// </summary>
     public virtual string Key { get; }
 
+    /// <summary>
+    ///     The index of the collection which is being accessed in the JSON.
+    /// </summary>
+    public virtual SqlExpression? CollectionIndexExpression { get; }
+
     /// <inheritdoc />
     public override string ToString()
-        => (Key == "$" ? "" : ".") + Key;
+        => (Key == "$" ? "" : ".") + Key + (CollectionIndexExpression == null ? "" : $"[{CollectionIndexExpression}]");
 
     /// <inheritdoc />
     public override bool Equals(object? obj)
@@ -42,9 +58,11 @@ public class PathSegment
                 && Equals(pathSegment));
 
     private bool Equals(PathSegment pathSegment)
-        => Key == pathSegment.Key;
+        => Key == pathSegment.Key
+            && ((CollectionIndexExpression == null && pathSegment.CollectionIndexExpression == null)
+                || (CollectionIndexExpression != null && CollectionIndexExpression.Equals(pathSegment.CollectionIndexExpression)));
 
     /// <inheritdoc />
     public override int GetHashCode()
-        => HashCode.Combine(Key);
+        => HashCode.Combine(Key, CollectionIndexExpression);
 }

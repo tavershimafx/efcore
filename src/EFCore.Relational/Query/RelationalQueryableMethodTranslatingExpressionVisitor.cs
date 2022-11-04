@@ -1640,6 +1640,65 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                 return TryExpand(source, MemberIdentity.Create(navigationName))
                     ?? methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
             }
+            else if (methodCallExpression.Method.IsGenericMethod
+                && (methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAt
+                    || methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAtOrDefault))
+            {
+                source = methodCallExpression.Arguments[0];
+                var selectMethodCallExpression = default(MethodCallExpression);
+
+                if (source is MethodCallExpression sourceMethod
+                    && sourceMethod.Method.IsGenericMethod
+                    && sourceMethod.Method.GetGenericMethodDefinition() == QueryableMethods.Select)
+                {
+                    selectMethodCallExpression = sourceMethod;
+                    source = sourceMethod.Arguments[0];
+                }
+
+                if (source is MethodCallExpression asQueryableMethodCallExpression
+                    && asQueryableMethodCallExpression.Method.IsGenericMethod
+                    && asQueryableMethodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                {
+                    source = asQueryableMethodCallExpression.Arguments[0];
+                }
+
+                source = Visit(source);
+
+                if (source is JsonQueryExpression jsonQueryExpression)
+                {
+                    var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[1]!);
+
+                    if (collectionIndexExpression == null)
+                    {
+                        return methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
+                    }
+
+                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                    var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                    var entityShaper = new RelationalEntityShaperExpression(
+                        jsonQueryExpression.EntityType,
+                        newJsonQuery,
+                        nullable: true);
+
+                    // look into select (if there was any)
+                    // strip the includes
+                    // and if there was anything (e.g. MaterializeCollectionNavigationExpression) wrap the entity shaper around it and return that
+
+                    if (selectMethodCallExpression != null)
+                    {
+                        var selectorLambda = selectMethodCallExpression.Arguments[1].UnwrapLambdaFromQuote();
+                        var replaced = new ReplacingExpressionVisitor(new[] { selectorLambda.Parameters[0] }, new[] { entityShaper })
+                            .Visit(selectorLambda.Body);
+
+                        var result = Visit(replaced);
+
+                        return result;
+                    }
+
+                    return entityShaper;
+                }
+            }
 
             return base.VisitMethodCall(methodCallExpression);
         }

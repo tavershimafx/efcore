@@ -619,8 +619,6 @@ public partial class NavigationExpandingExpressionVisitor : ExpressionVisitor
                         // GroupJoin overloads
                         // Zip
                         // SequenceEqual overloads
-                        // ElementAt
-                        // ElementAtOrDefault
                         // SkipWhile
                         // TakeWhile
                         // DefaultIfEmpty with argument

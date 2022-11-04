@@ -125,12 +125,35 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
             visitedExpression = base.VisitMethodCall(methodCallExpression);
         }
 
-        if (visitedExpression is MethodCallExpression visitedMethodCall
-            && visitedMethodCall.Method.DeclaringType == typeof(Queryable)
-            && visitedMethodCall.Method.IsGenericMethod)
+        if (visitedExpression is MethodCallExpression visitedMethodCall)
         {
-            return TryFlattenGroupJoinSelectMany(visitedMethodCall);
+            if (visitedMethodCall.Method.DeclaringType == typeof(Queryable)
+                && visitedMethodCall.Method.IsGenericMethod)
+            {
+                return TryFlattenGroupJoinSelectMany(visitedMethodCall);
+            }
+
+            if (visitedMethodCall.Method is MethodInfo methodInfo
+                && methodInfo.Name == "get_Item"
+                && !methodInfo.IsStatic
+                && ((methodInfo.DeclaringType!.IsGenericType && methodInfo.DeclaringType.GetGenericTypeDefinition() == typeof(List<>))
+                    || methodInfo.DeclaringType.IsArray))
+            {
+                return Expression.Call(
+                    QueryableMethods.ElementAt.MakeGenericMethod(visitedMethodCall.Type),
+                    Expression.Call(
+                        QueryableMethods.AsQueryable.MakeGenericMethod(visitedMethodCall.Type),
+                        visitedMethodCall.Object!),
+                    visitedMethodCall.Arguments[0]);
+            }
         }
+
+        //if (visitedExpression is MethodCallExpression visitedMethodCall
+        //    && visitedMethodCall.Method.DeclaringType == typeof(Queryable)
+        //    && visitedMethodCall.Method.IsGenericMethod)
+        //{
+        //    return TryFlattenGroupJoinSelectMany(visitedMethodCall);
+        //}
 
         return visitedExpression;
     }

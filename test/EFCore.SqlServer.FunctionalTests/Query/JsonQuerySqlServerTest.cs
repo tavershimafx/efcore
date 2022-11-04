@@ -584,20 +584,288 @@ WHERE [j].[Discriminator] = N'JsonEntityInheritanceDerived'
     {
         await base.Json_collection_element_access_in_projection_basic(async);
 
-        // array element access in projection is currently done on the client - issue 28648
         AssertSql(
 """
-SELECT [j].[OwnedCollectionRoot], [j].[Id]
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1]'), [j].[Id]
 FROM [JsonEntitiesBasic] AS [j]
 """);
     }
 
-    public override async Task Json_collection_element_access_in_predicate(bool async)
+    public override async Task Json_collection_element_access_in_projection_using_ElementAt(bool async)
     {
-        await base.Json_collection_element_access_in_predicate(async);
+        await base.Json_collection_element_access_in_projection_using_ElementAt(async);
 
         AssertSql(
-            @"");
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1]'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_ElementAtOrDefault(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_ElementAtOrDefault(async);
+
+        AssertSql(
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1]'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_project_collection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_project_collection(async);
+
+        AssertSql(
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_ElementAt_project_collection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_ElementAt_project_collection(async);
+
+        AssertSql(
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_ElementAtOrDefault_project_collection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_ElementAtOrDefault_project_collection(async);
+
+        AssertSql(
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_parameter(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_parameter(async);
+
+        AssertSql(
+"""
+@__prm_0='0'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_using_column(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_using_column(async);
+
+        AssertSql(
+"""
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[' + CAST([j].[Id] AS nvarchar(max)) + ']'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + ']'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_scalar(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_scalar(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].Date') AS datetime2)
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_reference(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_reference(async);
+
+        AssertSql(
+"""
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_collection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_collection(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf'), [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+ORDER BY [j].[Id]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_nested_project_collection_anonymous_projection(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_collection_anonymous_projection(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id], JSON_QUERY([j].[OwnedCollectionRoot],'$[0].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_constant(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_constant(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_variable(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_variable(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(@__prm_0 AS nvarchar(max)) + '].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_column(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_column(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST([j].[Id] AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_complex_expression1(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_complex_expression1(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST(CASE
+    WHEN [j].[Id] = 1 THEN 0
+    ELSE 1
+END AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c1'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_complex_expression2(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_complex_expression2(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST((
+    SELECT MAX([j].[Id])
+    FROM [JsonEntitiesBasic] AS [j]) AS nvarchar(max)) + '].Name') AS nvarchar(max)) = N'e1_c2'
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_using_ElementAt(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_ElementAt(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_predicate_nested_mix(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_nested_mix(async);
+
+        AssertSql(
+"""
+@__prm_0='0'
+
+SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j].[OwnedReferenceRoot]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf[' + CAST([j].[Id] - 1 AS nvarchar(max)) + '].SomethingSomething') AS nvarchar(max)) = N'e1_c2_c1_c1'
+""");
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_indexer_in_original(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_indexer_in_original(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], JSON_QUERY([j].[OwnedCollectionRoot],'$[0]')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_indexer_in_target(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_indexer_in_target(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch[1]'), [j].[OwnedReferenceRoot], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedReferenceBranch.OwnedCollectionLeaf[' + CAST(@__prm_0 AS nvarchar(max)) + ']')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_in_original_and_collection_indexer_in_target(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_in_original_and_collection_indexer_in_target(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch'), JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch[1]')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_requires_NoTracking_even_if_owner_is_present(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_requires_NoTracking_even_if_owner_is_present(async);
+
+        AssertSql();
     }
 
     public override async Task Json_scalar_required_null_semantics(bool async)
@@ -633,6 +901,21 @@ WHERE CAST(JSON_VALUE([j].[OwnedReferenceRoot],'$.Name') AS nvarchar(max)) = CAS
 SELECT [t].[Key], COUNT(*) AS [Count]
 FROM (
     SELECT CAST(JSON_VALUE([j].[OwnedReferenceRoot],'$.Name') AS nvarchar(max)) AS [Key]
+    FROM [JsonEntitiesBasic] AS [j]
+) AS [t]
+GROUP BY [t].[Key]
+""");
+    }
+
+    public override async Task Group_by_on_json_scalar_using_collection_indexer(bool async)
+    {
+        await base.Group_by_on_json_scalar_using_collection_indexer(async);
+
+        AssertSql(
+"""
+SELECT [t].[Key], COUNT(*) AS [Count]
+FROM (
+    SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) AS [Key]
     FROM [JsonEntitiesBasic] AS [j]
 ) AS [t]
 GROUP BY [t].[Key]
