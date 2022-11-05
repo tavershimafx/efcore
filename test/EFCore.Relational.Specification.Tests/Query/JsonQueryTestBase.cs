@@ -634,7 +634,12 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
     public virtual Task Json_collection_element_access_in_projection_basic(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0]).AsNoTracking());
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot.AsQueryable().ElementAt(0).OwnedCollectionBranch).AsNoTracking());
+    //ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot.Skip(0).First().OwnedCollectionBranch).AsNoTracking());
+    //            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot.Skip(0).First().OwnedCollectionBranch.Skip(0).First()).AsNoTracking());
+
+    //ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot.Skip(0).First().OwnedCollectionBranch.Skip(0).First().OwnedCollectionLeaf.Skip(0).First()).AsNoTracking());
+    //ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0]).AsNoTracking());
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

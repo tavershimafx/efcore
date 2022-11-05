@@ -1587,7 +1587,7 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
         // nav expansion doesn't put MCNE around some collections, e.g. x.JsonCollection[0].AnotherJsonCollection
         // we expect final result to be wrapped in MCNE if the result is (JSON) collection
         // so we add missing expressions on top level only
-        result = new MissingJsonMaterializeCollectionNavigationAddingVisitor().Visit(result);
+        //result = new MissingJsonMaterializeCollectionNavigationAddingVisitor().Visit(result);
 
         return result;
     }
@@ -1656,6 +1656,138 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
 
                 return TryExpand(source, MemberIdentity.Create(navigationName))
                     ?? methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
+            }
+            else if (methodCallExpression.Method.IsGenericMethod
+                && methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAt)
+            {
+                source = methodCallExpression.Arguments[0];
+                var selectMethodCallExpression = default(MethodCallExpression);
+
+                if (source is MethodCallExpression sourceMethod
+                    && sourceMethod.Method.IsGenericMethod
+                    && sourceMethod.Method.GetGenericMethodDefinition() == QueryableMethods.Select)
+                {
+                    selectMethodCallExpression = sourceMethod;
+                    source = sourceMethod.Arguments[0];
+                }
+
+                if (source is MethodCallExpression asQueryableMethodCallExpression
+                    && asQueryableMethodCallExpression.Method.IsGenericMethod
+                    && asQueryableMethodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                {
+                    source = asQueryableMethodCallExpression.Arguments[0];
+                }
+
+                source = Visit(source);
+
+                if (source is JsonQueryExpression jsonQueryExpression)
+                {
+                    var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[1]!);
+                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                    var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                    var entityShaper = new RelationalEntityShaperExpression(
+                        jsonQueryExpression.EntityType,
+                        newJsonQuery,
+                        nullable: true);
+
+                    // look into select (if there was any)
+                    // strip the includes
+                    // and if there was anything (e.g. MaterializeCollectionNavigationExpression) wrap the entity shaper around it and return that
+
+                    if (selectMethodCallExpression != null)
+                    {
+                        var selectorLambda = selectMethodCallExpression.Arguments[1].UnwrapLambdaFromQuote();
+                        var selectorLambdaBody = selectorLambda.Body;
+
+                        var replaced = new ReplacingExpressionVisitor(new[] { selectorLambda.Parameters[0] }, new[] { entityShaper })
+                            .Visit(selectorLambda.Body);
+
+                        var result = Visit(replaced);
+
+                        return result;
+                    }
+
+                    return entityShaper;
+                }
+                //var selectMethodCallExpression = methodCallExpression.Arguments[0] as MethodCallExpression;
+                //if (selectMethodCallExpression == null
+                //    || !selectMethodCallExpression.Method.IsGenericMethod
+                //    || selectMethodCallExpression.Method.GetGenericMethodDefinition() != QueryableMethods.Select)
+                //{
+                //    selectMethodCallExpression = null;
+                //}
+            }
+
+
+
+            else if (methodCallExpression.Method.IsGenericMethod
+                && methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.FirstWithoutPredicate)
+            {
+                var innerMethodCallExpression = methodCallExpression.Arguments[0] as MethodCallExpression;
+                if (innerMethodCallExpression != null
+                    && innerMethodCallExpression.Method.IsGenericMethod
+                    && innerMethodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.Select)
+                {
+                    // TODO: strip Includes and check if identity projection
+                    innerMethodCallExpression = innerMethodCallExpression.Arguments[0] as MethodCallExpression;
+                }
+
+                if (innerMethodCallExpression != null
+                    && innerMethodCallExpression.Method.IsGenericMethod
+                    && innerMethodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.Skip)
+                {
+                    source = Visit(innerMethodCallExpression.Arguments[0]);
+
+                    if (source is MethodCallExpression sourceMethodCall
+                        && sourceMethodCall.Method.IsGenericMethod
+                        && sourceMethodCall.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                    {
+                        source = sourceMethodCall.Arguments[0];
+                    }
+
+                    if (source is JsonQueryExpression jsonQueryExpression)
+                    {
+                        var collectionIndexExpression = _sqlTranslator.Translate(innerMethodCallExpression.Arguments[1]!);
+                        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                        var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                        return new RelationalEntityShaperExpression(
+                            jsonQueryExpression.EntityType,
+                            newJsonQuery,
+                            nullable: true);
+                    }
+                }
+
+
+                //if (methodCallExpression.Arguments[0] is MethodCallExpression selectMethodCallExpression
+                //    && selectMethodCallExpression.Method is MethodInfo selectMethodInfo
+                //    && selectMethodInfo.IsGenericMethod
+                //    && selectMethodInfo.GetGenericMethodDefinition() == QueryableMethods.Select)
+                //{
+                //    // TODO: strip Includes and check if identity projection
+                //    if (selectMethodCallExpression.Arguments[0] is MethodCallExpression skipMethodCallExpression
+                //        && skipMethodCallExpression.Method is MethodInfo skipMethodInfo
+                //        && skipMethodInfo.IsGenericMethod
+                //        && skipMethodInfo.GetGenericMethodDefinition() == QueryableMethods.Skip)
+                //    {
+                //        source = Visit(skipMethodCallExpression.Arguments[0]);
+
+                //        var collectionIndexExpression = _sqlTranslator.Translate(skipMethodCallExpression.Arguments[1]!);
+                //        collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                //        var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                //        return new RelationalEntityShaperExpression(
+                //            jsonQueryExpression.EntityType,
+                //            newJsonQuery,
+                //            nullable: true);
+
+
+
+                //    }
+
+
+                //}
             }
             else if (methodCallExpression.Method.Name == "get_Item"
                 && methodCallExpression.Method.DeclaringType != null

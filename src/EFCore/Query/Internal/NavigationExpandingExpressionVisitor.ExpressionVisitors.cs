@@ -1000,10 +1000,14 @@ public partial class NavigationExpandingExpressionVisitor
 
                     if (navigationExpansionExpression.CardinalityReducingGenericMethodInfo != null)
                     {
+                        var arguments = new List<Expression>();
+                        arguments.Add(result);
+                        arguments.AddRange(navigationExpansionExpression.CardinalityReducingMethodArguments);
+
                         result = Expression.Call(
                             navigationExpansionExpression.CardinalityReducingGenericMethodInfo.MakeGenericMethod(
                                 result.Type.GetSequenceType()),
-                            result);
+                            arguments.ToArray());
                     }
 
                     return result;
