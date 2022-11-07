@@ -1641,6 +1641,62 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                     ?? methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
             }
 
+            if (methodCallExpression.Method.IsGenericMethod
+                && (methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAt
+                    || methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAtOrDefault))
+            {
+                source = methodCallExpression.Arguments[0];
+                var selectMethodCallExpression = default(MethodCallExpression);
+
+                if (source is MethodCallExpression sourceMethodCall
+                    && sourceMethodCall.Method.IsGenericMethod
+                    && sourceMethodCall.Method.GetGenericMethodDefinition() == QueryableMethods.Select)
+                {
+                    selectMethodCallExpression = sourceMethodCall;
+                    source = sourceMethodCall.Arguments[0];
+                }
+
+                if (source is MethodCallExpression asQueryableMethodCall
+                    && asQueryableMethodCall.Method.IsGenericMethod
+                    && asQueryableMethodCall.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                {
+                    source = asQueryableMethodCall.Arguments[0];
+                }
+
+                source = Visit(source);
+
+                if (source is JsonQueryExpression jsonQueryExpression)
+                {
+                    var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[1]!);
+
+                    if (collectionIndexExpression == null)
+                    {
+                        return methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });
+                    }
+
+                    collectionIndexExpression = _sqlExpressionFactory.ApplyDefaultTypeMapping(collectionIndexExpression);
+                    var newJsonQuery = jsonQueryExpression.BindCollectionElement(collectionIndexExpression!);
+
+                    var entityShaper = new RelationalEntityShaperExpression(
+                        jsonQueryExpression.EntityType,
+                        newJsonQuery,
+                        nullable: true);
+
+                    if (selectMethodCallExpression != null)
+                    {
+                        var selectorLambda = selectMethodCallExpression.Arguments[1].UnwrapLambdaFromQuote();
+                        var replaced = new ReplacingExpressionVisitor(new[] { selectorLambda.Parameters[0] }, new[] { entityShaper })
+                            .Visit(selectorLambda.Body);
+
+                        var result = Visit(replaced);
+
+                        return result;
+                    }
+
+                    return entityShaper;
+                }
+            }
+
             return base.VisitMethodCall(methodCallExpression);
         }
 

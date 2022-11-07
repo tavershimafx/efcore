@@ -162,6 +162,30 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     }
 
     /// <summary>
+    ///     Binds a collection element access with this JSON query expression to get the SQL representation.
+    /// </summary>
+    /// <param name="collectionIndexExpression">The collection index to bind.</param>
+    public virtual JsonQueryExpression BindCollectionElement(SqlExpression collectionIndexExpression)
+    {
+        Debug.Assert(
+            Path.Last().ArrayIndex == null,
+            "Already accessing JSON array element.");
+
+        var newPath = Path.ToList();
+        newPath.Add(new PathSegment(collectionIndexExpression));
+
+        return new JsonQueryExpression(
+            EntityType,
+            JsonColumn,
+            _keyPropertyMap,
+            newPath,
+            EntityType.ClrType,
+            collection: false,
+            // TODO: is this the right nullable?
+            nullable: true);
+    }
+
+    /// <summary>
     ///     Makes this JSON query expression nullable.
     /// </summary>
     /// <returns>A new expression which has <see cref="IsNullable" /> property set to true.</returns>

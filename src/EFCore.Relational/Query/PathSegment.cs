@@ -17,22 +17,40 @@ namespace Microsoft.EntityFrameworkCore.Query;
 public class PathSegment
 {
     /// <summary>
-    ///     Creates a new instance of the <see cref="PathSegment" /> class.
+    ///     Creates a new instance of the <see cref="PathSegment" /> class representing JSON property access.
     /// </summary>
-    /// <param name="key">A key which is being accessed in the JSON.</param>
-    public PathSegment(string key)
+    /// <param name="propertyName">A name of JSON property which is being accessed.</param>
+    public PathSegment(string propertyName)
     {
-        Key = key;
+        PropertyName = propertyName;
+        ArrayIndex = null;
     }
 
     /// <summary>
-    ///     The key which is being accessed in the JSON.
+    ///     Creates a new instance of the <see cref="PathSegment" /> class representing JSON array element access.
     /// </summary>
-    public virtual string Key { get; }
+    /// <param name="arrayIndex"><see langword="abstract"/>An index of an element which is being accessed in the JSON array.</param>
+    public PathSegment(SqlExpression arrayIndex)
+    {
+        ArrayIndex = arrayIndex;
+        PropertyName = null;
+    }
+
+    /// <summary>
+    ///     The name of JSON property which is being accessed.
+    /// </summary>
+    public virtual string? PropertyName { get; }
+
+    /// <summary>
+    ///     The index of an element which is being accessed in the JSON array.
+    /// </summary>
+    public virtual SqlExpression? ArrayIndex { get; }
 
     /// <inheritdoc />
     public override string ToString()
-        => (Key == "$" ? "" : ".") + Key;
+        => (PropertyName == "$" ? "" : ".")
+        + (PropertyName == null ? "" : PropertyName)
+        + (ArrayIndex == null ? "" : $"[{ArrayIndex}]");
 
     /// <inheritdoc />
     public override bool Equals(object? obj)
@@ -42,9 +60,11 @@ public class PathSegment
                 && Equals(pathSegment));
 
     private bool Equals(PathSegment pathSegment)
-        => Key == pathSegment.Key;
+        => PropertyName == pathSegment.PropertyName
+            && ((ArrayIndex == null && pathSegment.ArrayIndex == null)
+                || (ArrayIndex != null && ArrayIndex.Equals(pathSegment.ArrayIndex)));
 
     /// <inheritdoc />
     public override int GetHashCode()
-        => HashCode.Combine(Key);
+        => HashCode.Combine(PropertyName, ArrayIndex);
 }
