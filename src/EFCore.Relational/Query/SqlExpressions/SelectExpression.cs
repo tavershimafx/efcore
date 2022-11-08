@@ -1529,15 +1529,15 @@ public sealed partial class SelectExpression : TableExpressionBase
 
                         remappedConstant = Constant(newDictionary);
                     }
-                    else if (constantValue is ValueTuple<int, List<ValueTuple<IProperty, int>>, string[]> tuple)
+                    else if (constantValue is ValueTuple<int, List<(IProperty, int)>, string[], int> tuple)
                     {
-                        var newList = new List<ValueTuple<IProperty, int>>();
+                        var newList = new List<(IProperty, int)>();
                         foreach (var item in tuple.Item2)
                         {
                             newList.Add((item.Item1, projectionIndexMap[item.Item2]));
                         }
 
-                        remappedConstant = Constant((projectionIndexMap[tuple.Item1], newList, tuple.Item3));
+                        remappedConstant = Constant((projectionIndexMap[tuple.Item1], newList, tuple.Item3, tuple.Item4));
                     }
                     else
                     {
@@ -1656,7 +1656,9 @@ public sealed partial class SelectExpression : TableExpressionBase
                 keyInfo.Add((keyProperty, AddToProjection(keyColumn)));
             }
 
-            return Constant((jsonColumnIndex, keyInfo, additionalPath));
+            var specifiedCollectionIndexesCount = jsonScalarToAdd.Path.Count(x => x.CollectionIndexExpression != null);
+
+            return Constant((jsonColumnIndex, keyInfo, additionalPath, specifiedCollectionIndexesCount));
         }
 
         static IReadOnlyList<IProperty> GetMappedKeyProperties(IKey key)
