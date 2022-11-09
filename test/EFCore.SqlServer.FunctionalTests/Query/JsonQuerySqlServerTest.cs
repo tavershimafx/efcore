@@ -696,6 +696,16 @@ FROM [JsonEntitiesBasic] AS [j]
 """);
     }
 
+    public override async Task Json_collection_element_access_in_projection_nested_project_reference(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_nested_project_reference(async);
+
+        AssertSql(
+"""
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
     public override async Task Json_collection_element_access_in_projection_nested_project_collection(bool async)
     {
         await base.Json_collection_element_access_in_projection_nested_project_collection(async);
@@ -790,6 +800,18 @@ WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[' + CAST((
 """);
     }
 
+    public override async Task Json_collection_element_access_in_predicate_using_ElementAt(bool async)
+    {
+        await base.Json_collection_element_access_in_predicate_using_ElementAt(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id]
+FROM [JsonEntitiesBasic] AS [j]
+WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].Name') AS nvarchar(max)) <> N'Foo' OR (CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].Name') AS nvarchar(max)) IS NULL)
+""");
+    }
+
     public override async Task Json_collection_element_access_in_predicate_nested_mix(bool async)
     {
         await base.Json_collection_element_access_in_predicate_nested_mix(async);
@@ -802,6 +824,48 @@ SELECT [j].[Id], [j].[EntityBasicId], [j].[Name], [j].[OwnedCollectionRoot], [j]
 FROM [JsonEntitiesBasic] AS [j]
 WHERE CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[1].OwnedCollectionBranch[' + CAST(@__prm_0 AS nvarchar(max)) + '].OwnedCollectionLeaf[' + CAST([j].[Id] - 1 AS nvarchar(max)) + '].SomethingSomething') AS nvarchar(max)) = N'e1_c2_c1_c1'
 """);
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_indexer_in_original(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_indexer_in_original(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], JSON_QUERY([j].[OwnedCollectionRoot],'$[0]')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_indexer_in_target(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_indexer_in_target(async);
+
+        AssertSql(
+"""
+@__prm_0='1'
+
+SELECT [j].[Id], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch[1]'), [j].[OwnedReferenceRoot], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedReferenceBranch.OwnedCollectionLeaf[' + CAST(@__prm_0 AS nvarchar(max)) + ']')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_projection_deduplication_with_collection_in_original_and_collection_indexer_in_target(bool async)
+    {
+        await base.Json_projection_deduplication_with_collection_in_original_and_collection_indexer_in_target(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch'), JSON_QUERY([j].[OwnedReferenceRoot],'$.OwnedCollectionBranch[1]')
+FROM [JsonEntitiesBasic] AS [j]
+""");
+    }
+
+    public override async Task Json_collection_element_access_in_projection_requires_NoTracking_even_if_owner_is_present(bool async)
+    {
+        await base.Json_collection_element_access_in_projection_requires_NoTracking_even_if_owner_is_present(async);
+
+        AssertSql();
     }
 
     public override async Task Json_scalar_required_null_semantics(bool async)
@@ -837,6 +901,21 @@ WHERE CAST(JSON_VALUE([j].[OwnedReferenceRoot],'$.Name') AS nvarchar(max)) = CAS
 SELECT [t].[Key], COUNT(*) AS [Count]
 FROM (
     SELECT CAST(JSON_VALUE([j].[OwnedReferenceRoot],'$.Name') AS nvarchar(max)) AS [Key]
+    FROM [JsonEntitiesBasic] AS [j]
+) AS [t]
+GROUP BY [t].[Key]
+""");
+    }
+
+    public override async Task Group_by_on_json_scalar_using_collection_indexer(bool async)
+    {
+        await base.Group_by_on_json_scalar_using_collection_indexer(async);
+
+        AssertSql(
+"""
+SELECT [t].[Key], COUNT(*) AS [Count]
+FROM (
+    SELECT CAST(JSON_VALUE([j].[OwnedCollectionRoot],'$[0].Name') AS nvarchar(max)) AS [Key]
     FROM [JsonEntitiesBasic] AS [j]
 ) AS [t]
 GROUP BY [t].[Key]

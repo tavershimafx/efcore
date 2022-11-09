@@ -725,7 +725,7 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
         return AssertQuery(
             async,
-            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm].OwnedReferenceLeaf));
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[0].OwnedCollectionBranch[prm].OwnedReferenceLeaf).AsNoTracking());
     }
 
     [ConditionalTheory]
@@ -844,90 +844,89 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Json_collection_projection_deduplication_collection_and_indexer(bool async)
+    public virtual Task Json_projection_deduplication_with_collection_indexer_in_original(bool async)
         => AssertQuery(
             async,
             ss => ss.Set<JsonEntityBasic>().Select(x => new
             {
                 x.Id,
-                x.OwnedCollectionRoot,
-                Duplicate = x.OwnedCollectionRoot[0]
+                Duplicate1 = x.OwnedCollectionRoot[0].OwnedReferenceBranch,
+                Original = x.OwnedCollectionRoot[0],
+                Duplicate2 = x.OwnedCollectionRoot[0].OwnedReferenceBranch.OwnedCollectionLeaf
             }).AsNoTracking(),
             elementSorter: e => e.Id,
             elementAsserter: (e, a) =>
             {
-                AssertCollection(e.OwnedCollectionRoot, a.OwnedCollectionRoot, ordered: true);
-                AssertEqual(e.Duplicate, a.Duplicate);
+                AssertEqual(e.Id, a.Id);
+                AssertEqual(e.Original, a.Original);
+                AssertEqual(e.Duplicate1, a.Duplicate1);
+                AssertCollection(e.Duplicate2, a.Duplicate2, ordered: true);
             });
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Json_collection_projection_deduplication_collection_and_multiple_indexers(bool async)
-        => AssertQuery(
+    public virtual Task Json_projection_deduplication_with_collection_indexer_in_target(bool async)
+    {
+        var prm = 1;
+
+        // issue #29513
+        return AssertQuery(
             async,
             ss => ss.Set<JsonEntityBasic>().Select(x => new
             {
                 x.Id,
-                Duplicate2 = x.OwnedCollectionRoot[1],
-                x.OwnedCollectionRoot,
-                Duplicate1 = x.OwnedCollectionRoot[0],
+                Duplicate1 = x.OwnedReferenceRoot.OwnedCollectionBranch[1],
+                Original = x.OwnedReferenceRoot,
+                Duplicate2 = x.OwnedReferenceRoot.OwnedReferenceBranch.OwnedCollectionLeaf[prm]
             }).AsNoTracking(),
             elementSorter: e => e.Id,
             elementAsserter: (e, a) =>
             {
-                AssertCollection(e.OwnedCollectionRoot, a.OwnedCollectionRoot, ordered: true);
+                AssertEqual(e.Id, a.Id);
+                AssertEqual(e.Original, a.Original);
                 AssertEqual(e.Duplicate1, a.Duplicate1);
                 AssertEqual(e.Duplicate2, a.Duplicate2);
             });
+    }
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Json_collection_projection_deduplication_reference_and_reference_followed_by_collection_and_indexer(bool async)
+    public virtual Task Json_projection_deduplication_with_collection_in_original_and_collection_indexer_in_target(bool async)
+        // issue #29513
         => AssertQuery(
             async,
             ss => ss.Set<JsonEntityBasic>().Select(x => new
             {
                 x.Id,
-                x.OwnedReferenceRoot,
-                Duplicate = x.OwnedReferenceRoot.OwnedCollectionBranch[0]
+                Original = x.OwnedReferenceRoot.OwnedCollectionBranch,
+                Duplicate = x.OwnedReferenceRoot.OwnedCollectionBranch[1],
             }).AsNoTracking(),
             elementSorter: e => e.Id,
             elementAsserter: (e, a) =>
             {
-                AssertEqual(e.OwnedReferenceRoot, a.OwnedReferenceRoot);
+                AssertEqual(e.Id, a.Id);
+                AssertCollection(e.Original, a.Original, ordered: true);
                 AssertEqual(e.Duplicate, a.Duplicate);
             });
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Json_collection_projection_deduplication_reference_and_reference_followed_by_collection_indexer_and_another_collection(bool async)
-        => AssertQuery(
+    public virtual Task Json_collection_element_access_in_projection_requires_NoTracking_even_if_owner_is_present(bool async)
+    {
+        return AssertQuery(
             async,
             ss => ss.Set<JsonEntityBasic>().Select(x => new
             {
-                x.Id,
-                x.OwnedReferenceRoot,
-                Duplicate = x.OwnedReferenceRoot.OwnedCollectionBranch[0].OwnedCollectionLeaf
-            }).AsNoTracking(),
-            elementSorter: e => e.Id,
+                x,
+                CollectionElement = x.OwnedCollectionRoot[1]
+            }),
+            elementSorter: e => e.x.Id,
             elementAsserter: (e, a) =>
             {
-                AssertEqual(e.OwnedReferenceRoot, a.OwnedReferenceRoot);
-                AssertCollection(e.Duplicate, a.Duplicate, ordered: true);
+                AssertEqual(e.x, a.x);
+                AssertEqual(e.CollectionElement, a.CollectionElement);
             });
-
-
-
-
-
-
-
-
-
-
-
-
-
+    }
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

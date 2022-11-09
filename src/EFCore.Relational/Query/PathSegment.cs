@@ -59,7 +59,8 @@ public class PathSegment
 
     private bool Equals(PathSegment pathSegment)
         => Key == pathSegment.Key
-            && CollectionIndexExpression == pathSegment.CollectionIndexExpression;
+            && ((CollectionIndexExpression == null && pathSegment.CollectionIndexExpression == null)
+                || (CollectionIndexExpression != null && CollectionIndexExpression.Equals(pathSegment.CollectionIndexExpression)));
 
     /// <inheritdoc />
     public override int GetHashCode()
