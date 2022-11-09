@@ -1590,7 +1590,8 @@ public sealed partial class SelectExpression : TableExpressionBase
             {
                 var ordered = projections
                     .OrderBy(x => $"{x.JsonColumn.TableAlias}.{x.JsonColumn.Name}")
-                    .ThenBy(x => x.Path.Count);
+                    .ThenBy(x => x.Path.Count)
+                    .ThenByDescending(x => x.Path.Count(p => p.CollectionIndexExpression == null));
 
                 var needed = new List<JsonScalarExpression>();
                 foreach (var orderedElement in ordered)
@@ -1699,7 +1700,26 @@ public sealed partial class SelectExpression : TableExpressionBase
                 return false;
             }
 
-            return sourcePath.SequenceEqual(targetPath.Take(sourcePath.Count));
+            for (var i = 0; i < sourcePath.Count; i++)
+            {
+                if (sourcePath[i].Key != targetPath[i].Key)
+                {
+                    return false;
+                }
+
+                if (sourcePath[i].CollectionIndexExpression != targetPath[i].CollectionIndexExpression)
+                {
+                    // for the last path segment (of the source) we match if the source points to entire collection
+                    // but the target points to a collection element
+                    if (i != sourcePath.Count - 1
+                        || sourcePath[i].CollectionIndexExpression != null)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         }
     }
 
