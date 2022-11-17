@@ -16,11 +16,10 @@ internal class CollectionIndexerToElementAtConvertingExpressionVisitor : Express
         if (methodCallExpression.Method.Name == "get_Item"
             && !methodCallExpression.Method.IsStatic
             && methodCallExpression.Method.DeclaringType != null
-            && methodCallExpression.Method.DeclaringType != typeof(string)
-            && methodCallExpression.Method.DeclaringType != typeof(byte[])
             && ((methodCallExpression.Method.DeclaringType.IsGenericType
                 && methodCallExpression.Method.DeclaringType.GetGenericTypeDefinition() == typeof(List<>))
-                || methodCallExpression.Method.DeclaringType.IsArray))
+                || (methodCallExpression.Method.DeclaringType.IsArray
+                    && methodCallExpression.Method.DeclaringType != typeof(byte[]))))
         {
             var source = Visit(methodCallExpression.Object!);
             var index = Visit(methodCallExpression.Arguments[0]);

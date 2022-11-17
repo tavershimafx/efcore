@@ -167,14 +167,22 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     /// <param name="collectionIndexExpression">The collection index to bind.</param>
     public virtual JsonQueryExpression BindCollectionElement(SqlExpression collectionIndexExpression)
     {
-        var newPath = Path.Take(Path.Count - 1).ToList();
-        var lastPathSegment = Path.Last();
-        if (lastPathSegment.CollectionIndexExpression != null)
+        if (Path.Last().CollectionIndexExpression != null)
         {
             throw new InvalidOperationException("Already accessing collection element.");
         }
 
-        newPath.Add(new PathSegment(lastPathSegment.Key, collectionIndexExpression));
+        // TODO: maybe we can re-use the list?
+        var newPath = Path.ToList();
+
+        //var newPath = Path.Take(Path.Count - 1).ToList();
+        //var lastPathSegment = Path.Last();
+        //if (lastPathSegment.CollectionIndexExpression != null)
+        //{
+        //    throw new InvalidOperationException("Already accessing collection element.");
+        //}
+
+        newPath.Add(new PathSegment(collectionIndexExpression));
 
         return new JsonQueryExpression(
             EntityType,

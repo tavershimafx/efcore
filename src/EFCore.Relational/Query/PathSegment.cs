@@ -17,29 +17,40 @@ namespace Microsoft.EntityFrameworkCore.Query;
 public class PathSegment
 {
     /// <summary>
-    ///     Creates a new instance of the <see cref="PathSegment" /> class.
+    ///     Creates a new instance of the <see cref="PathSegment" /> class which represents a property access.
     /// </summary>
     /// <param name="key">A key which is being accessed in the JSON.</param>
     public PathSegment(string key)
     {
         Key = key;
+        CollectionIndexExpression = null;
     }
 
     /// <summary>
-    ///     Creates a new instance of the <see cref="PathSegment" /> class.
+    ///     Creates a new instance of the <see cref="PathSegment" /> class which represents a collection element access.
     /// </summary>
-    /// <param name="key">A key which is being accessed in the JSON.</param>
     /// <param name="collectionIndexExpression">A collection index which is being accessed in the JSON.</param>
-    public PathSegment(string key, SqlExpression collectionIndexExpression)
-        : this(key)
+    public PathSegment(SqlExpression collectionIndexExpression)
     {
         CollectionIndexExpression = collectionIndexExpression;
+        Key = null;
     }
+
+    ///// <summary>
+    /////     Creates a new instance of the <see cref="PathSegment" /> class.
+    ///// </summary>
+    ///// <param name="key">A key which is being accessed in the JSON.</param>
+    ///// <param name="collectionIndexExpression">A collection index which is being accessed in the JSON.</param>
+    //public PathSegment(string key, SqlExpression collectionIndexExpression)
+    //    : this(key)
+    //{
+    //    CollectionIndexExpression = collectionIndexExpression;
+    //}
 
     /// <summary>
     ///     The key which is being accessed in the JSON.
     /// </summary>
-    public virtual string Key { get; }
+    public virtual string? Key { get; }
 
     /// <summary>
     ///     The index of the collection which is being accessed in the JSON.
@@ -48,7 +59,9 @@ public class PathSegment
 
     /// <inheritdoc />
     public override string ToString()
-        => (Key == "$" ? "" : ".") + Key + (CollectionIndexExpression == null ? "" : $"[{CollectionIndexExpression}]");
+        => (Key == "$" ? "" : ".")
+        + (Key ?? "")
+        + (CollectionIndexExpression == null ? "" : $"[{CollectionIndexExpression}]");
 
     /// <inheritdoc />
     public override bool Equals(object? obj)

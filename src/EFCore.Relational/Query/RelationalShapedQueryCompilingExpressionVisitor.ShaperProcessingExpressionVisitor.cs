@@ -93,7 +93,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
             _jsonMaterializationContextParameterMapping = new();
 
-        private readonly Dictionary<(int, string[]), ParameterExpression> _existingJsonElementMap
+        private readonly Dictionary<(int, (string?, int?, int?)[]), ParameterExpression> _existingJsonElementMap
             = new(new ExisitingJsonElementMapKeyComparer());
 
         public ShaperProcessingExpressionVisitor(
@@ -416,12 +416,11 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 {
                     if (!_variableShaperMapping.TryGetValue(entityShaperExpression.ValueBufferExpression, out var accessor))
                     {
-                        if (GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int>
-                            jsonProjectionIndex)
+                        if (GetProjectionIndex(projectionBindingExpression) is JsonProjectionShapingInfo jsonProjectionShapingInfo)
                         {
                             // json entity at the root
                             var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
-                                jsonProjectionIndex,
+                                jsonProjectionShapingInfo,
                                 entityShaperExpression.EntityType,
                                 isCollection: false);
 
@@ -510,11 +509,11 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 case CollectionResultExpression collectionResultExpression
                     when collectionResultExpression.Navigation is INavigation navigation
                     && GetProjectionIndex(collectionResultExpression.ProjectionBindingExpression)
-                        is ValueTuple<int, List<(IProperty, int)>, string[], int> jsonProjectionIndex:
+                        is JsonProjectionShapingInfo jsonProjectionShapingInfo:
                 {
                     // json entity collection at the root
                     var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
-                        jsonProjectionIndex,
+                        jsonProjectionShapingInfo,
                         navigation.TargetEntityType,
                         isCollection: true);
 
@@ -781,11 +780,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                         // json include case
                         if (projectionBindingExpression != null
-                            && GetProjectionIndex(projectionBindingExpression) is ValueTuple<int, List<(IProperty, int)>, string[], int>
-                                jsonProjectionIndex)
+                            && GetProjectionIndex(projectionBindingExpression) is JsonProjectionShapingInfo jsonProjectionShapingInfo)
                         {
                             var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
-                                jsonProjectionIndex,
+                                jsonProjectionShapingInfo,
                                 includeExpression.Navigation.TargetEntityType,
                                 includeExpression.Navigation.IsCollection);
 
@@ -1236,38 +1234,61 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         }
 
         private (ParameterExpression, ParameterExpression) JsonShapingPreProcess(
-            ValueTuple<int, List<(IProperty, int)>, string[], int> projectionIndex,
+            JsonProjectionShapingInfo jsonProjectionShapingInfo,
             IEntityType entityType,
             bool isCollection)
         {
-            var jsonColumnProjectionIndex = projectionIndex.Item1;
-            var keyInfo = projectionIndex.Item2;
-            var additionalPath = projectionIndex.Item3;
-            var specifiedCollectionIndexesCount = projectionIndex.Item4;
+            //var jsonColumnProjectionIndex = projectionIndex.Item1;
+            //var keyInfo = projectionIndex.Item2;
+            //var additionalPath = projectionIndex.Item3;
 
             var keyValuesParameter = Expression.Parameter(typeof(object[]));
-            var keyValues = new Expression[keyInfo.Count + specifiedCollectionIndexesCount];
+            var keyValues = new Expression[jsonProjectionShapingInfo.KeyIndexes.Count + jsonProjectionShapingInfo.CollectionIndexes.Length];
 
-            for (var i = 0; i < keyInfo.Count; i++)
+            for (var i = 0; i < jsonProjectionShapingInfo.KeyIndexes.Count; i++)
             {
-                var projection = _selectExpression.Projection[keyInfo[i].Item2];
+                var projection = _selectExpression.Projection[jsonProjectionShapingInfo.KeyIndexes[i].Item2];
 
                 keyValues[i] = Expression.Convert(
                     CreateGetValueExpression(
                         _dataReaderParameter,
-                        keyInfo[i].Item2,
+                        jsonProjectionShapingInfo.KeyIndexes[i].Item2,
                         IsNullableProjection(projection),
                         projection.Expression.TypeMapping!,
-                        keyInfo[i].Item1.ClrType,
-                        keyInfo[i].Item1),
+                        jsonProjectionShapingInfo.KeyIndexes[i].Item1.ClrType,
+                        jsonProjectionShapingInfo.KeyIndexes[i].Item1),
                     typeof(object));
             }
 
-            for (var i = 0; i < specifiedCollectionIndexesCount; i++)
+            for (var i = 0; i < jsonProjectionShapingInfo.CollectionIndexes.Length; i++)
             {
-                keyValues[keyInfo.Count + i] = Expression.Convert(
-                    Expression.Constant(0), typeof(object));
+                if (jsonProjectionShapingInfo.CollectionIndexes[i].Item1 != null)
+                {
+                    keyValues[jsonProjectionShapingInfo.KeyIndexes.Count + i] = Expression.Convert(
+                        Expression.Constant(jsonProjectionShapingInfo.CollectionIndexes[i].Item1),
+                        typeof(object));
+                }
+                else
+                {
+                    var projection = _selectExpression.Projection[jsonProjectionShapingInfo.CollectionIndexes[i].Item2!.Value];
+                    keyValues[jsonProjectionShapingInfo.KeyIndexes.Count + i] = Expression.Convert(
+                        CreateGetValueExpression(
+                            _dataReaderParameter,
+                            jsonProjectionShapingInfo.CollectionIndexes[i].Item2!.Value,
+                            IsNullableProjection(projection),
+                            projection.Expression.TypeMapping!,
+                            type: typeof(int?),
+                            property: null),
+                        typeof(object));
+                }
             }
+
+            // TODO
+            //for (var i = 0; i < specifiedCollectionIndexesCount; i++)
+            //{
+            //    keyValues[jsonProjectionShapingInfo.KeyIndexes.Count + i] = Expression.Convert(
+            //        Expression.Constant(0), typeof(object));
+            //}
 
             var keyValuesInitialize = Expression.NewArrayInit(typeof(object), keyValues);
             var keyValuesAssignment = Expression.Assign(keyValuesParameter, keyValuesInitialize);
@@ -1276,7 +1297,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             _expressions.Add(keyValuesAssignment);
 
             var jsonColumnTypeMapping = entityType.GetContainerColumnTypeMapping()!;
-            if (_existingJsonElementMap.TryGetValue((jsonColumnProjectionIndex, additionalPath), out var exisitingJsonElementVariable))
+            if (_existingJsonElementMap.TryGetValue(
+                (jsonProjectionShapingInfo.JsonColumnProjectionIndex, jsonProjectionShapingInfo.AdditionalPath),
+                out var exisitingJsonElementVariable))
             {
                 return (exisitingJsonElementVariable, keyValuesParameter);
             }
@@ -1290,7 +1313,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 // otherwise either create new JsonElement from the data reader if we are at root level
                 // or build on top of previous variable withing the navigation chain (e.g. when we encountered the root before, but not this entire path)
                 if (!_existingJsonElementMap.TryGetValue(
-                        (jsonColumnProjectionIndex, additionalPath[..index]), out var exisitingJsonElementVariable2))
+                    (jsonProjectionShapingInfo.JsonColumnProjectionIndex, jsonProjectionShapingInfo.AdditionalPath[..index]),
+                    out var exisitingJsonElementVariable2))
                 {
                     var jsonElementVariable = Expression.Variable(
                         typeof(JsonElement?));
@@ -1298,7 +1322,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     var jsonElementValueExpression = index == 0
                         ? CreateGetValueExpression(
                             _dataReaderParameter,
-                            jsonColumnProjectionIndex,
+                            jsonProjectionShapingInfo.JsonColumnProjectionIndex,
                             nullable: true,
                             jsonColumnTypeMapping,
                             typeof(JsonElement?),
@@ -1313,7 +1337,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                         currentJsonElementVariable!,
                                         _nullableJsonElementValuePropertyInfo),
                                     JsonElementGetPropertyMethod,
-                                    Expression.Constant(additionalPath[index - 1])),
+                                    Expression.Constant(jsonProjectionShapingInfo.AdditionalPath[index - 1])),
                                 currentJsonElementVariable!.Type),
                             Expression.Default(currentJsonElementVariable!.Type));
 
@@ -1323,7 +1347,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                     _variables.Add(jsonElementVariable);
                     _expressions.Add(jsonElementAssignment);
-                    _existingJsonElementMap[(jsonColumnProjectionIndex, additionalPath[..index])] = jsonElementVariable;
+                    _existingJsonElementMap[(jsonProjectionShapingInfo.JsonColumnProjectionIndex, jsonProjectionShapingInfo.AdditionalPath[..index])]
+                        = jsonElementVariable;
 
                     currentJsonElementVariable = jsonElementVariable;
                 }
@@ -1334,7 +1359,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                 index++;
             }
-            while (index <= additionalPath.Length);
+            while (index <= jsonProjectionShapingInfo.AdditionalPath.Length);
 
             return (currentJsonElementVariable!, keyValuesParameter);
         }
@@ -1655,12 +1680,14 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
         }
 
-        private sealed class ExisitingJsonElementMapKeyComparer : IEqualityComparer<(int, string[])>
+        private sealed class ExisitingJsonElementMapKeyComparer : IEqualityComparer<(int, (string?, int?, int?)[])>
         {
-            public bool Equals((int, string[]) x, (int, string[]) y)
-                => x.Item1 == y.Item1 && x.Item2.Length == y.Item2.Length && x.Item2.SequenceEqual(y.Item2);
+            public bool Equals((int, (string?, int?, int?)[]) x, (int, (string?, int?, int?)[]) y)
+                => x.Item1 == y.Item1
+                    && x.Item2.Length == y.Item2.Length
+                    && x.Item2.SequenceEqual(y.Item2);
 
-            public int GetHashCode([DisallowNull] (int, string[]) obj)
+            public int GetHashCode([DisallowNull] (int, (string?, int?, int?)[]) obj)
                 => HashCode.Combine(obj.Item1, obj.Item2?.Length);
         }
     }

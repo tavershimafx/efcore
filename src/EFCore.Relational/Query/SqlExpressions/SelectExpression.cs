@@ -1529,15 +1529,19 @@ public sealed partial class SelectExpression : TableExpressionBase
 
                         remappedConstant = Constant(newDictionary);
                     }
-                    else if (constantValue is ValueTuple<int, List<(IProperty, int)>, string[], int> tuple)
+                    else if (constantValue is JsonProjectionShapingInfo jsonProjectionShapingInfo)
                     {
                         var newList = new List<(IProperty, int)>();
-                        foreach (var item in tuple.Item2)
+                        foreach (var item in jsonProjectionShapingInfo.KeyIndexes)
                         {
                             newList.Add((item.Item1, projectionIndexMap[item.Item2]));
                         }
 
-                        remappedConstant = Constant((projectionIndexMap[tuple.Item1], newList, tuple.Item3, tuple.Item4));
+                        remappedConstant = Constant(new JsonProjectionShapingInfo(
+                            jsonProjectionShapingInfo.JsonColumnProjectionIndex,
+                            newList,
+                            jsonProjectionShapingInfo.CollectionIndexes,
+                            jsonProjectionShapingInfo.AdditionalPath));
                     }
                     else
                     {
@@ -1639,13 +1643,13 @@ public sealed partial class SelectExpression : TableExpressionBase
 
         ConstantExpression AddJsonProjection(JsonQueryExpression jsonQueryExpression, JsonScalarExpression jsonScalarToAdd)
         {
-            var additionalPath = new string[0];
+            //var additionalPath = new string[0];
 
-            // this will be more tricky once we support more complicated json path options
-            additionalPath = jsonQueryExpression.Path
-                .Skip(jsonScalarToAdd.Path.Count)
-                .Select(x => x.Key)
-                .ToArray();
+            //// this will be more tricky once we support more complicated json path options
+            //additionalPath = jsonQueryExpression.Path
+            //    .Skip(jsonScalarToAdd.Path.Count)
+            //    .Select(x => x.Key != null ? (x.Key, null, null) : x.CollectionIndexExpression is SqlConstantExpression )
+            //    .ToArray();
 
             var jsonColumnIndex = AddToProjection(jsonScalarToAdd);
 
@@ -1657,9 +1661,46 @@ public sealed partial class SelectExpression : TableExpressionBase
                 keyInfo.Add((keyProperty, AddToProjection(keyColumn)));
             }
 
-            var specifiedCollectionIndexesCount = jsonScalarToAdd.Path.Count(x => x.CollectionIndexExpression != null);
+            // for collection indexes we don't need to look at segments that represent property (i.e. Key != null)
+            // we only need to look at CollectionIndexExpression and the logic is same as for additional path below
+            var collectionIndexes = new List<(int?, int?)>();
+            foreach (var additionalPathSegment in jsonQueryExpression.Path.Take(jsonScalarToAdd.Path.Count).Where(x => x.CollectionIndexExpression != null))
+            {
+                if (additionalPathSegment.CollectionIndexExpression is SqlConstantExpression constantIndex)
+                {
+                    collectionIndexes.Add(((int)constantIndex.Value!, null));
+                }
+                else
+                {
+                    collectionIndexes.Add((null, AddToProjection(additionalPathSegment.CollectionIndexExpression!)));
+                }
+            }
 
-            return Constant((jsonColumnIndex, keyInfo, additionalPath, specifiedCollectionIndexesCount));
+            // if path segment is property - use that (1st slot)
+            // if path segment is collection access via constant - use that also (2nd slot)
+            // if path segment is collection index via non-constant - add it to projection and use the resulting index (3rd slot)
+            var additionalPath = new List<(string?, int?, int?)>();
+            foreach (var additionalPathSegment in jsonQueryExpression.Path.Skip(jsonScalarToAdd.Path.Count))
+            {
+                if (additionalPathSegment.Key != null)
+                {
+                    additionalPath.Add((additionalPathSegment.Key, null, null));
+                }
+                else if (additionalPathSegment.CollectionIndexExpression is SqlConstantExpression constantIndex)
+                {
+                    additionalPath.Add((null, (int)constantIndex.Value!, null));
+                }
+                else
+                {
+                    additionalPath.Add((null, null, AddToProjection(additionalPathSegment.CollectionIndexExpression!)));
+                }
+            }
+
+            //var specifiedCollectionIndexesCount = jsonScalarToAdd.Path.Count(x => x.CollectionIndexExpression != null);
+
+            //var specifiedCollectionIndexesCount = jsonScalarToAdd.Path.Count(x => x.CollectionIndexExpression != null);
+            return Constant(new JsonProjectionShapingInfo(jsonColumnIndex, keyInfo, collectionIndexes.ToArray(), additionalPath.ToArray()));
+            //return Constant((jsonColumnIndex, keyInfo, additionalPath, specifiedCollectionIndexesCount));
         }
 
         static IReadOnlyList<IProperty> GetMappedKeyProperties(IKey key)
