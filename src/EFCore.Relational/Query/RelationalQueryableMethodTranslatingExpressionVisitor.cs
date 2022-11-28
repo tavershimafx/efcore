@@ -1668,7 +1668,6 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                 if (source is JsonQueryExpression jsonQueryExpression)
                 {
                     var collectionIndexExpression = _sqlTranslator.Translate(methodCallExpression.Arguments[1]!);
-
                     if (collectionIndexExpression == null)
                     {
                         return methodCallExpression.Update(null!, new[] { source, methodCallExpression.Arguments[1] });

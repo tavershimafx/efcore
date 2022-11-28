@@ -167,6 +167,8 @@ public class JsonQueryExpression : Expression, IPrintableExpression
     /// <param name="collectionIndexExpression">The collection index to bind.</param>
     public virtual JsonQueryExpression BindCollectionElement(SqlExpression collectionIndexExpression)
     {
+        // this needs to be changed IF JsonQueryExpression will also be used for collection of primitives
+        // see issue #28688
         Debug.Assert(
             Path.Last().ArrayIndex == null,
             "Already accessing JSON array element.");

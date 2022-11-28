@@ -695,6 +695,17 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
             async,
             ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[x.Id]).AsNoTracking());
 
+
+    private static int MyMethod(int value)
+        => value;
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_element_access_in_projection_using_untranslatable_client_method(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>().Select(x => x.OwnedCollectionRoot[MyMethod(x.Id)]).AsNoTracking());
+
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
     public virtual Task Json_collection_element_access_in_projection_nested(bool async)
