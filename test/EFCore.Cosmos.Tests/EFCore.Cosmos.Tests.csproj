@@ -5,6 +5,7 @@
     <TargetFrameworks Condition="'$(ContinuousIntegrationBuild)' == 'True'">$(DefaultNetCoreTargetFramework)</TargetFrameworks>
     <AssemblyName>Microsoft.EntityFrameworkCore.Cosmos.Tests</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore.Cosmos</RootNamespace>
+    <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
   </PropertyGroup>
 
   <ItemGroup>
