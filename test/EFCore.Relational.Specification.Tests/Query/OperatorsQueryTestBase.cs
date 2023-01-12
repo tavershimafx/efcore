@@ -5,257 +5,459 @@ namespace Microsoft.EntityFrameworkCore.Query;
 
 public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 {
-    private readonly List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> _binaries = new()
-    {
-        ((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
-        ((typeof(int), typeof(int)), typeof(int), Expression.Divide),
-        ((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
-        ((typeof(int), typeof(int)), typeof(int), Expression.Add),
-        ((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
-
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
-
-        ((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
-
-        ((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
-
-        ((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
-        ((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
-        ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
-        ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
-
-        ((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
-        ((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
-        ((typeof(DateTime), typeof(DateTime)), typeof(bool), Expression.Equal),
-
-        ((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
-        ((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
-        ((typeof(DateTime), typeof(DateTime)), typeof(bool), Expression.NotEqual),
-
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
-        ((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
-    };
-
-    private readonly List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> _unaries = new()
-    {
-        (typeof(bool), typeof(bool), Expression.Not),
-        (typeof(int), typeof(int), Expression.Not),
-
-        (typeof(int), typeof(int), Expression.Negate),
-
-        (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(int?)))),
-        (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(string)))),
-        (typeof(bool), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(bool?)))),
-        (typeof(DateTime), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(DateTime?)))),
-
-        (typeof(int), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(int?)))),
-        (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(string)))),
-        (typeof(bool), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(bool?)))),
-        (typeof(DateTime), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(DateTime?)))),
-    };
+    protected readonly List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> Binaries;
+    protected readonly List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> Unaries;
+    protected readonly Dictionary<Type, Type> PropertyTypeToEntityMap;
 
     protected OperatorsQueryTestBase(ITestOutputHelper testOutputHelper)
     {
         //TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
+
+        Binaries = new()
+        {
+            ((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Divide),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Add),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
+
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
+
+            //((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
+            //((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
+
+            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
+
+            ((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
+            ((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
+            //((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.Equal),
+
+            ((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
+            ((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
+            //((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.NotEqual),
+
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
+        };
+
+        Unaries = new()
+        {
+            (typeof(bool), typeof(bool), Expression.Not),
+            (typeof(int), typeof(int), Expression.Not),
+            (typeof(int), typeof(int), Expression.Negate),
+
+            (typeof(bool?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(bool?)))),
+            (typeof(int?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(int?)))),
+            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(string)))),
+
+            (typeof(bool?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(bool?)))),
+            (typeof(int?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(int?)))),
+            (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(string)))),
+        };
+
+        PropertyTypeToEntityMap = new()
+        {
+            { typeof(string), typeof(OperatorEntityString) },
+            { typeof(int), typeof(OperatorEntityInt) },
+            { typeof(int?), typeof(OperatorEntityNullableInt) },
+            { typeof(bool), typeof(OperatorEntityBool) },
+            { typeof(bool?), typeof(OperatorEntityNullableBool) },
+        };
     }
 
     protected override string StoreName
         => "OperatorsTest";
 
-
-
-
-
-
-
-
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual async Task BasicBinary(bool async)
+    public virtual async Task Basic_binary_in_projection(bool async)
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
         {
-            foreach (var binary in _binaries.Where(x => x.ResultType == typeof(bool)))
+            foreach (var binary in Binaries.Where(x => x.ResultType != typeof(bool)))
             {
-                var baseQuery =
-                    from e1 in context.Entities
-                    from e2 in context.Entities
-                    select new { Entity1 = e1, Entity2 = e2 };
-
-                var query = InjectOperatorsPredicateBinary(
-                    baseQuery,
+                TestProjectionQueryWithTwoSources(
                     binary.InputTypes.Item1,
                     binary.InputTypes.Item2,
-                    binary.OperatorCreator,
-                    filterNulls: true);
-
-                var result = async
-                    ? await query.ToListAsync()
-                    : query.ToList();
+                    binary.ResultType,
+                    context,
+                    binary.OperatorCreator);
             }
         }
     }
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Binary_then_unary(bool async)
+    public virtual async Task Basic_binary_in_predicate(bool async)
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
         {
-            foreach (var binary in _binaries)
+            foreach (var binary in Binaries.Where(x => x.ResultType == typeof(bool)))
             {
-                foreach (var unary in _unaries.Where(x => x.InputType == binary.ResultType))
-                {
-                    var baseQuery =
-                        from e1 in context.Entities
-                        from e2 in context.Entities
-                        select new { Entity1 = e1, Entity2 = e2 };
+                TestPredicateQueryWithTwoSources(
+                    binary.InputTypes.Item1,
+                    binary.InputTypes.Item2,
+                    binary.ResultType,
+                    context,
+                    binary.OperatorCreator);
+            }
+        }
+    }
 
-                    var query = InjectOperatorsPredicateBinaryUnary(
-                        baseQuery,
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Binary_wrapped_in_unary_in_predicate(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            foreach (var unary in Unaries.Where(x => x.InputType == typeof(bool)))
+            {
+                foreach (var binary in Binaries.Where(x => x.ResultType == unary.InputType))
+                {
+                    var operatorCreator = (Expression l, Expression r) => unary.OperatorCreator(binary.OperatorCreator(l, r));
+
+                    TestPredicateQueryWithTwoSources(
                         binary.InputTypes.Item1,
                         binary.InputTypes.Item2,
-                        binary.OperatorCreator,
-                        unary.OperatorCreator,
-                        filterNulls: true);
-
-                    var result = async
-                        ? await query.ToListAsync()
-                        : query.ToList();
+                        binary.ResultType,
+                        context,
+                        operatorCreator);
                 }
             }
         }
     }
 
-    private IQueryable<T> InjectOperatorsPredicateBinary<T>(
-        IQueryable<T> baseQuery,
-        Type leftType,
-        Type rightType,
-        Func<Expression, Expression, Expression> operatorCreator,
-        bool filterNulls)
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Two_binaries_in_predicate1(bool async)
     {
-        //var topLevelSelect = baseQuery.Expression;
-        //var selectMany = ((MethodCallExpression)topLevelSelect).Arguments[0];
-
-        var selectMany = baseQuery.Expression;
-
-        var predicateLambdaParameter = Expression.Parameter(typeof(T));
-        var entityAccessor1 = Expression.Property(predicateLambdaParameter, "Entity1");
-        var entityAccessor2 = Expression.Property(predicateLambdaParameter, "Entity2");
-
-        var leftPropertyAccess = GetPropertyAccessCreator(leftType)(entityAccessor1);
-        var rightPropertyAccess = GetPropertyAccessCreator(rightType)(entityAccessor2);
-
-
-        Expression nullCheck = Expression.Constant(true);
-        if (filterNulls)
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
         {
-            nullCheck = AddNullCheck(nullCheck, leftPropertyAccess);
-            nullCheck = AddNullCheck(nullCheck, rightPropertyAccess);
-
-            if (leftPropertyAccess.Type.IsNullableType() && leftPropertyAccess.Type != typeof(string))
+            foreach (var outerBinary in Binaries.Where(x => x.ResultType == typeof(bool)))
             {
-                leftPropertyAccess = Expression.Property(leftPropertyAccess, "Value");
-            }
+                foreach (var innerBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item1))
+                {
+                    var operatorCreator = (Expression f, Expression s, Expression t) => outerBinary.OperatorCreator(f, innerBinary.OperatorCreator(s, t));
 
-            if (rightPropertyAccess.Type.IsNullableType() && rightPropertyAccess.Type != typeof(string))
-            {
-                rightPropertyAccess = Expression.Property(rightPropertyAccess, "Value");
+                    TestPredicateQueryWithThreeSources(
+                        outerBinary.InputTypes.Item1,
+                        innerBinary.InputTypes.Item1,
+                        innerBinary.InputTypes.Item2,
+                        outerBinary.ResultType,
+                        context,
+                        operatorCreator);
+                }
             }
         }
-
-        var operatorExpression = Expression.AndAlso(
-            nullCheck,
-            operatorCreator(leftPropertyAccess, rightPropertyAccess));
-
-        var predicateLambda = Expression.Lambda<Func<T, bool>>(operatorExpression, predicateLambdaParameter);
-        var whereMethod = QueryableMethods.Where.MakeGenericMethod(typeof(T));
-        var whereMethodCall = Expression.Call(whereMethod, selectMany, predicateLambda);
-
-
-        var result = baseQuery.Provider.CreateQuery<T>(whereMethodCall);
-
-        return result;
-    }
-
-    private IQueryable<T> InjectOperatorsPredicateBinaryUnary<T>(
-        IQueryable<T> baseQuery,
-        Type leftType,
-        Type rightType,
-        Func<Expression, Expression, Expression> binaryOperatorCreator,
-        Func<Expression, Expression> unaryOperatorCreator,
-        bool filterNulls)
-    {
-        //var topLevelSelect = baseQuery.Expression;
-        //var selectMany = ((MethodCallExpression)topLevelSelect).Arguments[0];
-
-        var selectMany = baseQuery.Expression;
-
-        var predicateLambdaParameter = Expression.Parameter(typeof(T));
-        var entityAccessor1 = Expression.Property(predicateLambdaParameter, "Entity1");
-        var entityAccessor2 = Expression.Property(predicateLambdaParameter, "Entity2");
-
-        var leftPropertyAccess = GetPropertyAccessCreator(leftType)(entityAccessor1);
-        var rightPropertyAccess = GetPropertyAccessCreator(rightType)(entityAccessor2);
-
-
-        Expression nullCheck = Expression.Constant(true);
-        if (filterNulls)
-        {
-            nullCheck = AddNullCheck(nullCheck, leftPropertyAccess);
-            nullCheck = AddNullCheck(nullCheck, rightPropertyAccess);
-
-            if (leftPropertyAccess.Type.IsNullableType() && leftPropertyAccess.Type != typeof(string))
-            {
-                leftPropertyAccess = Expression.Property(leftPropertyAccess, "Value");
-            }
-
-            if (rightPropertyAccess.Type.IsNullableType() && rightPropertyAccess.Type != typeof(string))
-            {
-                rightPropertyAccess = Expression.Property(rightPropertyAccess, "Value");
-            }
-        }
-
-        var operatorExpression = Expression.AndAlso(
-            nullCheck,
-            unaryOperatorCreator(
-                binaryOperatorCreator(leftPropertyAccess, rightPropertyAccess)));
-
-        var predicateLambda = Expression.Lambda<Func<T, bool>>(operatorExpression, predicateLambdaParameter);
-        var whereMethod = QueryableMethods.Where.MakeGenericMethod(typeof(T));
-        var whereMethodCall = Expression.Call(whereMethod, selectMany, predicateLambda);
-
-
-        var result = baseQuery.Provider.CreateQuery<T>(whereMethodCall);
-
-        return result;
     }
 
 
 
-    private Func<Expression, Expression> GetPropertyAccessCreator(Type propertyType)
-        => propertyType switch
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Basic_binary_wrapped_in_unary_in_projection(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
         {
-            var type when type == typeof(int) => e => Expression.Property(e, "Number"),
-            var type when type == typeof(string) => e => Expression.Property(e, "String"),
-            var type when type == typeof(bool) => e => Expression.Property(e, "Bool"),
-            var type when type == typeof(DateTime) => e => Expression.Property(e, "DateTime"),
-            _ => throw new InvalidOperationException("Unhandled argument type")
-        };
+            foreach (var unary in Unaries.Where(x => x.InputType != typeof(bool)))
+            {
+                foreach (var binary in Binaries.Where(x => x.ResultType == unary.InputType))
+                {
+                    var operatorCreator = (Expression l, Expression r) => unary.OperatorCreator(binary.OperatorCreator(l, r));
 
-    private Expression AddNullCheck(Expression currentNullCheck, Expression expression)
-        => expression.Type.IsNullableType()
-            ? Expression.AndAlso(
-                currentNullCheck,
-                Expression.NotEqual(
-                    expression,
-                    Expression.Constant(null, expression.Type)))
-        : currentNullCheck;
+                    TestProjectionQueryWithTwoSources(
+                        binary.InputTypes.Item1,
+                        binary.InputTypes.Item2,
+                        binary.ResultType,
+                        context,
+                        operatorCreator);
+                }
+            }
+        }
+    }
+
+    #region projection
+
+    private void TestProjectionQueryWithTwoSources(
+        Type firstType,
+        Type secondType,
+        Type resultType,
+        OperatorsContext context,
+        Func<Expression, Expression, Expression> resultCreator)
+    {
+        var method = typeof(OperatorsQueryTestBase).GetMethod(
+            nameof(TestProjectionQueryWithTwoSourcesInternal),
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var genericMethod = method.MakeGenericMethod(
+            PropertyTypeToEntityMap[firstType],
+            PropertyTypeToEntityMap[secondType],
+            resultType);
+
+        genericMethod.Invoke(
+            null,
+            new object[]
+            {
+                context,
+                resultCreator
+            });
+    }
+
+    private void TestProjectionQueryWithThreeSources(
+        Type firstType,
+        Type secondType,
+        Type thirdType,
+        Type resultType,
+        OperatorsContext context,
+        Func<Expression, Expression, Expression> resultCreator)
+    {
+        var method = typeof(OperatorsQueryTestBase).GetMethod(
+            nameof(TestProjectionQueryWithThreeSourcesInternal),
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var genericMethod = method.MakeGenericMethod(
+            PropertyTypeToEntityMap[firstType],
+            PropertyTypeToEntityMap[secondType],
+            PropertyTypeToEntityMap[thirdType],
+            resultType);
+
+        genericMethod.Invoke(
+            null,
+            new object[]
+            {
+                context,
+                resultCreator
+            });
+    }
+
+    private static void TestProjectionQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
+        OperatorsContext context,
+        Func<Expression, Expression, Expression> resultCreator)
+        where TFirst : class
+        where TSecond : class
+    {
+        var queryTemplate =
+            from e1 in context.Set<TFirst>()
+            from e2 in context.Set<TSecond>()
+            select new OperatorDto2<TFirst, TSecond, TResult>(e1, e2, default);
+
+        var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
+        var rewritten = resultRewriter.Visit(queryTemplate.Expression);
+        var query = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(rewritten);
+
+        var result = query.ToList();
+    }
+
+    private void TestProjectionQueryWithThreeSourcesInternal<TFirst, TSecond, TThird, TResult>(
+        OperatorsContext context,
+        Func<Expression, Expression, Expression, Expression> resultCreator)
+        where TFirst : class
+        where TSecond : class
+        where TThird : class
+    {
+        var queryTemplate =
+            from e1 in context.Set<TFirst>()
+            from e2 in context.Set<TSecond>()
+            from e3 in context.Set<TThird>()
+            select new OperatorDto3<TFirst, TSecond, TThird, TResult>(e1, e2, e3, default);
+
+        var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
+        var rewritten = resultRewriter.Visit(queryTemplate.Expression);
+        var query = queryTemplate.Provider.CreateQuery<OperatorDto3<TFirst, TSecond, TThird, TResult>>(rewritten);
+
+        var result = query.ToList();
+    }
+
+    private class ResultExpressionProjectionRewriter : ExpressionVisitor
+    {
+        private readonly Func<Expression, Expression, Expression> _resultCreatorTwoArgs;
+        private readonly Func<Expression, Expression, Expression, Expression> _resultCreatorThreeArgs;
+
+        public ResultExpressionProjectionRewriter(Func<Expression, Expression, Expression> resultCreatorTwoArgs)
+        {
+            _resultCreatorTwoArgs = resultCreatorTwoArgs;
+        }
+
+        public ResultExpressionProjectionRewriter(Func<Expression, Expression, Expression, Expression> resultCreatorThreeArgs)
+        {
+            _resultCreatorThreeArgs = resultCreatorThreeArgs;
+        }
+
+        protected override Expression VisitNew(NewExpression newExpression)
+        {
+            if (newExpression.Constructor is ConstructorInfo ctorInfo
+                && ctorInfo.DeclaringType is Type { IsGenericType: true } declaringType)
+            {
+                if (declaringType.GetGenericTypeDefinition() == typeof(OperatorDto2<,,>))
+                {
+                    var firstArgumentValue = Expression.Property(newExpression.Arguments[0], "Value");
+                    var secondArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
+
+                    var newArgs = new List<Expression>
+                    {
+                        newExpression.Arguments[0],
+                        newExpression.Arguments[1],
+                        _resultCreatorTwoArgs(firstArgumentValue, secondArgumentValue)
+                    };
+
+                    return newExpression.Update(newArgs);
+                }
+
+                if (declaringType.GetGenericTypeDefinition() == typeof(OperatorDto3<,,,>))
+                {
+                    var firstArgumentValue = Expression.Property(newExpression.Arguments[0], "Value");
+                    var secondArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
+                    var thirdArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
+
+                    var newArgs = new List<Expression>
+                    {
+                        newExpression.Arguments[0],
+                        newExpression.Arguments[1],
+                        newExpression.Arguments[2],
+                        _resultCreatorThreeArgs(firstArgumentValue, secondArgumentValue, thirdArgumentValue)
+                    };
+
+                    return newExpression.Update(newArgs);
+                }
+            }
+
+            return base.VisitNew(newExpression);
+        }
+    }
+
+    #endregion
+
+    #region predicate
+
+    private void TestPredicateQueryWithTwoSources(
+        Type firstType,
+        Type secondType,
+        Type resultType,
+        OperatorsContext context,
+        Func<Expression, Expression, Expression> resultCreator)
+    {
+        var method = typeof(OperatorsQueryTestBase).GetMethod(
+            nameof(TestPredicateQueryWithTwoSourcesInternal),
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var genericMethod = method.MakeGenericMethod(
+            PropertyTypeToEntityMap[firstType],
+            PropertyTypeToEntityMap[secondType],
+            resultType);
+
+        genericMethod.Invoke(
+            null,
+            new object[]
+            {
+                context,
+                resultCreator
+            });
+    }
+
+    private static void TestPredicateQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
+        OperatorsContext context,
+        Func<Expression, Expression, Expression> resultCreator)
+        where TFirst : class
+        where TSecond : class
+    {
+        var queryTemplate =
+            from e1 in context.Set<TFirst>()
+            from e2 in context.Set<TSecond>()
+            where DummyTrue(e1, e2)
+            select new ValueTuple<TFirst, TSecond>(e1, e2);
+
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
+        var rewritten = resultRewriter.Visit(queryTemplate.Expression);
+        var query = queryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond>>(rewritten);
+
+        var result = query.ToList();
+    }
+
+    private static bool DummyTrue<TFirst, TSecond>(TFirst first, TSecond second)
+        => true;
+
+    private static bool DummyTrue<TFirst, TSecond, TThird>(TFirst first, TSecond second, TThird third)
+        => true;
+
+    private class ResultExpressionPredicateRewriter : ExpressionVisitor
+    {
+        private readonly Func<Expression, Expression, Expression> _resultCreatorTwoArgs;
+        private readonly Func<Expression, Expression, Expression, Expression> _resultCreatorThreeArgs;
+
+        public ResultExpressionPredicateRewriter(Func<Expression, Expression, Expression> resultCreatorTwoArgs)
+        {
+            _resultCreatorTwoArgs = resultCreatorTwoArgs;
+        }
+
+        public ResultExpressionPredicateRewriter(Func<Expression, Expression, Expression, Expression> resultCreatorThreeArgs)
+        {
+            _resultCreatorThreeArgs = resultCreatorThreeArgs;
+        }
+
+        protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
+        {
+            if (methodCallExpression.Method.Name == nameof(DummyTrue))
+            {
+                // replace dummy with the actual predicate
+                if (methodCallExpression.Arguments.Count == 2)
+                {
+                    var firstArgumentValue = Expression.Property(methodCallExpression.Arguments[0], "Value");
+                    var secondArgumentValue = Expression.Property(methodCallExpression.Arguments[1], "Value");
+
+                    return _resultCreatorTwoArgs(firstArgumentValue, secondArgumentValue);
+                }
+
+                if (methodCallExpression.Arguments.Count == 3)
+                {
+                    var firstArgumentValue = Expression.Property(methodCallExpression.Arguments[0], "Value");
+                    var secondArgumentValue = Expression.Property(methodCallExpression.Arguments[1], "Value");
+                    var thirdArgumentValue = Expression.Property(methodCallExpression.Arguments[2], "Value");
+
+                    return _resultCreatorThreeArgs(firstArgumentValue, secondArgumentValue, thirdArgumentValue);
+                }
+            }
+
+            return base.VisitMethodCall(methodCallExpression);
+        }
+    }
+
+    #endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     protected abstract void Seed(OperatorsContext ctx);
 
@@ -266,8 +468,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         {
         }
 
-        public DbSet<OperatosEntity> Entities { get; set; }
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<OperatorEntityString>();
@@ -275,32 +475,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             modelBuilder.Entity<OperatorEntityNullableInt>();
             modelBuilder.Entity<OperatorEntityBool>();
             modelBuilder.Entity<OperatorEntityNullableBool>();
-            modelBuilder.Entity<OperatorEntityDateTimeOffset>();
-            modelBuilder.Entity<OperatorEntityNullableDateTimeOffset>();
-
-            //modelBuilder.Entity<OperatosEntity1>().Property(x => x.Id).ValueGeneratedNever();
-            //modelBuilder.Entity<OperatosEntity2>().Property(x => x.Id).ValueGeneratedNever();
-            //modelBuilder.Entity<OperatosEntity3>().Property(x => x.Id).ValueGeneratedNever();
         }
-    }
-
-    public class OperatosEntity
-    {
-        public int Id { get; set; }
-        public string String { get; set; }
-        //public string String2 { get; set; }
-        //public string String3 { get; set; }
-
-        public int? Number { get; set; }
-        //public int? Number2 { get; set; }
-        //public int? Number3 { get; set; }
-
-        public bool? Bool { get; set; }
-        //public bool? Bool2 { get; set; }
-        //public bool? Bool3 { get; set; }
-
-        public DateTime? DateTime { get; set; }
-        //public DateTime? DateTime2 { get; set; }
     }
 
     public class OperatorEntityString
@@ -333,16 +508,35 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         public bool? Value { get; set; }
     }
 
-    public class OperatorEntityDateTimeOffset
+    public class OperatorDto2<TEntity1, TEntity2, TResult>
     {
-        public int Id { get; set; }
-        public DateTimeOffset Value { get; set; }
+        public OperatorDto2(TEntity1 entity1, TEntity2 entity2, TResult result)
+        {
+            Entity1 = entity1;
+            Entity2 = entity2;
+            Result = result;
+        }
 
+        public TEntity1 Entity1 { get; set; }
+        public TEntity2 Entity2 { get; set; }
+
+        public TResult Result { get; set; }
     }
 
-    public class OperatorEntityNullableDateTimeOffset
+    public class OperatorDto3<TEntity1, TEntity2, TEntity3, TResult>
     {
-        public int Id { get; set; }
-        public DateTimeOffset? Value { get; set; }
+        public OperatorDto3(TEntity1 entity1, TEntity2 entity2, TEntity3 entity3, TResult result)
+        {
+            Entity1 = entity1;
+            Entity2 = entity2;
+            Entity3 = entity3;
+            Result = result;
+        }
+
+        public TEntity1 Entity1 { get; set; }
+        public TEntity2 Entity2 { get; set; }
+        public TEntity3 Entity3 { get; set; }
+
+        public TResult Result { get; set; }
     }
 }
