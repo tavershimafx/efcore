@@ -6,7 +6,7 @@ namespace Microsoft.EntityFrameworkCore.Query;
 public class OperatorsQuerySqlServerTest : OperatorsQueryTestBase
 {
     public OperatorsQuerySqlServerTest(ITestOutputHelper testOutputHelper)
-    : base(testOutputHelper)
+        : base(testOutputHelper)
     {
     }
 

@@ -105,9 +105,32 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                 TestPredicateQueryWithTwoSources(
                     binary.InputTypes.Item1,
                     binary.InputTypes.Item2,
-                    binary.ResultType,
                     context,
                     binary.OperatorCreator);
+            }
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Binary_wrapped_in_unary_in_projection(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            foreach (var unary in Unaries.Where(x => x.InputType != typeof(bool)))
+            {
+                foreach (var binary in Binaries.Where(x => x.ResultType == unary.InputType))
+                {
+                    var operatorCreator = (Expression l, Expression r) => unary.OperatorCreator(binary.OperatorCreator(l, r));
+
+                    TestProjectionQueryWithTwoSources(
+                        binary.InputTypes.Item1,
+                        binary.InputTypes.Item2,
+                        binary.ResultType,
+                        context,
+                        operatorCreator);
+                }
             }
         }
     }
@@ -128,9 +151,61 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                     TestPredicateQueryWithTwoSources(
                         binary.InputTypes.Item1,
                         binary.InputTypes.Item2,
-                        binary.ResultType,
                         context,
                         operatorCreator);
+                }
+            }
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Two_unaries_wrapped_in_binary_in_projection(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            foreach (var binary in Binaries.Where(x => x.ResultType != typeof(bool)))
+            {
+                foreach (var unary1 in Unaries.Where(x => x.ResultType == binary.InputTypes.Item1))
+                {
+                    foreach (var unary2 in Unaries.Where(x => x.ResultType == binary.InputTypes.Item2))
+                    {
+                        var operatorCreator = (Expression l, Expression r) => binary.OperatorCreator(unary1.OperatorCreator(l), unary2.OperatorCreator(r));
+
+                        TestProjectionQueryWithTwoSources(
+                            unary1.InputType,
+                            unary2.InputType,
+                            binary.ResultType,
+                            context,
+                            operatorCreator);
+                    }
+                }
+            }
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Two_unaries_wrapped_in_binary_in_predicate(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            foreach (var binary in Binaries.Where(x => x.ResultType == typeof(bool)))
+            {
+                foreach (var unary1 in Unaries.Where(x => x.ResultType == binary.InputTypes.Item1))
+                {
+                    foreach (var unary2 in Unaries.Where(x => x.ResultType == binary.InputTypes.Item2))
+                    {
+                        var operatorCreator = (Expression l, Expression r) => binary.OperatorCreator(unary1.OperatorCreator(l), unary2.OperatorCreator(r));
+
+                        TestPredicateQueryWithTwoSources(
+                            unary1.InputType,
+                            unary2.InputType,
+                            context,
+                            operatorCreator);
+                    }
                 }
             }
         }
@@ -147,13 +222,12 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             {
                 foreach (var innerBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item1))
                 {
-                    var operatorCreator = (Expression f, Expression s, Expression t) => outerBinary.OperatorCreator(f, innerBinary.OperatorCreator(s, t));
+                    var operatorCreator = (Expression f, Expression s, Expression t) => outerBinary.OperatorCreator(innerBinary.OperatorCreator(f, s), t);
 
                     TestPredicateQueryWithThreeSources(
-                        outerBinary.InputTypes.Item1,
                         innerBinary.InputTypes.Item1,
                         innerBinary.InputTypes.Item2,
-                        outerBinary.ResultType,
+                        outerBinary.InputTypes.Item2,
                         context,
                         operatorCreator);
                 }
@@ -161,7 +235,29 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Two_binaries_in_predicate2(bool async)
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            foreach (var outerBinary in Binaries.Where(x => x.ResultType == typeof(bool)))
+            {
+                foreach (var innerBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item2))
+                {
+                    var operatorCreator = (Expression f, Expression s, Expression t) => outerBinary.OperatorCreator(f, innerBinary.OperatorCreator(s, t));
 
+                    TestPredicateQueryWithThreeSources(
+                        outerBinary.InputTypes.Item1,
+                        innerBinary.InputTypes.Item1,
+                        innerBinary.InputTypes.Item2,
+                        context,
+                        operatorCreator);
+                }
+            }
+        }
+    }
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -343,7 +439,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     private void TestPredicateQueryWithTwoSources(
         Type firstType,
         Type secondType,
-        Type resultType,
         OperatorsContext context,
         Func<Expression, Expression, Expression> resultCreator)
     {
@@ -353,8 +448,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         var genericMethod = method.MakeGenericMethod(
             PropertyTypeToEntityMap[firstType],
-            PropertyTypeToEntityMap[secondType],
-            resultType);
+            PropertyTypeToEntityMap[secondType]);
 
         genericMethod.Invoke(
             null,
@@ -365,7 +459,32 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             });
     }
 
-    private static void TestPredicateQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
+    private void TestPredicateQueryWithThreeSources(
+        Type firstType,
+        Type secondType,
+        Type thirdType,
+        OperatorsContext context,
+        Func<Expression, Expression, Expression, Expression> resultCreator)
+    {
+        var method = typeof(OperatorsQueryTestBase).GetMethod(
+            nameof(TestPredicateQueryWithThreeSourcesInternal),
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var genericMethod = method.MakeGenericMethod(
+            PropertyTypeToEntityMap[firstType],
+            PropertyTypeToEntityMap[secondType],
+            PropertyTypeToEntityMap[thirdType]);
+
+        genericMethod.Invoke(
+            null,
+            new object[]
+            {
+                context,
+                resultCreator
+            });
+    }
+
+    private static void TestPredicateQueryWithTwoSourcesInternal<TFirst, TSecond>(
         OperatorsContext context,
         Func<Expression, Expression, Expression> resultCreator)
         where TFirst : class
@@ -380,6 +499,27 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
         var rewritten = resultRewriter.Visit(queryTemplate.Expression);
         var query = queryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond>>(rewritten);
+
+        var result = query.ToList();
+    }
+
+    private static void TestPredicateQueryWithThreeSourcesInternal<TFirst, TSecond, TThird>(
+        OperatorsContext context,
+        Func<Expression, Expression, Expression, Expression> resultCreator)
+        where TFirst : class
+        where TSecond : class
+        where TThird : class
+    {
+        var queryTemplate =
+            from e1 in context.Set<TFirst>()
+            from e2 in context.Set<TSecond>()
+            from e3 in context.Set<TThird>()
+            where DummyTrue(e1, e2, e3)
+            select new ValueTuple<TFirst, TSecond, TThird>(e1, e2, e3);
+
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
+        var rewritten = resultRewriter.Visit(queryTemplate.Expression);
+        var query = queryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond, TThird>>(rewritten);
 
         var result = query.ToList();
     }
