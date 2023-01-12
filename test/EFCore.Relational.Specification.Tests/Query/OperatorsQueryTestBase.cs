@@ -377,33 +377,72 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             });
     }
 
+    private class DefaultSetSource : ISetSource
+    {
+        private readonly DbContext _context;
+
+        public DefaultSetSource(DbContext context)
+        {
+            _context = context;
+        }
+
+        public IQueryable<TEntity> Set<TEntity>()
+            where TEntity : class
+            => _context.Set<TEntity>();
+    }
+
     private void TestProjectionQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
         OperatorsContext context,
         Func<Expression, Expression, Expression> resultCreator)
         where TFirst : class
         where TSecond : class
     {
-        var queryTemplate =
-            from e1 in context.Set<TFirst>()
-            from e2 in context.Set<TSecond>()
+        var setSource = new DefaultSetSource(context);
+        var setSourceTemplate = (ISetSource ss) =>
+            from e1 in ss.Set<TFirst>()
+            from e2 in ss.Set<TSecond>()
             select new OperatorDto2<TFirst, TSecond, TResult>(e1, e2, default);
 
+        var actualQueryTemplate = setSourceTemplate(setSource);
         var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
-        var rewritten = resultRewriter.Visit(queryTemplate.Expression);
-        var query = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(rewritten);
+        var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(actualRewritten);
+        var actualResults = actualQuery.ToList();
 
-        var result = query.ToList();
-
-        var expected = ExpectedQueryRewriter.Visit(rewritten);
-
-
-
-        var blah = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expected);
+        var expectedQueryTemplate = setSourceTemplate(ExpectedData);
+        var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expectedRewritten);
+        var expectedResults = expectedQuery.ToList();
 
 
 
 
-        var fybr = blah.ToList();
+
+
+
+
+
+        //var queryTemplate =
+        //    from e1 in context.Set<TFirst>()
+        //    from e2 in context.Set<TSecond>()
+        //    select new OperatorDto2<TFirst, TSecond, TResult>(e1, e2, default);
+
+        //var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
+        //var rewritten = resultRewriter.Visit(queryTemplate.Expression);
+        //var query = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(rewritten);
+
+        //var result = query.ToList();
+
+        //var expected = ExpectedQueryRewriter.Visit(rewritten);
+
+
+
+        //var blah = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expected);
+
+
+
+
+        //var fybr = blah.ToList();
     }
 
     private void TestProjectionQueryWithThreeSourcesInternal<TFirst, TSecond, TThird, TResult>(
