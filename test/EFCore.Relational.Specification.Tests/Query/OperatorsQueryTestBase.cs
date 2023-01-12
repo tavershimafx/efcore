@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Reflection;
+
 namespace Microsoft.EntityFrameworkCore.Query;
 
 public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
@@ -8,6 +10,9 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     protected readonly List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> Binaries;
     protected readonly List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> Unaries;
     protected readonly Dictionary<Type, Type> PropertyTypeToEntityMap;
+
+    protected OperatorsData ExpectedData { get; init; }
+    protected ExpectedQueryRewritingVisitor ExpectedQueryRewriter { get; init; }
 
     protected OperatorsQueryTestBase(ITestOutputHelper testOutputHelper)
     {
@@ -69,14 +74,16 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             { typeof(bool), typeof(OperatorEntityBool) },
             { typeof(bool?), typeof(OperatorEntityNullableBool) },
         };
+
+        ExpectedData = OperatorsData.Instance;
+        ExpectedQueryRewriter = new ExpectedQueryRewritingVisitor(Expression.Constant(ExpectedData));
     }
 
     protected override string StoreName
         => "OperatorsTest";
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Basic_binary_in_projection(bool async)
+    [ConditionalFact]
+    public virtual async Task Basic_binary_in_projection()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -93,9 +100,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Basic_binary_in_predicate(bool async)
+    [ConditionalFact]
+    public virtual async Task Basic_binary_in_predicate()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -111,9 +117,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Binary_wrapped_in_unary_in_projection(bool async)
+    [ConditionalFact]
+    public virtual async Task Binary_wrapped_in_unary_in_projection()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -135,9 +140,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Binary_wrapped_in_unary_in_predicate(bool async)
+    [ConditionalFact]
+    public virtual async Task Binary_wrapped_in_unary_in_predicate()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -158,9 +162,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Two_unaries_wrapped_in_binary_in_projection(bool async)
+    [ConditionalFact]
+    public virtual async Task Two_unaries_wrapped_in_binary_in_projection()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -185,9 +188,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Two_unaries_wrapped_in_binary_in_predicate(bool async)
+    [ConditionalFact]
+    public virtual async Task Two_unaries_wrapped_in_binary_in_predicate()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -211,9 +213,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Two_binaries_in_predicate1(bool async)
+    [ConditionalFact]
+    public virtual async Task Two_binaries_in_predicate1()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -235,9 +236,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Two_binaries_in_predicate2(bool async)
+    [ConditionalFact]
+    public virtual async Task Two_binaries_in_predicate2()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -259,9 +259,8 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    [ConditionalTheory]
-    [MemberData(nameof(IsAsyncData))]
-    public virtual async Task Basic_binary_wrapped_in_unary_in_projection(bool async)
+    [ConditionalFact]
+    public virtual async Task Basic_binary_wrapped_in_unary_in_projection()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
@@ -283,6 +282,47 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
+    protected class ExpectedQueryRewritingVisitor : ExpressionVisitor
+    {
+        private readonly MethodInfo _contextSetMethod = typeof(DbContext).GetRuntimeMethod(nameof(DbContext.Set), new Type[] { });
+        private readonly MethodInfo _expectedDataSetMethod = typeof(ISetSource).GetRuntimeMethod(nameof(DbContext.Set), new Type[] { });
+
+        private readonly ConstantExpression _expectedDataExpression;
+
+        public ExpectedQueryRewritingVisitor(ConstantExpression expectedDataExpression)
+        {
+            _expectedDataExpression = expectedDataExpression;
+        }
+
+        protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
+        {
+            if (methodCallExpression.Method is MethodInfo { IsGenericMethod: true } method
+                && method.GetGenericMethodDefinition() == _contextSetMethod)
+            {
+                var typeArgument = method.GetGenericArguments().Single();
+
+                return Expression.Call(
+                    _expectedDataExpression,
+                    _expectedDataSetMethod.MakeGenericMethod(typeArgument));
+            }
+
+            return base.VisitMethodCall(methodCallExpression);
+        }
+
+        protected override Expression VisitExtension(Expression extensionExpression)
+        {
+            if (extensionExpression is QueryRootExpression queryRoot)
+            {
+                return Expression.Call(
+                    _expectedDataExpression,
+                    _expectedDataSetMethod.MakeGenericMethod(queryRoot.ElementType));
+            }
+
+            return base.VisitExtension(extensionExpression);
+        }
+    }
+
+
     #region projection
 
     private void TestProjectionQueryWithTwoSources(
@@ -294,7 +334,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     {
         var method = typeof(OperatorsQueryTestBase).GetMethod(
             nameof(TestProjectionQueryWithTwoSourcesInternal),
-            BindingFlags.NonPublic | BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Instance);
 
         var genericMethod = method.MakeGenericMethod(
             PropertyTypeToEntityMap[firstType],
@@ -302,7 +342,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             resultType);
 
         genericMethod.Invoke(
-            null,
+            this,
             new object[]
             {
                 context,
@@ -320,7 +360,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     {
         var method = typeof(OperatorsQueryTestBase).GetMethod(
             nameof(TestProjectionQueryWithThreeSourcesInternal),
-            BindingFlags.NonPublic | BindingFlags.Static);
+            BindingFlags.NonPublic | BindingFlags.Instance);
 
         var genericMethod = method.MakeGenericMethod(
             PropertyTypeToEntityMap[firstType],
@@ -337,7 +377,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             });
     }
 
-    private static void TestProjectionQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
+    private void TestProjectionQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
         OperatorsContext context,
         Func<Expression, Expression, Expression> resultCreator)
         where TFirst : class
@@ -353,6 +393,17 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         var query = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(rewritten);
 
         var result = query.ToList();
+
+        var expected = ExpectedQueryRewriter.Visit(rewritten);
+
+
+
+        var blah = queryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expected);
+
+
+
+
+        var fybr = blah.ToList();
     }
 
     private void TestProjectionQueryWithThreeSourcesInternal<TFirst, TSecond, TThird, TResult>(
@@ -574,31 +625,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
     #endregion
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     protected abstract void Seed(OperatorsContext ctx);
 
     protected class OperatorsContext : DbContext
@@ -610,12 +636,114 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<OperatorEntityString>();
-            modelBuilder.Entity<OperatorEntityInt>();
-            modelBuilder.Entity<OperatorEntityNullableInt>();
-            modelBuilder.Entity<OperatorEntityBool>();
-            modelBuilder.Entity<OperatorEntityNullableBool>();
+            modelBuilder.Entity<OperatorEntityString>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<OperatorEntityInt>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<OperatorEntityNullableInt>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<OperatorEntityBool>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<OperatorEntityNullableBool>().Property(x => x.Id).ValueGeneratedNever();
         }
+    }
+
+    protected class OperatorsData : ISetSource
+    {
+        public static readonly OperatorsData Instance = new();
+
+        public IReadOnlyList<OperatorEntityString> OperatorEntitiesString { get; }
+        public IReadOnlyList<OperatorEntityInt> OperatorEntitiesInt { get; }
+        public IReadOnlyList<OperatorEntityBool> OperatorEntitiesBool { get; }
+
+        private OperatorsData()
+        {
+            OperatorEntitiesString = CreateStrings();
+            OperatorEntitiesInt = CreateInts();
+            OperatorEntitiesBool = CreateBools();
+        }
+
+        public virtual IQueryable<TEntity> Set<TEntity>()
+            where TEntity : class
+        {
+            if (typeof(TEntity) == typeof(OperatorEntityString))
+            {
+                return (IQueryable<TEntity>)OperatorEntitiesString.AsQueryable();
+            }
+
+            if (typeof(TEntity) == typeof(OperatorEntityInt))
+            {
+                return (IQueryable<TEntity>)OperatorEntitiesInt.AsQueryable();
+            }
+
+            if (typeof(TEntity) == typeof(OperatorEntityBool))
+            {
+                return (IQueryable<TEntity>)OperatorEntitiesBool.AsQueryable();
+            }
+
+            throw new InvalidOperationException("Invalid entity type: " + typeof(TEntity));
+        }
+
+        public static IReadOnlyList<OperatorEntityString> CreateStrings()
+            => new List<OperatorEntityString>
+            {
+                new()
+                {
+                    Id = 1,
+                    Value = "A",
+                },
+                new()
+                {
+                    Id = 2,
+                    Value = "B",
+                },
+                new()
+                {
+                    Id = 3,
+                    Value = "ABA",
+                }
+            };
+
+        public static IReadOnlyList<OperatorEntityInt> CreateInts()
+            => new List<OperatorEntityInt>
+            {
+                new()
+                {
+                    Id = 1,
+                    Value = 1,
+                },
+                new()
+                {
+                    Id = 2,
+                    Value = 2,
+                },
+                new()
+                {
+                    Id = 3,
+                    Value = 3,
+                },
+                new()
+                {
+                    Id = 4,
+                    Value = 5,
+                },
+                new()
+                {
+                    Id = 5,
+                    Value = 8,
+                },
+            };
+
+        public static IReadOnlyList<OperatorEntityBool> CreateBools()
+            => new List<OperatorEntityBool>
+            {
+                new()
+                {
+                    Id = 1,
+                    Value = true,
+                },
+                new()
+                {
+                    Id = 2,
+                    Value = false,
+                },
+            };
     }
 
     public class OperatorEntityString
