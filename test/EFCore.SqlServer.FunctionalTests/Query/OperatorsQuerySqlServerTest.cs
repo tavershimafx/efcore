@@ -17,7 +17,9 @@ public class OperatorsQuerySqlServerTest : OperatorsQueryTestBase
     {
         ctx.Set<OperatorEntityString>().AddRange(ExpectedData.OperatorEntitiesString);
         ctx.Set<OperatorEntityInt>().AddRange(ExpectedData.OperatorEntitiesInt);
+        ctx.Set<OperatorEntityNullableInt>().AddRange(ExpectedData.OperatorEntitiesNullableInt);
         ctx.Set<OperatorEntityBool>().AddRange(ExpectedData.OperatorEntitiesBool);
+        ctx.Set<OperatorEntityNullableBool>().AddRange(ExpectedData.OperatorEntitiesNullableBool);
 
         ctx.SaveChanges();
     }

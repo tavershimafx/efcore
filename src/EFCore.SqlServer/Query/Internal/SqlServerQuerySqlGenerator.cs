@@ -405,7 +405,7 @@ public class SqlServerQuerySqlGenerator : QuerySqlGenerator
                 ExpressionType.GreaterThan => (600, false),
                 ExpressionType.GreaterThanOrEqual => (600, false),
                 ExpressionType.Equal => (500, false),
-                ExpressionType.NotEqual => (500, false),
+                ExpressionType.NotEqual => (1500, false),
                 ExpressionType.AndAlso => (200, true),
                 ExpressionType.OrElse => (100, true),
 
