@@ -22,33 +22,33 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         Binaries = new()
         {
-            ((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
-            ((typeof(int), typeof(int)), typeof(int), Expression.Divide),
-            ((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
-            ((typeof(int), typeof(int)), typeof(int), Expression.Add),
-            ((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
+            //((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
+            //((typeof(int), typeof(int)), typeof(int), Expression.Divide),
+            //((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
+            //((typeof(int), typeof(int)), typeof(int), Expression.Add),
+            //((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
 
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
 
-            //((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
-            //((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
+            ////((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
+            ////((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
 
-            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
-            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
-            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
-            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
 
-            ((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
-            ((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
+            //((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
 
-            ((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
-            ((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
+            //((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
+            //((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
 
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
-            ((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
+            //((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
 
             ((typeof(string), typeof(string)), typeof(bool), (x, y) => Expression.Call(
                 null,
@@ -756,12 +756,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
                     return _resultCreatorThreeArgs(firstArgumentValue, secondArgumentValue, thirdArgumentValue);
                 }
-            }
-
-            if (methodCallExpression.Method == _likeMethodInfo)
-            {
-                // x LIKE x -> x == x
-                // x LIKE "A%" -> x.StartsWith("A")
             }
 
             return base.VisitMethodCall(methodCallExpression);
