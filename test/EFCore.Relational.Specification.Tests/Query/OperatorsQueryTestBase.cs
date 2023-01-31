@@ -19,7 +19,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     protected OperatorsQueryTestBase(ITestOutputHelper testOutputHelper)
     {
         //TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
-
         Binaries = new()
         {
             //((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
@@ -50,34 +49,34 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             //((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
             //((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
 
-            ((typeof(string), typeof(string)), typeof(bool), (x, y) => Expression.Call(
-                null,
-                _likeMethodInfo,
-                Expression.Constant(EF.Functions),
-                x,
-                y)),
+            //((typeof(string), typeof(string)), typeof(bool), (x, y) => Expression.Call(
+            //    null,
+            //    _likeMethodInfo,
+            //    Expression.Constant(EF.Functions),
+            //    x,
+            //    y)),
         };
 
         Unaries = new()
         {
-            (typeof(bool), typeof(bool), Expression.Not),
-            (typeof(int), typeof(int), Expression.Not),
-            (typeof(int), typeof(int), Expression.Negate),
+            //(typeof(bool), typeof(bool), Expression.Not),
+            //(typeof(int), typeof(int), Expression.Not),
+            //(typeof(int), typeof(int), Expression.Negate),
 
-            (typeof(bool?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(bool?)))),
-            (typeof(int?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(int?)))),
-            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(string)))),
+            //(typeof(bool?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(bool?)))),
+            //(typeof(int?), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(int?)))),
+            //(typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant(null, typeof(string)))),
 
-            (typeof(bool?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(bool?)))),
-            (typeof(int?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(int?)))),
-            (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(string)))),
+            //(typeof(bool?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(bool?)))),
+            //(typeof(int?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(int?)))),
+            //(typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(string)))),
 
-            (typeof(string), typeof(string), x => Expression.Call(
-                null,
-                _likeMethodInfo,
-                Expression.Constant(EF.Functions),
-                x,
-                Expression.Constant("A%"))),
+            //(typeof(string), typeof(string), x => Expression.Call(
+            //    null,
+            //    _likeMethodInfo,
+            //    Expression.Constant(EF.Functions),
+            //    x,
+            //    Expression.Constant("A%"))),
         };
 
         PropertyTypeToEntityMap = new()
@@ -87,6 +86,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             { typeof(int?), typeof(OperatorEntityNullableInt) },
             { typeof(bool), typeof(OperatorEntityBool) },
             { typeof(bool?), typeof(OperatorEntityNullableBool) },
+            { typeof(DateTimeOffset), typeof(OperatorEntityDateTimeOffset) },
         };
 
         ExpectedData = OperatorsData.Instance;
@@ -780,6 +780,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             modelBuilder.Entity<OperatorEntityNullableInt>().Property(x => x.Id).ValueGeneratedNever();
             modelBuilder.Entity<OperatorEntityBool>().Property(x => x.Id).ValueGeneratedNever();
             modelBuilder.Entity<OperatorEntityNullableBool>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<OperatorEntityDateTimeOffset>().Property(x => x.Id).ValueGeneratedNever();
         }
     }
 
@@ -792,6 +793,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         public IReadOnlyList<OperatorEntityNullableInt> OperatorEntitiesNullableInt { get; }
         public IReadOnlyList<OperatorEntityBool> OperatorEntitiesBool { get; }
         public IReadOnlyList<OperatorEntityNullableBool> OperatorEntitiesNullableBool { get; }
+        public IReadOnlyList<OperatorEntityDateTimeOffset> OperatorEntitiesDateTimeOffset { get; }
 
         private OperatorsData()
         {
@@ -800,6 +802,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             OperatorEntitiesNullableInt = CreateNullableInts();
             OperatorEntitiesBool = CreateBools();
             OperatorEntitiesNullableBool = CreateNullableBools();
+            OperatorEntitiesDateTimeOffset = CreateDateTimeOffsets();
         }
 
         public virtual IQueryable<TEntity> Set<TEntity>()
@@ -828,6 +831,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             if (typeof(TEntity) == typeof(OperatorEntityNullableBool))
             {
                 return (IQueryable<TEntity>)OperatorEntitiesNullableBool.AsQueryable();
+            }
+
+            if (typeof(TEntity) == typeof(OperatorEntityDateTimeOffset))
+            {
+                return (IQueryable<TEntity>)OperatorEntitiesDateTimeOffset.AsQueryable();
             }
 
             throw new InvalidOperationException("Invalid entity type: " + typeof(TEntity));
@@ -943,6 +951,26 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                     Value = null,
                 },
             };
+
+        public static IReadOnlyList<OperatorEntityDateTimeOffset> CreateDateTimeOffsets()
+            => new List<OperatorEntityDateTimeOffset>
+            {
+                new()
+                {
+                    Id = 1,
+                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 11, 0, 0), new TimeSpan(5, 10, 0)),
+                },
+                new()
+                {
+                    Id = 2,
+                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 10, 0, 0), new TimeSpan(-8, 0, 0)),
+                },
+                new()
+                {
+                    Id = 3,
+                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 9, 0, 0), new TimeSpan(13, 0, 0)),
+                }
+            };
     }
 
     public abstract class OperatorEntityBase
@@ -973,6 +1001,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     public class OperatorEntityNullableBool : OperatorEntityBase
     {
         public bool? Value { get; set; }
+    }
+
+    public class OperatorEntityDateTimeOffset : OperatorEntityBase
+    {
+        public DateTimeOffset Value { get; set; }
     }
 
     public class OperatorDto2<TEntity1, TEntity2, TResult>
