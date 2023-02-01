@@ -30,20 +30,38 @@ public class OperatorsQuerySqlServerTest : OperatorsQueryTestBase
             Expression.Constant(EF.Functions),
             x,
             Expression.Constant("UTC"))));
+
+        ExpectedQueryRewriter = new SqlServerExpectedQueryRewritingVisitor();
     }
 
     protected override ITestStoreFactory TestStoreFactory
         => SqlServerTestStoreFactory.Instance;
 
-    protected override void Seed(OperatorsContext ctx)
-    {
-        ctx.Set<OperatorEntityString>().AddRange(ExpectedData.OperatorEntitiesString);
-        ctx.Set<OperatorEntityInt>().AddRange(ExpectedData.OperatorEntitiesInt);
-        ctx.Set<OperatorEntityNullableInt>().AddRange(ExpectedData.OperatorEntitiesNullableInt);
-        ctx.Set<OperatorEntityBool>().AddRange(ExpectedData.OperatorEntitiesBool);
-        ctx.Set<OperatorEntityNullableBool>().AddRange(ExpectedData.OperatorEntitiesNullableBool);
-        ctx.Set<OperatorEntityDateTimeOffset>().AddRange(ExpectedData.OperatorEntitiesDateTimeOffset);
+    //protected override void Seed(OperatorsContext ctx)
+    //{
+    //    ctx.Set<OperatorEntityString>().AddRange(ExpectedData.OperatorEntitiesString);
+    //    ctx.Set<OperatorEntityInt>().AddRange(ExpectedData.OperatorEntitiesInt);
+    //    ctx.Set<OperatorEntityNullableInt>().AddRange(ExpectedData.OperatorEntitiesNullableInt);
+    //    ctx.Set<OperatorEntityBool>().AddRange(ExpectedData.OperatorEntitiesBool);
+    //    ctx.Set<OperatorEntityNullableBool>().AddRange(ExpectedData.OperatorEntitiesNullableBool);
+    //    ctx.Set<OperatorEntityDateTimeOffset>().AddRange(ExpectedData.OperatorEntitiesDateTimeOffset);
 
-        ctx.SaveChanges();
+    //    ctx.SaveChanges();
+    //}
+
+    protected class SqlServerExpectedQueryRewritingVisitor : ExpectedQueryRewritingVisitor
+    {
+        protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
+        {
+            if (methodCallExpression.Method == AtTimeZoneDateTimeOffsetMethodInfo
+                && methodCallExpression.Arguments[2] is ConstantExpression { Value: "UTC" })
+            {
+                return Expression.Convert(
+                    Expression.Property(methodCallExpression.Arguments[1], nameof(DateTimeOffset.UtcDateTime)),
+                    typeof(DateTimeOffset));
+            }
+
+            return base.VisitMethodCall(methodCallExpression);
+        }
     }
 }

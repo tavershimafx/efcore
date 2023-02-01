@@ -16,6 +16,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         = typeof(DbFunctionsExtensions).GetRuntimeMethod(
             nameof(DbFunctionsExtensions.Like), new[] { typeof(DbFunctions), typeof(string), typeof(string) });
 
+    private static readonly MethodInfo _stringConcatMethodInfo
+        = typeof(string).GetRuntimeMethod(
+            nameof(string.Concat), new[] { typeof(string), typeof(string) });
+
+
     protected OperatorsQueryTestBase(ITestOutputHelper testOutputHelper)
     {
         //TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
@@ -27,24 +32,27 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             //((typeof(int), typeof(int)), typeof(int), Expression.Add),
             //((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
 
-            //((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
-            //((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
 
-            ////((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
-            ////((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
+            ((typeof(string), typeof(string)), typeof(string), (x, y) => Expression.Add(x, y, _stringConcatMethodInfo)),
+
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
+
+            //((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
+            //((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
 
             //((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
             //((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
             //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
             //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
 
-            //((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
-            //((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
-            //((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
+            ((typeof(string), typeof(string)), typeof(bool), Expression.Equal),
 
-            //((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
-            //((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
-            //((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.NotEqual),
+            ((typeof(bool), typeof(bool)), typeof(bool), Expression.NotEqual),
+            ((typeof(string), typeof(string)), typeof(bool), Expression.NotEqual),
 
             //((typeof(bool), typeof(bool)), typeof(bool), Expression.AndAlso),
             //((typeof(bool), typeof(bool)), typeof(bool), Expression.OrElse),
@@ -71,12 +79,20 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             //(typeof(int?), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(int?)))),
             //(typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(null, typeof(string)))),
 
-            //(typeof(string), typeof(string), x => Expression.Call(
+            //(typeof(string), typeof(bool), x => Expression.Call(
             //    null,
             //    _likeMethodInfo,
             //    Expression.Constant(EF.Functions),
             //    x,
             //    Expression.Constant("A%"))),
+
+            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("A", typeof(string)))),
+            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("B", typeof(string)))),
+            (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant("AB", typeof(string)))),
+
+            (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(1, typeof(int)))),
+            (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(2, typeof(int)))),
+            (typeof(int), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(5, typeof(int)))),
         };
 
         PropertyTypeToEntityMap = new()
@@ -90,13 +106,24 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         };
 
         ExpectedData = OperatorsData.Instance;
-        ExpectedQueryRewriter = new ExpectedQueryRewritingVisitor(Expression.Constant(ExpectedData));
+        ExpectedQueryRewriter = new ExpectedQueryRewritingVisitor();
     }
 
     protected override string StoreName
         => "OperatorsTest";
 
-    protected abstract void Seed(OperatorsContext ctx);
+    //protected abstract void Seed(OperatorsContext ctx);
+    protected virtual void Seed(OperatorsContext ctx)
+    {
+        ctx.Set<OperatorEntityString>().AddRange(ExpectedData.OperatorEntitiesString);
+        ctx.Set<OperatorEntityInt>().AddRange(ExpectedData.OperatorEntitiesInt);
+        ctx.Set<OperatorEntityNullableInt>().AddRange(ExpectedData.OperatorEntitiesNullableInt);
+        ctx.Set<OperatorEntityBool>().AddRange(ExpectedData.OperatorEntitiesBool);
+        ctx.Set<OperatorEntityNullableBool>().AddRange(ExpectedData.OperatorEntitiesNullableBool);
+        ctx.Set<OperatorEntityDateTimeOffset>().AddRange(ExpectedData.OperatorEntitiesDateTimeOffset);
+
+        ctx.SaveChanges();
+    }
 
     [ConditionalFact]
     public virtual async Task Basic_binary_in_projection()
@@ -152,7 +179,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                         actualSetSource,
                         binary.InputTypes.Item1,
                         binary.InputTypes.Item2,
-                        binary.ResultType,
+                        unary.ResultType,
                         operatorCreator);
                 }
             }
@@ -357,8 +384,94 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                         actualSetSource,
                         binary.InputTypes.Item1,
                         binary.InputTypes.Item2,
-                        binary.ResultType,
+                        unary.ResultType,
                         operatorCreator);
+                }
+            }
+        }
+    }
+
+    [ConditionalFact]
+    public virtual async Task Fubar_in_predicate()
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            var actualSetSource = new ActualSetSource(context);
+            foreach (var outerBinary in Binaries.Where(x => x.ResultType == typeof(bool)))
+            {
+                foreach (var leftBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item1))
+                {
+                    foreach (var rightBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item2
+                        && x.InputTypes.Item1 == leftBinary.InputTypes.Item2))
+                    {
+                        // re-use same type to prevent result explosion
+                        var operatorCreator = (Expression l, Expression m, Expression r) => outerBinary.OperatorCreator(
+                            leftBinary.OperatorCreator(l, m), rightBinary.OperatorCreator(m, r));
+
+                        TestPredicateQueryWithThreeSources(
+                            actualSetSource,
+                            leftBinary.InputTypes.Item1,
+                            leftBinary.InputTypes.Item2,
+                            rightBinary.InputTypes.Item2,
+                            operatorCreator);
+                    }
+                }
+            }
+        }
+    }
+
+
+
+
+    [ConditionalFact]
+    public virtual async Task This_is_what_it_takes()
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            var actualSetSource = new ActualSetSource(context);
+            foreach (var outermostBinary in Binaries.Where(x => x.ResultType == typeof(bool)))
+            {
+                foreach (var outerBinary in Binaries.Where(x => x.ResultType == outermostBinary.InputTypes.Item1))
+                {
+                    foreach (var leftBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item1))
+                    {
+                        foreach (var leftBinaryUnary1 in Unaries.Where(x => x.ResultType == leftBinary.InputTypes.Item1))
+                        {
+                            foreach (var leftBinaryUnary2 in Unaries.Where(x => x.ResultType == leftBinary.InputTypes.Item2))
+                            {
+                                foreach (var rightBinary in Binaries.Where(x => x.ResultType == outerBinary.InputTypes.Item2))
+                                {
+                                    foreach (var rightBinaryUnary1 in Unaries.Where(x => x.ResultType == rightBinary.InputTypes.Item1
+                                        && x.InputType == leftBinaryUnary1.InputType))
+                                    {
+                                        foreach (var rightBinaryUnary2 in Unaries.Where(x => x.ResultType == rightBinary.InputTypes.Item2
+                                            && x.InputType == leftBinaryUnary2.InputType))
+                                        {
+                                            foreach (var outerUnary in Unaries.Where(x => x.ResultType == outermostBinary.InputTypes.Item2))
+                                            {
+                                                var operatorCreator = (Expression l, Expression m, Expression r) => outermostBinary.OperatorCreator(
+                                                    outerBinary.OperatorCreator(
+                                                        leftBinary.OperatorCreator(
+                                                            leftBinaryUnary1.OperatorCreator(l), leftBinaryUnary2.OperatorCreator(m)),
+                                                        rightBinary.OperatorCreator(
+                                                            rightBinaryUnary1.OperatorCreator(l), rightBinaryUnary2.OperatorCreator(m))),
+                                                    outerUnary.OperatorCreator(r));
+
+                                                TestPredicateQueryWithThreeSources(
+                                                    actualSetSource,
+                                                    leftBinaryUnary1.InputType,
+                                                    leftBinaryUnary2.InputType,
+                                                    outerUnary.InputType,
+                                                    operatorCreator);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -366,41 +479,27 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
     protected class ExpectedQueryRewritingVisitor : ExpressionVisitor
     {
-        private readonly MethodInfo _contextSetMethod = typeof(DbContext).GetRuntimeMethod(nameof(DbContext.Set), new Type[] { });
-        private readonly MethodInfo _expectedDataSetMethod = typeof(ISetSource).GetRuntimeMethod(nameof(DbContext.Set), new Type[] { });
-
-        private readonly ConstantExpression _expectedDataExpression;
-
-        public ExpectedQueryRewritingVisitor(ConstantExpression expectedDataExpression)
-        {
-            _expectedDataExpression = expectedDataExpression;
-        }
+        private static readonly MethodInfo _startsWithMethodInfo
+            = typeof(string).GetRuntimeMethod(
+                nameof(string.StartsWith), new[] { typeof(string) })!;
 
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
         {
-            if (methodCallExpression.Method is MethodInfo { IsGenericMethod: true } method
-                && method.GetGenericMethodDefinition() == _contextSetMethod)
+            if (methodCallExpression.Method == _likeMethodInfo)
             {
-                var typeArgument = method.GetGenericArguments().Single();
+                if (methodCallExpression.Arguments[2] is ConstantExpression { Value: "A%" })
+                {
+                    return Expression.Call(
+                        methodCallExpression.Arguments[1],
+                        _startsWithMethodInfo,
+                        Expression.Constant("A"));
+                }
 
-                return Expression.Call(
-                    _expectedDataExpression,
-                    _expectedDataSetMethod.MakeGenericMethod(typeArgument));
+                return Expression.Equal(methodCallExpression.Arguments[1], methodCallExpression.Arguments[2]);
+
             }
 
             return base.VisitMethodCall(methodCallExpression);
-        }
-
-        protected override Expression VisitExtension(Expression extensionExpression)
-        {
-            if (extensionExpression is QueryRootExpression queryRoot)
-            {
-                return Expression.Call(
-                    _expectedDataExpression,
-                    _expectedDataSetMethod.MakeGenericMethod(queryRoot.ElementType));
-            }
-
-            return base.VisitExtension(extensionExpression);
         }
     }
 
@@ -492,6 +591,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
         var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
@@ -524,6 +624,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
         var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<OperatorDto3<TFirst, TSecond, TThird, TResult>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
@@ -664,6 +765,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
         var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
@@ -698,6 +800,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
         var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond, TThird>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
@@ -857,7 +960,12 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                 new()
                 {
                     Id = 3,
-                    Value = "ABA",
+                    Value = "AB",
+                },
+                new()
+                {
+                    Id = 4,
+                    Value = "BA",
                 }
             };
 
