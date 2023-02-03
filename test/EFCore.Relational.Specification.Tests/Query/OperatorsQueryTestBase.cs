@@ -1,12 +1,15 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.Extensions.Primitives;
+
 namespace Microsoft.EntityFrameworkCore.Query;
 
 public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 {
     protected readonly List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> Binaries;
     protected readonly List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> Unaries;
+    protected readonly List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> FakeUnaries;
     protected readonly Dictionary<Type, Type> PropertyTypeToEntityMap;
 
     protected OperatorsData ExpectedData { get; init; }
@@ -26,12 +29,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         //TestSqlLoggerFactory.SetTestOutputHelper(testOutputHelper);
         Binaries = new()
         {
-            //((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
-            //((typeof(int), typeof(int)), typeof(int), Expression.Divide),
-            //((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
-            //((typeof(int), typeof(int)), typeof(int), Expression.Add),
-            //((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
-
+            ((typeof(int), typeof(int)), typeof(int), Expression.Multiply),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Divide),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Modulo),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Add),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Subtract),
 
             ((typeof(string), typeof(string)), typeof(string), (x, y) => Expression.Add(x, y, _stringConcatMethodInfo)),
 
@@ -41,10 +43,10 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             //((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
             //((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
 
-            //((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
-            //((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
-            //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
-            //((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThan),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
+            ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
 
             ((typeof(int), typeof(int)), typeof(bool), Expression.Equal),
             ((typeof(bool), typeof(bool)), typeof(bool), Expression.Equal),
@@ -86,14 +88,21 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             //    x,
             //    Expression.Constant("A%"))),
 
-            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("A", typeof(string)))),
-            (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("B", typeof(string)))),
-            (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant("AB", typeof(string)))),
-
-            (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(1, typeof(int)))),
-            (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(2, typeof(int)))),
-            (typeof(int), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(5, typeof(int)))),
         };
+
+        //FakeUnaries = new()
+        //{
+        //    (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("A", typeof(string)))),
+        //    (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant("A", typeof(string)))),
+        //    (typeof(string), typeof(bool), x => Expression.Equal(x, Expression.Constant("AB", typeof(string)))),
+        //    (typeof(string), typeof(bool), x => Expression.NotEqual(x, Expression.Constant("AB", typeof(string)))),
+
+        //    (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(1, typeof(int)))),
+        //    (typeof(int), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(1, typeof(int)))),
+        //    (typeof(int), typeof(bool), x => Expression.Equal(x, Expression.Constant(5, typeof(int)))),
+        //    (typeof(int), typeof(bool), x => Expression.NotEqual(x, Expression.Constant(5, typeof(int)))),
+
+        //}
 
         PropertyTypeToEntityMap = new()
         {
@@ -427,6 +436,10 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     [ConditionalFact]
     public virtual async Task This_is_what_it_takes()
     {
+        Expression<Func<DateTimeOffset>> kupson = () => new DateTimeOffset(new DateTime(2000, 1, 1, 11, 0, 0), new TimeSpan(5, 10, 0));
+
+
+
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
         {
@@ -944,141 +957,79 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             throw new InvalidOperationException("Invalid entity type: " + typeof(TEntity));
         }
 
+        private readonly static List<Expression<Func<string>>> StringValues = new()
+        {
+            () => "A",
+            () => "B",
+            () => "AB",
+            () => "BA",
+        };
+
+        private readonly static List<Expression<Func<int>>> IntValues = new()
+        {
+            () => 1,
+            () => 2,
+            () => 3,
+            () => 5,
+            () => 8,
+        };
+
+        private readonly static List<Expression<Func<int?>>> NullableIntValues = new()
+        {
+            () => null,
+            () => 2,
+            () => 3,
+            () => 8,
+        };
+
+
+        private readonly static List<Expression<Func<bool>>> BoolValues = new()
+        {
+            () => true,
+            () => false,
+        };
+
+        private readonly static List<Expression<Func<bool?>>> NullableBoolValues = new()
+        {
+            () => null,
+            () => true,
+            () => false,
+        };
+
+        private readonly static List<Expression<Func<DateTimeOffset>>> DateTimeOffsetValues = new()
+        {
+            () => new DateTimeOffset(new DateTime(2000, 1, 1, 11, 0, 0), new TimeSpan(5, 10, 0)),
+            () => new DateTimeOffset(new DateTime(2000, 1, 1, 10, 0, 0), new TimeSpan(-8, 0, 0)),
+            () => new DateTimeOffset(new DateTime(2000, 1, 1, 9, 0, 0), new TimeSpan(13, 0, 0))
+        };
+
+        public static IDictionary<Type, List<Expression>> ConstantExpressionsPerType = new Dictionary<Type, List<Expression>>()
+        {
+            { typeof(string), StringValues.Select(x => x.Body).ToList() },
+            { typeof(int), IntValues.Select(x => x.Body).ToList() },
+            { typeof(int?), NullableIntValues.Select(x => x.Body).ToList() },
+            { typeof(bool), BoolValues.Select(x => x.Body).ToList() },
+            { typeof(bool?), NullableBoolValues.Select(x => x.Body).ToList() },
+            { typeof(DateTimeOffset), DateTimeOffsetValues.Select(x => x.Body).ToList() },
+        };
+
         public static IReadOnlyList<OperatorEntityString> CreateStrings()
-            => new List<OperatorEntityString>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = "A",
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = "B",
-                },
-                new()
-                {
-                    Id = 3,
-                    Value = "AB",
-                },
-                new()
-                {
-                    Id = 4,
-                    Value = "BA",
-                }
-            };
+            => StringValues.Select((x, i) => new OperatorEntityString { Id = i, Value = StringValues[i].Compile()() }).ToList();
 
         public static IReadOnlyList<OperatorEntityInt> CreateInts()
-            => new List<OperatorEntityInt>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = 1,
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = 2,
-                },
-                new()
-                {
-                    Id = 3,
-                    Value = 3,
-                },
-                new()
-                {
-                    Id = 4,
-                    Value = 5,
-                },
-                new()
-                {
-                    Id = 5,
-                    Value = 8,
-                },
-            };
+            => IntValues.Select((x, i) => new OperatorEntityInt { Id = i, Value = IntValues[i].Compile()() }).ToList();
 
         public static IReadOnlyList<OperatorEntityNullableInt> CreateNullableInts()
-            => new List<OperatorEntityNullableInt>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = null,
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = 1,
-                },
-                new()
-                {
-                    Id = 3,
-                    Value = 2,
-                },
-                new()
-                {
-                    Id = 4,
-                    Value = 8,
-                },
-            };
-
+            => IntValues.Select((x, i) => new OperatorEntityNullableInt { Id = i, Value = NullableIntValues[i].Compile()() }).ToList();
 
         public static IReadOnlyList<OperatorEntityBool> CreateBools()
-            => new List<OperatorEntityBool>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = true,
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = false,
-                },
-            };
+            => IntValues.Select((x, i) => new OperatorEntityBool { Id = i, Value = BoolValues[i].Compile()() }).ToList();
 
         public static IReadOnlyList<OperatorEntityNullableBool> CreateNullableBools()
-            => new List<OperatorEntityNullableBool>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = true,
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = false,
-                },
-                new()
-                {
-                    Id = 3,
-                    Value = null,
-                },
-            };
+            => IntValues.Select((x, i) => new OperatorEntityNullableBool { Id = i, Value = NullableBoolValues[i].Compile()() }).ToList();
 
         public static IReadOnlyList<OperatorEntityDateTimeOffset> CreateDateTimeOffsets()
-            => new List<OperatorEntityDateTimeOffset>
-            {
-                new()
-                {
-                    Id = 1,
-                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 11, 0, 0), new TimeSpan(5, 10, 0)),
-                },
-                new()
-                {
-                    Id = 2,
-                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 10, 0, 0), new TimeSpan(-8, 0, 0)),
-                },
-                new()
-                {
-                    Id = 3,
-                    Value = new DateTimeOffset(new DateTime(2000, 1, 1, 9, 0, 0), new TimeSpan(13, 0, 0)),
-                }
-            };
+            => DateTimeOffsetValues.Select((x, i) => new OperatorEntityDateTimeOffset { Id = i, Value = DateTimeOffsetValues[i].Compile()() }).ToList();
     }
 
     public abstract class OperatorEntityBase
