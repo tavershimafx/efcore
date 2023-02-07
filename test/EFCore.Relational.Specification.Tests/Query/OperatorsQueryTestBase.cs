@@ -144,10 +144,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         {
             var seed = new Random().Next();
             var random = new Random(seed);
-            var maxDepth = 10;
+            var maxDepth = 7;
 
             var possibleTypes = OperatorsData.Instance.ConstantExpressionsPerType.Keys.ToArray();
 
+            var typesUsed = new bool[6];
             var types = new Type[6];
             for (var i = 0; i < types.Length; i++)
             {
@@ -155,6 +156,9 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                 types[i + 1] = types[i];
                 i++;
             }
+
+            var inputExpressions = types.Select((x, i) => Expression.Parameter(x, "e" + i)).ToList();
+
 
             var distinctTypes = types.Distinct().ToList();
             var possibleLeafBinaries = Binaries.Where(x => distinctTypes.Contains(x.InputTypes.Item1) && distinctTypes.Contains(x.InputTypes.Item2)).ToList();
@@ -172,52 +176,163 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             var possibleBinaries = Binaries.Where(x => distinctTypesWithNesting.Contains(x.InputTypes.Item1) && distinctTypesWithNesting.Contains(x.InputTypes.Item2)).ToList();
             var possibleUnaries = Unaries.Where(x => distinctTypesWithNesting.Contains(x.InputType)).ToList();
 
+            var currentDepth = 0;
             var currentResultType = typeof(bool);
 
+            // main loop
+            MainLoop(
+                random,
+                currentResultType,
+                currentDepth,
+                maxDepth,
+                types,
+                typesUsed,
+                possibleBinaries,
+                possibleUnaries);
 
 
 
-            // if not recursion - input types must be present
-            // if recursion 
+            //var rollAddDepth = random.Next(maxDepth);
+            //if (rollAddDepth >= currentDepth)
+            //{
+            //    var possibleBinariesForResultType = possibleBinaries.Where(x => x.ResultType == currentResultType).ToList();
+            //    var possibleUnariesForResultType = possibleUnaries.Where(x => x.ResultType == currentResultType).ToList();
+
+            //    var operationIndex = random.Next(possibleBinariesForResultType.Count + possibleUnariesForResultType.Count);
+            //    if (operationIndex < possibleBinariesForResultType.Count)
+            //    {
+            //        var operation = possibleBinariesForResultType[operationIndex];
+            //        AddBinaryOperation(currentExpression, currentDepth, maxDepth, operation);
+            //        // binary
+            //    }
+            //    else
+            //    {
+            //        var operation = possibleUnariesForResultType[operationIndex - possibleBinariesForResultType.Count];
+            //        // unary
+            //    }
+            //}
+        }
+    }
 
 
-
-
-
-
-            var depth = 0;
-            while (depth <= maxDepth)
+    private Expression MainLoop(
+        Random random,
+        Type currentResultType,
+        int currentDepth,
+        int maxDepth,
+        Type[] types,
+        bool[] typesUsed,
+        List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
+        List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
+    {
+        var rollAddDepth = random.Next(maxDepth);
+        if (rollAddDepth >= currentDepth)
+        {
+            var possibleBinariesForResultType = possibleBinaries.Where(x => x.ResultType == currentResultType).ToList();
+            var possibleUnariesForResultType = possibleUnaries.Where(x => x.ResultType == currentResultType).ToList();
+            var operationIndex = random.Next(possibleBinariesForResultType.Count + possibleUnariesForResultType.Count);
+            if (operationIndex < possibleBinariesForResultType.Count)
             {
-                // 0 - binary, 1 - unary, 2 - binary with constant
-                var operationType = random.Next(3);
-
-                if (operationType == 2)
-                {
-                    var type = types[random.Next(types.Length)];
-                    //var possibleOperations = Binaries.Where(x => x.ResultType == currentResultType)
-
-
-
-                }
-
-
-
-
-
-
-
-                // probability of nesting depends on current depth - the deeper we get, the lower the probability
-                if (operationType != 2)
-                {
-                    var shouldNest = random.Next(maxDepth);
-                    if (shouldNest > depth)
-                    {
-
-                    }
-
-                }
+                var operation = possibleBinariesForResultType[operationIndex];
+                AddBinaryOperation(
+                    random,
+                    currentDepth,
+                    maxDepth,
+                    operation,
+                    types,
+                    typesUsed,
+                    possibleBinaries,
+                    possibleUnaries);
+            }
+            else
+            {
+                var operation = possibleUnariesForResultType[operationIndex - possibleBinariesForResultType.Count];
+                AddUnaryOperation(
+                    random,
+                    currentDepth,
+                    maxDepth,
+                    operation,
+                    types,
+                    typesUsed,
+                    possibleBinaries,
+                    possibleUnaries);
             }
         }
+        else
+        {
+            // just pick a source, prioritize sources that were not used yet
+
+        }
+
+        return null;
+    }
+
+    private Expression AddBinaryOperation(
+        Random random,
+        int currentDepth,
+        int maxDepth,
+        ((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator) operation,
+        Type[] types,
+        bool[] typesUsed,
+        List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
+        List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
+    {
+        currentDepth++;
+        var left = MainLoop(
+            random,
+            operation.InputTypes.Item1,
+            currentDepth,
+            maxDepth,
+            types,
+            typesUsed,
+            possibleBinaries,
+            possibleUnaries);
+
+        Expression right;
+        var rollFakeBinary = random.Next(3);
+        if (rollFakeBinary > 1)
+        {
+            var constants = OperatorsData.Instance.ConstantExpressionsPerType[operation.InputTypes.Item2];
+            right = constants.Skip(random.Next(constants.Count)).First();
+        }
+        else
+        {
+            right = MainLoop(
+                random,
+                operation.InputTypes.Item2,
+                currentDepth,
+                maxDepth,
+                types,
+                typesUsed,
+                possibleBinaries,
+                possibleUnaries);
+        }
+
+        return operation.OperatorCreator(left, right);
+    }
+
+    private Expression AddUnaryOperation(
+        Random random,
+        int currentDepth,
+        int maxDepth,
+        (Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator) operation,
+        Type[] types,
+        bool[] typesUsed,
+        List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
+        List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
+    {
+        currentDepth++;
+        var source = MainLoop(
+            random,
+            operation.InputType,
+            currentDepth,
+            maxDepth,
+            types,
+            typesUsed,
+            possibleBinaries,
+            possibleUnaries);
+
+        return operation.OperatorCreator(source);
     }
 
     protected class ExpectedQueryRewritingVisitor : ExpressionVisitor
