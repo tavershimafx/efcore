@@ -1,6 +1,9 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System;
+using Microsoft.EntityFrameworkCore.Query.Internal;
+
 namespace Microsoft.EntityFrameworkCore.Query;
 
 public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
@@ -142,78 +145,101 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
         using (var context = contextFactory.CreateContext())
         {
-            var seed = new Random().Next();
-            var random = new Random(seed);
-            var maxDepth = 7;
+            var actualSetSource = new ActualSetSource(context);
 
-            var possibleTypes = OperatorsData.Instance.ConstantExpressionsPerType.Keys.ToArray();
-
-            var typesUsed = new bool[6];
-            var types = new Type[6];
-            for (var i = 0; i < types.Length; i++)
+            while (true)
+            //for (var index = 0; index < 100000; index++)
             {
-                types[i] = possibleTypes[random.Next(possibleTypes.Length)];
-                types[i + 1] = types[i];
-                i++;
+                var seed = new Random().Next();
+
+                seed = 1822249923;
+                //seed = 149932839;
+                var random = new Random(seed);
+                var maxDepth = 7;
+
+                var possibleTypes = OperatorsData.Instance.ConstantExpressionsPerType.Keys.ToArray();
+
+                var typesUsed = new bool[6];
+                var types = new Type[6];
+                for (var i = 0; i < types.Length; i++)
+                {
+                    types[i] = possibleTypes[random.Next(possibleTypes.Length)];
+                    types[i + 1] = types[i];
+                    i++;
+                }
+
+                // dummy input expression and whether is has already been used
+                // (we want to prioritize ones that haven't been used yet, so that generated expressions are more interesting)
+                var rootEntityExpressions = types.Select((x, i) => new RootEntityExpressionInfo(
+                    Expression.Property(
+                        Expression.Parameter(PropertyTypeToEntityMap[x], "e" + i),
+                        "Value"))).ToArray();
+
+                var distinctTypes = types.Distinct().ToList();
+                var possibleLeafBinaries = Binaries.Where(x => distinctTypes.Contains(x.InputTypes.Item1) && distinctTypes.Contains(x.InputTypes.Item2)).ToList();
+                var possibleLeafUnaries = Unaries.Where(x => distinctTypes.Contains(x.InputType)).ToList();
+
+                // we assume one level of nesting is enough to get to all possible operations
+                // this should be true, since all operations either result in bool or the same type as input
+                // only exception being convert, which needs one step to get to all possible options: long -> int, or int -> long
+                var distinctTypesWithNesting = distinctTypes
+                    .Concat(possibleLeafBinaries.Select(x => x.ResultType))
+                    .Concat(possibleLeafUnaries.Select(x => x.ResultType))
+                    .Distinct()
+                    .ToList();
+
+                var possibleBinaries = Binaries.Where(x => distinctTypesWithNesting.Contains(x.InputTypes.Item1) && distinctTypesWithNesting.Contains(x.InputTypes.Item2)).ToList();
+                var possibleUnaries = Unaries.Where(x => distinctTypesWithNesting.Contains(x.InputType)).ToList();
+
+                var currentDepth = 0;
+                var currentResultType = typeof(bool);
+
+                // main loop
+                var resultExpression = MainLoop(
+                    random,
+                    currentResultType,
+                    currentDepth,
+                    maxDepth,
+                    types,
+                    rootEntityExpressions,
+                    possibleBinaries,
+                    possibleUnaries);
+
+                try
+                {
+                    TestPredicateQuery(
+                        actualSetSource,
+                        rootEntityExpressions.Where(x => x.Used).Select(x => x.Expression).ToArray(),
+                        resultExpression);
+                }
+                catch (Exception ex)
+                {
+                    // TODO: hack instead make sure expected results also throw divide by 0
+                    if (ex.InnerException != null && ex.InnerException.Message.ToLower().Contains("divide by zero")
+                        || ex.InnerException != null && ex.InnerException.InnerException != null && ex.InnerException.InnerException.Message.ToLower().Contains("divide by zero"))
+                    {
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("Seed: " + seed, ex);
+                    }
+                }
             }
-
-            var inputExpressions = types.Select((x, i) => Expression.Parameter(x, "e" + i)).ToList();
-
-
-            var distinctTypes = types.Distinct().ToList();
-            var possibleLeafBinaries = Binaries.Where(x => distinctTypes.Contains(x.InputTypes.Item1) && distinctTypes.Contains(x.InputTypes.Item2)).ToList();
-            var possibleLeafUnaries = Unaries.Where(x => distinctTypes.Contains(x.InputType)).ToList();
-
-            // we assume one level of nesting is enough to get to all possible operations
-            // this should be true, since all operations either result in bool or the same type as input
-            // only exception being convert, which needs one step to get to all possible options: long -> int, or int -> long
-            var distinctTypesWithNesting = distinctTypes
-                .Concat(possibleLeafBinaries.Select(x => x.ResultType))
-                .Concat(possibleLeafUnaries.Select(x => x.ResultType))
-                .Distinct()
-                .ToList();
-
-            var possibleBinaries = Binaries.Where(x => distinctTypesWithNesting.Contains(x.InputTypes.Item1) && distinctTypesWithNesting.Contains(x.InputTypes.Item2)).ToList();
-            var possibleUnaries = Unaries.Where(x => distinctTypesWithNesting.Contains(x.InputType)).ToList();
-
-            var currentDepth = 0;
-            var currentResultType = typeof(bool);
-
-            // main loop
-            MainLoop(
-                random,
-                currentResultType,
-                currentDepth,
-                maxDepth,
-                types,
-                typesUsed,
-                possibleBinaries,
-                possibleUnaries);
-
-
-
-            //var rollAddDepth = random.Next(maxDepth);
-            //if (rollAddDepth >= currentDepth)
-            //{
-            //    var possibleBinariesForResultType = possibleBinaries.Where(x => x.ResultType == currentResultType).ToList();
-            //    var possibleUnariesForResultType = possibleUnaries.Where(x => x.ResultType == currentResultType).ToList();
-
-            //    var operationIndex = random.Next(possibleBinariesForResultType.Count + possibleUnariesForResultType.Count);
-            //    if (operationIndex < possibleBinariesForResultType.Count)
-            //    {
-            //        var operation = possibleBinariesForResultType[operationIndex];
-            //        AddBinaryOperation(currentExpression, currentDepth, maxDepth, operation);
-            //        // binary
-            //    }
-            //    else
-            //    {
-            //        var operation = possibleUnariesForResultType[operationIndex - possibleBinariesForResultType.Count];
-            //        // unary
-            //    }
-            //}
         }
     }
 
+    private class RootEntityExpressionInfo
+    {
+        public RootEntityExpressionInfo(Expression expression)
+        {
+            Expression = expression;
+            Used = false;
+        }
+
+        public Expression Expression { get; }
+
+        public bool Used { get; set; }
+    }
 
     private Expression MainLoop(
         Random random,
@@ -221,50 +247,114 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         int currentDepth,
         int maxDepth,
         Type[] types,
-        bool[] typesUsed,
+        RootEntityExpressionInfo[] rootPropertyExpressions,
         List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
         List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
     {
+        // see if we want additional level of nesting, the deeper we go the lower the probability
+        // we also force nesting if we end up with an expected node that we don't have the root entity for
+        // this can happen when we use convert - e.g. we only have int sources, but we expect long
         var rollAddDepth = random.Next(maxDepth);
-        if (rollAddDepth >= currentDepth)
+        if (rollAddDepth >= currentDepth)// || !rootPropertyExpressions.Any(x => x.Expression.Type == currentResultType))
         {
+            //if (rollAddDepth < currentDepth)
+            //{
+
+
+            //    // if we get here try to get out as soon as possible
+
+            //    var operation = possibleUnaries.Where(x => x.ResultType == currentResultType && rootPropertyExpressions.Any(xx => xx.Expression.Type == x.InputType)).FirstOrDefault();
+            //    if (operation.InputType == null)
+            //    {
+            //        throw new InvalidOperationException("why are we here?");
+            //    }
+
+            //    //var operation = possibleUnaries.Where(x => x.ResultType == currentResultType && rootPropertyExpressions.Any(xx => xx.Expression.Type == x.InputType)).First();
+
+            //    return AddUnaryOperation(
+            //        random,
+            //        currentDepth,
+            //        maxDepth,
+            //        operation,
+            //        types,
+            //        rootPropertyExpressions,
+            //        possibleBinaries,
+            //        possibleUnaries);
+            //}
+
+
             var possibleBinariesForResultType = possibleBinaries.Where(x => x.ResultType == currentResultType).ToList();
             var possibleUnariesForResultType = possibleUnaries.Where(x => x.ResultType == currentResultType).ToList();
+
+            // if we can't go any deeper (no matching operations) then simply return source 
+            if (possibleBinariesForResultType.Count == 0 && possibleUnariesForResultType.Count == 0)
+            {
+                return AddRootPropertyAccess(random, currentResultType, rootPropertyExpressions);
+            }
+
             var operationIndex = random.Next(possibleBinariesForResultType.Count + possibleUnariesForResultType.Count);
             if (operationIndex < possibleBinariesForResultType.Count)
             {
                 var operation = possibleBinariesForResultType[operationIndex];
-                AddBinaryOperation(
+                return AddBinaryOperation(
                     random,
                     currentDepth,
                     maxDepth,
                     operation,
                     types,
-                    typesUsed,
+                    rootPropertyExpressions,
                     possibleBinaries,
                     possibleUnaries);
             }
             else
             {
                 var operation = possibleUnariesForResultType[operationIndex - possibleBinariesForResultType.Count];
-                AddUnaryOperation(
+                return AddUnaryOperation(
                     random,
                     currentDepth,
                     maxDepth,
                     operation,
                     types,
-                    typesUsed,
+                    rootPropertyExpressions,
                     possibleBinaries,
                     possibleUnaries);
             }
         }
         else
         {
-            // just pick a source, prioritize sources that were not used yet
+            return AddRootPropertyAccess(random, currentResultType, rootPropertyExpressions);
+        }
+    }
 
+    private Expression AddRootPropertyAccess(
+        Random random,
+        Type currentResultType,
+        RootEntityExpressionInfo[] rootEntityExpressions)
+    {
+        // just pick a source, prioritize sources that were not used yet
+        var matchingExpressions = rootEntityExpressions.Where(x => x.Expression.Type == currentResultType).ToList();
+
+        // if we want to break, but don't we don't have any roots that match the criteria just return a constant
+        // to simplify the logic here
+        if (matchingExpressions.Count == 0)
+        {
+            var constants = OperatorsData.Instance.ConstantExpressionsPerType[currentResultType];
+
+            return constants[random.Next(constants.Count)];
         }
 
-        return null;
+        var unusedExpressions = matchingExpressions.Where(x => !x.Used).ToList();
+        if (unusedExpressions.Any())
+        {
+            var chosenExpresion = unusedExpressions[random.Next(unusedExpressions.Count)];
+            chosenExpresion.Used = true;
+
+            return chosenExpresion.Expression;
+        }
+        else
+        {
+            return matchingExpressions[random.Next(matchingExpressions.Count)].Expression;
+        }
     }
 
     private Expression AddBinaryOperation(
@@ -273,7 +363,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         int maxDepth,
         ((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator) operation,
         Type[] types,
-        bool[] typesUsed,
+        RootEntityExpressionInfo[] rootPropertyExpressions,
         List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
         List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
     {
@@ -284,7 +374,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             currentDepth,
             maxDepth,
             types,
-            typesUsed,
+            rootPropertyExpressions,
             possibleBinaries,
             possibleUnaries);
 
@@ -303,7 +393,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                 currentDepth,
                 maxDepth,
                 types,
-                typesUsed,
+                rootPropertyExpressions,
                 possibleBinaries,
                 possibleUnaries);
         }
@@ -317,7 +407,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         int maxDepth,
         (Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator) operation,
         Type[] types,
-        bool[] typesUsed,
+        RootEntityExpressionInfo[] rootPropertyExpressions,
         List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)> possibleBinaries,
         List<(Type InputType, Type ResultType, Func<Expression, Expression> OperatorCreator)> possibleUnaries)
     {
@@ -328,7 +418,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             currentDepth,
             maxDepth,
             types,
-            typesUsed,
+            rootPropertyExpressions,
             possibleBinaries,
             possibleUnaries);
 
@@ -340,6 +430,11 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         private static readonly MethodInfo _startsWithMethodInfo
             = typeof(string).GetRuntimeMethod(
                 nameof(string.StartsWith), new[] { typeof(string) })!;
+
+        private static readonly MethodInfo _endsWithMethodInfo
+            = typeof(string).GetRuntimeMethod(
+                nameof(string.EndsWith), new[] { typeof(string) })!;
+
 
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
         {
@@ -353,6 +448,16 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
                         Expression.Constant("A"));
                 }
 
+                if (methodCallExpression.Arguments[2] is ConstantExpression { Value: "%B" })
+                {
+                    return Expression.Call(
+                        methodCallExpression.Arguments[1],
+                        _endsWithMethodInfo,
+                        Expression.Constant("B"));
+                }
+
+
+
                 return Expression.Equal(methodCallExpression.Arguments[1], methodCallExpression.Arguments[2]);
 
             }
@@ -362,58 +467,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     }
 
     #region projection
-
-    //private void TestProjectionQueryWithTwoSources(
-    //    ISetSource actualSetSource,
-    //    Type firstType,
-    //    Type secondType,
-    //    Type resultType,
-    //    Func<Expression, Expression, Expression> resultCreator)
-    //{
-    //    var method = typeof(OperatorsQueryTestBase).GetMethod(
-    //        nameof(TestProjectionQueryWithTwoSourcesInternal),
-    //        BindingFlags.NonPublic | BindingFlags.Instance);
-
-    //    var genericMethod = method.MakeGenericMethod(
-    //        PropertyTypeToEntityMap[firstType],
-    //        PropertyTypeToEntityMap[secondType],
-    //        resultType);
-
-    //    genericMethod.Invoke(
-    //        this,
-    //        new object[]
-    //        {
-    //            actualSetSource,
-    //            resultCreator
-    //        });
-    //}
-
-    //private void TestProjectionQueryWithThreeSources(
-    //    ISetSource actualSetSource,
-    //    Type firstType,
-    //    Type secondType,
-    //    Type thirdType,
-    //    Type resultType,
-    //    Func<Expression, Expression, Expression, Expression> resultCreator)
-    //{
-    //    var method = typeof(OperatorsQueryTestBase).GetMethod(
-    //        nameof(TestProjectionQueryWithThreeSourcesInternal),
-    //        BindingFlags.NonPublic | BindingFlags.Instance);
-
-    //    var genericMethod = method.MakeGenericMethod(
-    //        PropertyTypeToEntityMap[firstType],
-    //        PropertyTypeToEntityMap[secondType],
-    //        PropertyTypeToEntityMap[thirdType],
-    //        resultType);
-
-    //    genericMethod.Invoke(
-    //        this,
-    //        new object[]
-    //        {
-    //            actualSetSource,
-    //            resultCreator
-    //        });
-    //}
 
     private void TestProjectionQueryWithSixSources(
         ISetSource actualSetSource,
@@ -462,70 +515,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             => _context.Set<TEntity>();
     }
 
-    //private void TestProjectionQueryWithTwoSourcesInternal<TFirst, TSecond, TResult>(
-    //    ISetSource actualSetSource,
-    //    Func<Expression, Expression, Expression> resultCreator)
-    //    where TFirst : OperatorEntityBase
-    //    where TSecond : OperatorEntityBase
-    //{
-    //    var setSourceTemplate = (ISetSource ss) =>
-    //        from e1 in ss.Set<TFirst>()
-    //        from e2 in ss.Set<TSecond>()
-    //        orderby e1.Id, e2.Id
-    //        select new OperatorDto2<TFirst, TSecond, TResult>(e1, e2, default);
-
-    //    var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
-    //    var actualQueryTemplate = setSourceTemplate(actualSetSource);
-    //    var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
-    //    var actualQuery = actualQueryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(actualRewritten);
-    //    var actualResults = actualQuery.ToList();
-
-    //    var expectedQueryTemplate = setSourceTemplate(ExpectedData);
-    //    var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
-    //    expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
-    //    var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<OperatorDto2<TFirst, TSecond, TResult>>(expectedRewritten);
-    //    var expectedResults = expectedQuery.ToList();
-
-    //    Assert.Equal(actualResults.Count, expectedResults.Count);
-    //    for (var i = 0; i < actualResults.Count; i++)
-    //    {
-    //        Assert.Equal(actualResults[i].Result, expectedResults[i].Result);
-    //    }
-    //}
-
-    //private void TestProjectionQueryWithThreeSourcesInternal<TFirst, TSecond, TThird, TResult>(
-    //    ISetSource actualSetSource,
-    //    Func<Expression, Expression, Expression, Expression> resultCreator)
-    //    where TFirst : OperatorEntityBase
-    //    where TSecond : OperatorEntityBase
-    //    where TThird : OperatorEntityBase
-    //{
-    //    var setSourceTemplate = (ISetSource ss) =>
-    //        from e1 in ss.Set<TFirst>()
-    //        from e2 in ss.Set<TSecond>()
-    //        from e3 in ss.Set<TThird>()
-    //        orderby e1.Id, e2.Id, e3.Id
-    //        select new OperatorDto3<TFirst, TSecond, TThird, TResult>(e1, e2, e3, default);
-
-    //    var resultRewriter = new ResultExpressionProjectionRewriter(resultCreator);
-    //    var actualQueryTemplate = setSourceTemplate(actualSetSource);
-    //    var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
-    //    var actualQuery = actualQueryTemplate.Provider.CreateQuery<OperatorDto3<TFirst, TSecond, TThird, TResult>>(actualRewritten);
-    //    var actualResults = actualQuery.ToList();
-
-    //    var expectedQueryTemplate = setSourceTemplate(ExpectedData);
-    //    var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
-    //    expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
-    //    var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<OperatorDto3<TFirst, TSecond, TThird, TResult>>(expectedRewritten);
-    //    var expectedResults = expectedQuery.ToList();
-
-    //    Assert.Equal(actualResults.Count, expectedResults.Count);
-    //    for (var i = 0; i < actualResults.Count; i++)
-    //    {
-    //        Assert.Equal(actualResults[i].Result, expectedResults[i].Result);
-    //    }
-    //}
-
     private void TestProjectionQueryWithSixSourcesInternal<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5, TEntity6, TResult>(
         ISetSource actualSetSource,
         Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> resultCreator)
@@ -567,19 +556,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
     private class ResultExpressionProjectionRewriter : ExpressionVisitor
     {
-        //private readonly Func<Expression, Expression, Expression> _resultCreatorTwoArgs;
-        //private readonly Func<Expression, Expression, Expression, Expression> _resultCreatorThreeArgs;
         private readonly Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> _resultCreatorSixArgs;
-
-        //public ResultExpressionProjectionRewriter(Func<Expression, Expression, Expression> resultCreatorTwoArgs)
-        //{
-        //    _resultCreatorTwoArgs = resultCreatorTwoArgs;
-        //}
-
-        //public ResultExpressionProjectionRewriter(Func<Expression, Expression, Expression, Expression> resultCreatorThreeArgs)
-        //{
-        //    _resultCreatorThreeArgs = resultCreatorThreeArgs;
-        //}
 
         public ResultExpressionProjectionRewriter(Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> resultCreatorSixArgs)
         {
@@ -613,38 +590,6 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
                     return newExpression.Update(newArgs);
                 }
-
-                //if (declaringType.GetGenericTypeDefinition() == typeof(OperatorDto2<,,>))
-                //{
-                //    var firstArgumentValue = Expression.Property(newExpression.Arguments[0], "Value");
-                //    var secondArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
-
-                //    var newArgs = new List<Expression>
-                //    {
-                //        newExpression.Arguments[0],
-                //        newExpression.Arguments[1],
-                //        _resultCreatorTwoArgs(firstArgumentValue, secondArgumentValue)
-                //    };
-
-                //    return newExpression.Update(newArgs);
-                //}
-
-                //if (declaringType.GetGenericTypeDefinition() == typeof(OperatorDto3<,,,>))
-                //{
-                //    var firstArgumentValue = Expression.Property(newExpression.Arguments[0], "Value");
-                //    var secondArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
-                //    var thirdArgumentValue = Expression.Property(newExpression.Arguments[1], "Value");
-
-                //    var newArgs = new List<Expression>
-                //    {
-                //        newExpression.Arguments[0],
-                //        newExpression.Arguments[1],
-                //        newExpression.Arguments[2],
-                //        _resultCreatorThreeArgs(firstArgumentValue, secondArgumentValue, thirdArgumentValue)
-                //    };
-
-                //    return newExpression.Update(newArgs);
-                //}
             }
 
             return base.VisitNew(newExpression);
@@ -655,107 +600,99 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
     #region predicate
 
-    private void TestPredicateQueryWithTwoSources(
+    private void TestPredicateQuery(
         ISetSource actualSetSource,
-        Type firstType,
-        Type secondType,
-        Func<Expression, Expression, Expression> resultCreator)
+        Expression[] roots,
+        Expression resultExpression)
     {
-        var method = typeof(OperatorsQueryTestBase).GetMethod(
-            nameof(TestPredicateQueryWithTwoSourcesInternal),
-            BindingFlags.NonPublic | BindingFlags.Instance);
-
-        var genericMethod = method.MakeGenericMethod(
-            PropertyTypeToEntityMap[firstType],
-            PropertyTypeToEntityMap[secondType]);
-
-        genericMethod.Invoke(
-            this,
-            new object[]
-            {
-                actualSetSource,
-                resultCreator
-            });
-    }
-
-    private void TestPredicateQueryWithThreeSources(
-        ISetSource actualSetSource,
-        Type firstType,
-        Type secondType,
-        Type thirdType,
-        Func<Expression, Expression, Expression, Expression> resultCreator)
-    {
-        var method = typeof(OperatorsQueryTestBase).GetMethod(
-            nameof(TestPredicateQueryWithThreeSourcesInternal),
-            BindingFlags.NonPublic | BindingFlags.Instance);
-
-        var genericMethod = method.MakeGenericMethod(
-            PropertyTypeToEntityMap[firstType],
-            PropertyTypeToEntityMap[secondType],
-            PropertyTypeToEntityMap[thirdType]);
-
-        genericMethod.Invoke(
-            this,
-            new object[]
-            {
-                actualSetSource,
-                resultCreator
-            });
-    }
-    private void TestPredicateQueryWithSixSources(
-            ISetSource actualSetSource,
-            Type type1,
-            Type type2,
-            Type type3,
-            Type type4,
-            Type type5,
-            Type type6,
-            Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> resultCreator)
+        // TODO: fix this
+        if (roots.Length == 0)
         {
-            var method = typeof(OperatorsQueryTestBase).GetMethod(
-                nameof(TestPredicateQueryWithSixSourcesInternal),
-                BindingFlags.NonPublic | BindingFlags.Instance);
-
-            var genericMethod = method.MakeGenericMethod(
-                PropertyTypeToEntityMap[type1],
-                PropertyTypeToEntityMap[type2],
-                PropertyTypeToEntityMap[type3],
-                PropertyTypeToEntityMap[type4],
-                PropertyTypeToEntityMap[type5],
-                PropertyTypeToEntityMap[type6]);
-
-            genericMethod.Invoke(
-                this,
-                new object[]
-                {
-                    actualSetSource,
-                    resultCreator
-                });
+            return;
         }
 
-    private void TestPredicateQueryWithTwoSourcesInternal<TFirst, TSecond>(
+        var methodName = roots.Length switch
+        {
+            1 => nameof(TestPredicateQueryWithOneSourceInternal),
+            2 => nameof(TestPredicateQueryWithTwoSourcesInternal),
+            3 => nameof(TestPredicateQueryWithThreeSourcesInternal),
+            4 => nameof(TestPredicateQueryWithFourSourcesInternal),
+            5 => nameof(TestPredicateQueryWithFiveSourcesInternal),
+            6 => nameof(TestPredicateQueryWithSixSourcesInternal),
+            _ => throw new InvalidOperationException(),
+        };
+
+        var method = typeof(OperatorsQueryTestBase).GetMethod(
+            methodName,
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        var genericMethod = method.MakeGenericMethod(roots.Select(x => PropertyTypeToEntityMap[x.Type]).ToArray());
+
+        genericMethod.Invoke(
+            this,
+            new object[]
+            {
+                actualSetSource,
+                resultExpression,
+                roots
+            });
+    }
+
+    private void TestPredicateQueryWithOneSourceInternal<TEntity1>(
         ISetSource actualSetSource,
-        Func<Expression, Expression, Expression> resultCreator)
-        where TFirst : OperatorEntityBase
-        where TSecond : OperatorEntityBase
+        Expression resultExpression,
+        Expression[] roots)
+        where TEntity1 : OperatorEntityBase
     {
         var setSourceTemplate = (ISetSource ss) =>
-            from e1 in ss.Set<TFirst>()
-            from e2 in ss.Set<TSecond>()
-            orderby e1.Id, e2.Id
-            where DummyTrue(e1, e2)
-            select new ValueTuple<TFirst, TSecond>(e1, e2);
+            from e1 in ss.Set<TEntity1>()
+            orderby e1.Id
+            where DummyTrue(e1)
+            select new ValueTuple<TEntity1>(e1);
 
-        var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
         var actualQueryTemplate = setSourceTemplate(actualSetSource);
         var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
-        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond>>(actualRewritten);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1>>(actualRewritten);
         var actualResults = actualQuery.ToList();
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
         expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
-        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond>>(expectedRewritten);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1>>(expectedRewritten);
+        var expectedResults = expectedQuery.ToList();
+
+        Assert.Equal(actualResults.Count, expectedResults.Count);
+        for (var i = 0; i < actualResults.Count; i++)
+        {
+            Assert.Equal(actualResults[i].Item1.Id, expectedResults[i].Item1.Id);
+        }
+    }
+
+    private void TestPredicateQueryWithTwoSourcesInternal<TEntity1, TEntity2>(
+        ISetSource actualSetSource,
+        Expression resultExpression,
+        Expression[] roots)
+        where TEntity1 : OperatorEntityBase
+        where TEntity2 : OperatorEntityBase
+    {
+        var setSourceTemplate = (ISetSource ss) =>
+            from e1 in ss.Set<TEntity1>()
+            from e2 in ss.Set<TEntity2>()
+            orderby e1.Id, e2.Id
+            where DummyTrue(e1, e2)
+            select new ValueTuple<TEntity1, TEntity2>(e1, e2);
+
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
+        var actualQueryTemplate = setSourceTemplate(actualSetSource);
+        var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2>>(actualRewritten);
+        var actualResults = actualQuery.ToList();
+
+        var expectedQueryTemplate = setSourceTemplate(ExpectedData);
+        var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
         Assert.Equal(actualResults.Count, expectedResults.Count);
@@ -766,31 +703,32 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
-    private void TestPredicateQueryWithThreeSourcesInternal<TFirst, TSecond, TThird>(
+    private void TestPredicateQueryWithThreeSourcesInternal<TEntity1, TEntity2, TEntity3>(
         ISetSource actualSetSource,
-        Func<Expression, Expression, Expression, Expression> resultCreator)
-        where TFirst : OperatorEntityBase
-        where TSecond : OperatorEntityBase
-        where TThird : OperatorEntityBase
+        Expression resultExpression,
+        Expression[] roots)
+        where TEntity1 : OperatorEntityBase
+        where TEntity2 : OperatorEntityBase
+        where TEntity3 : OperatorEntityBase
     {
         var setSourceTemplate = (ISetSource ss) =>
-            from e1 in ss.Set<TFirst>()
-            from e2 in ss.Set<TSecond>()
-            from e3 in ss.Set<TThird>()
+            from e1 in ss.Set<TEntity1>()
+            from e2 in ss.Set<TEntity2>()
+            from e3 in ss.Set<TEntity3>()
             orderby e1.Id, e2.Id, e3.Id
             where DummyTrue(e1, e2, e3)
-            select new ValueTuple<TFirst, TSecond, TThird>(e1, e2, e3);
+            select new ValueTuple<TEntity1, TEntity2, TEntity3>(e1, e2, e3);
 
-        var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
         var actualQueryTemplate = setSourceTemplate(actualSetSource);
         var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
-        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond, TThird>>(actualRewritten);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3>>(actualRewritten);
         var actualResults = actualQuery.ToList();
 
         var expectedQueryTemplate = setSourceTemplate(ExpectedData);
         var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
         expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
-        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TFirst, TSecond, TThird>>(expectedRewritten);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3>>(expectedRewritten);
         var expectedResults = expectedQuery.ToList();
 
         Assert.Equal(actualResults.Count, expectedResults.Count);
@@ -802,9 +740,93 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
         }
     }
 
+    private void TestPredicateQueryWithFourSourcesInternal<TEntity1, TEntity2, TEntity3, TEntity4>(
+        ISetSource actualSetSource,
+        Expression resultExpression,
+        Expression[] roots)
+        where TEntity1 : OperatorEntityBase
+        where TEntity2 : OperatorEntityBase
+        where TEntity3 : OperatorEntityBase
+        where TEntity4 : OperatorEntityBase
+    {
+        var setSourceTemplate = (ISetSource ss) =>
+            from e1 in ss.Set<TEntity1>()
+            from e2 in ss.Set<TEntity2>()
+            from e3 in ss.Set<TEntity3>()
+            from e4 in ss.Set<TEntity4>()
+            orderby e1.Id, e2.Id, e3.Id, e4.Id
+            where DummyTrue(e1, e2, e3, e4)
+            select new ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4>(e1, e2, e3, e4);
+
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
+        var actualQueryTemplate = setSourceTemplate(actualSetSource);
+        var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4>>(actualRewritten);
+        var actualResults = actualQuery.ToList();
+
+        var expectedQueryTemplate = setSourceTemplate(ExpectedData);
+        var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4>>(expectedRewritten);
+        var expectedResults = expectedQuery.ToList();
+
+        Assert.Equal(actualResults.Count, expectedResults.Count);
+        for (var i = 0; i < actualResults.Count; i++)
+        {
+            Assert.Equal(actualResults[i].Item1.Id, expectedResults[i].Item1.Id);
+            Assert.Equal(actualResults[i].Item2.Id, expectedResults[i].Item2.Id);
+            Assert.Equal(actualResults[i].Item3.Id, expectedResults[i].Item3.Id);
+            Assert.Equal(actualResults[i].Item4.Id, expectedResults[i].Item4.Id);
+        }
+    }
+
+    private void TestPredicateQueryWithFiveSourcesInternal<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5>(
+        ISetSource actualSetSource,
+        Expression resultExpression,
+        Expression[] roots)
+        where TEntity1 : OperatorEntityBase
+        where TEntity2 : OperatorEntityBase
+        where TEntity3 : OperatorEntityBase
+        where TEntity4 : OperatorEntityBase
+        where TEntity5 : OperatorEntityBase
+    {
+        var setSourceTemplate = (ISetSource ss) =>
+            from e1 in ss.Set<TEntity1>()
+            from e2 in ss.Set<TEntity2>()
+            from e3 in ss.Set<TEntity3>()
+            from e4 in ss.Set<TEntity4>()
+            from e5 in ss.Set<TEntity5>()
+            orderby e1.Id, e2.Id, e3.Id, e4.Id, e5.Id
+            where DummyTrue(e1, e2, e3, e4, e5)
+            select new ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5>(e1, e2, e3, e4, e5);
+
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
+        var actualQueryTemplate = setSourceTemplate(actualSetSource);
+        var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
+        var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5>>(actualRewritten);
+        var actualResults = actualQuery.ToList();
+
+        var expectedQueryTemplate = setSourceTemplate(ExpectedData);
+        var expectedRewritten = resultRewriter.Visit(expectedQueryTemplate.Expression);
+        expectedRewritten = ExpectedQueryRewriter.Visit(expectedRewritten);
+        var expectedQuery = expectedQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5>>(expectedRewritten);
+        var expectedResults = expectedQuery.ToList();
+
+        Assert.Equal(actualResults.Count, expectedResults.Count);
+        for (var i = 0; i < actualResults.Count; i++)
+        {
+            Assert.Equal(actualResults[i].Item1.Id, expectedResults[i].Item1.Id);
+            Assert.Equal(actualResults[i].Item2.Id, expectedResults[i].Item2.Id);
+            Assert.Equal(actualResults[i].Item3.Id, expectedResults[i].Item3.Id);
+            Assert.Equal(actualResults[i].Item4.Id, expectedResults[i].Item4.Id);
+            Assert.Equal(actualResults[i].Item5.Id, expectedResults[i].Item5.Id);
+        }
+    }
+
     private void TestPredicateQueryWithSixSourcesInternal<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5, TEntity6>(
         ISetSource actualSetSource,
-        Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> resultCreator)
+        Expression resultExpression,
+        Expression[] roots)
         where TEntity1 : OperatorEntityBase
         where TEntity2 : OperatorEntityBase
         where TEntity3 : OperatorEntityBase
@@ -823,7 +845,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             where DummyTrue(e1, e2, e3, e4, e5, e6)
             select new ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5, TEntity6>(e1, e2, e3, e4, e5, e6);
 
-        var resultRewriter = new ResultExpressionPredicateRewriter(resultCreator);
+        var resultRewriter = new ResultExpressionPredicateRewriter(resultExpression, roots);
         var actualQueryTemplate = setSourceTemplate(actualSetSource);
         var actualRewritten = resultRewriter.Visit(actualQueryTemplate.Expression);
         var actualQuery = actualQueryTemplate.Provider.CreateQuery<ValueTuple<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5, TEntity6>>(actualRewritten);
@@ -843,13 +865,27 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             Assert.Equal(actualResults[i].Item3.Id, expectedResults[i].Item3.Id);
             Assert.Equal(actualResults[i].Item4.Id, expectedResults[i].Item4.Id);
             Assert.Equal(actualResults[i].Item5.Id, expectedResults[i].Item5.Id);
+            Assert.Equal(actualResults[i].Item6.Id, expectedResults[i].Item6.Id);
         }
     }
 
-    private static bool DummyTrue<TFirst, TSecond>(TFirst first, TSecond second)
+    private static bool DummyTrue<TEntity1>(TEntity1 e1)
         => true;
 
-    private static bool DummyTrue<TFirst, TSecond, TThird>(TFirst first, TSecond second, TThird third)
+    private static bool DummyTrue<TEntity1, TEntity2>(
+        TEntity1 e1, TEntity2 e2)
+        => true;
+
+    private static bool DummyTrue<TEntity1, TEntity2, TEntity3>(
+        TEntity1 e1, TEntity2 e2, TEntity3 e3)
+        => true;
+
+    private static bool DummyTrue<TEntity1, TEntity2, TEntity3, TEntity4>(
+        TEntity1 e1, TEntity2 e2, TEntity3 e3, TEntity4 e4)
+        => true;
+
+    private static bool DummyTrue<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5>(
+        TEntity1 e1, TEntity2 e2, TEntity3 e3, TEntity4 e4, TEntity5 e5)
         => true;
 
     private static bool DummyTrue<TEntity1, TEntity2, TEntity3, TEntity4, TEntity5, TEntity6>(
@@ -858,50 +894,107 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
     private class ResultExpressionPredicateRewriter : ExpressionVisitor
     {
-        private readonly Func<Expression, Expression, Expression> _resultCreatorTwoArgs;
-        private readonly Func<Expression, Expression, Expression, Expression> _resultCreatorThreeArgs;
-        private readonly Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> _resultCreatorSixArgs;
-
         private static readonly MethodInfo _likeMethodInfo
             = typeof(DbFunctionsExtensions).GetRuntimeMethod(
                 nameof(DbFunctionsExtensions.Like), new[] { typeof(DbFunctions), typeof(string), typeof(string) });
 
-        public ResultExpressionPredicateRewriter(Func<Expression, Expression, Expression> resultCreatorTwoArgs)
-        {
-            _resultCreatorTwoArgs = resultCreatorTwoArgs;
-        }
+        private readonly Expression[] _roots;
+        private readonly Expression _resultExpression;
 
-        public ResultExpressionPredicateRewriter(Func<Expression, Expression, Expression, Expression> resultCreatorThreeArgs)
+        public ResultExpressionPredicateRewriter(Expression resultExpression, Expression[] roots)
         {
-            _resultCreatorThreeArgs = resultCreatorThreeArgs;
+            _resultExpression = resultExpression;
+            _roots = roots;
         }
-
-        public ResultExpressionPredicateRewriter(Func<Expression, Expression, Expression, Expression, Expression, Expression, Expression> resultCreatorSixArgs)
-        {
-            _resultCreatorSixArgs = resultCreatorSixArgs;
-        }
-
 
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
         {
             if (methodCallExpression.Method.Name == nameof(DummyTrue))
             {
                 // replace dummy with the actual predicate
+                if (methodCallExpression.Arguments.Count == 1)
+                {
+                    var replaced = ReplacingExpressionVisitor.Replace(
+                        _roots[0],
+                        Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                        _resultExpression);
+
+                    return replaced;
+                }
+
                 if (methodCallExpression.Arguments.Count == 2)
                 {
-                    var firstArgumentValue = Expression.Property(methodCallExpression.Arguments[0], "Value");
-                    var secondArgumentValue = Expression.Property(methodCallExpression.Arguments[1], "Value");
+                    var replaced = new ReplacingExpressionVisitor(
+                        _roots,
+                        new[]
+                        {
+                            Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[1], "Value"),
+                        }).Visit(_resultExpression);
 
-                    return _resultCreatorTwoArgs(firstArgumentValue, secondArgumentValue);
+                    return replaced;
                 }
 
                 if (methodCallExpression.Arguments.Count == 3)
                 {
-                    var firstArgumentValue = Expression.Property(methodCallExpression.Arguments[0], "Value");
-                    var secondArgumentValue = Expression.Property(methodCallExpression.Arguments[1], "Value");
-                    var thirdArgumentValue = Expression.Property(methodCallExpression.Arguments[2], "Value");
+                    var replaced = new ReplacingExpressionVisitor(
+                        _roots,
+                        new[]
+                        {
+                            Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[1], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[2], "Value"),
+                        }).Visit(_resultExpression);
 
-                    return _resultCreatorThreeArgs(firstArgumentValue, secondArgumentValue, thirdArgumentValue);
+                    return replaced;
+                }
+
+                if (methodCallExpression.Arguments.Count == 4)
+                {
+                    var replaced = new ReplacingExpressionVisitor(
+                        _roots,
+                        new[]
+                        {
+                            Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[1], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[2], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[3], "Value"),
+                        }).Visit(_resultExpression);
+
+                    return replaced;
+                }
+
+                if (methodCallExpression.Arguments.Count == 5)
+                {
+                    var replaced = new ReplacingExpressionVisitor(
+                        _roots,
+                        new[]
+                        {
+                            Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[1], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[2], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[3], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[4], "Value"),
+                        }).Visit(_resultExpression);
+
+                    return replaced;
+                }
+
+                if (methodCallExpression.Arguments.Count == 6)
+                {
+                    var replaced = new ReplacingExpressionVisitor(
+                        _roots,
+                        new[]
+                        {
+                            Expression.Property(methodCallExpression.Arguments[0], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[1], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[2], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[3], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[4], "Value"),
+                            Expression.Property(methodCallExpression.Arguments[5], "Value"),
+                        }).Visit(_resultExpression);
+
+                    return replaced;
                 }
             }
 
