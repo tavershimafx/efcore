@@ -14,22 +14,22 @@ public class OperatorsQuerySqlServerTest : OperatorsQueryTestBase
     public OperatorsQuerySqlServerTest(ITestOutputHelper testOutputHelper)
         : base(testOutputHelper)
     {
-        //Binaries.AddRange(new List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)>
-        //{
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.LessThan),
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.LessThanOrEqual),
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.GreaterThan),
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.GreaterThanOrEqual),
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.Equal),
-        //    ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.NotEqual),
-        //});
+        Binaries.AddRange(new List<((Type, Type) InputTypes, Type ResultType, Func<Expression, Expression, Expression> OperatorCreator)>
+        {
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.LessThan),
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.LessThanOrEqual),
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.GreaterThan),
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.GreaterThanOrEqual),
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.Equal),
+            ((typeof(DateTimeOffset), typeof(DateTimeOffset)), typeof(bool), Expression.NotEqual),
+        });
 
-        //Unaries.Add((typeof(DateTimeOffset), typeof(DateTimeOffset), x => Expression.Call(
-        //    null,
-        //    AtTimeZoneDateTimeOffsetMethodInfo,
-        //    Expression.Constant(EF.Functions),
-        //    x,
-        //    Expression.Constant("UTC"))));
+        Unaries.Add((typeof(DateTimeOffset), typeof(DateTimeOffset), x => Expression.Call(
+            null,
+            AtTimeZoneDateTimeOffsetMethodInfo,
+            Expression.Constant(EF.Functions),
+            x,
+            Expression.Constant("UTC"))));
 
         ExpectedQueryRewriter = new SqlServerExpectedQueryRewritingVisitor();
     }

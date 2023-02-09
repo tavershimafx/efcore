@@ -140,6 +140,26 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
     }
 
     [ConditionalFact]
+    public virtual async Task Regression_test1()
+    {
+        var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
+        using (var context = contextFactory.CreateContext())
+        {
+            var expected = (from o1 in ExpectedData.OperatorEntitiesString
+                            from o2 in ExpectedData.OperatorEntitiesString
+                            from o3 in ExpectedData.OperatorEntitiesBool
+                            where ((o2.Value == "B" || o3.Value) & (o1.Value != null)) != false
+                            select new { Value1 = o1.Value, Value2 = o2.Value, Value3 = o3.Value }).ToList();
+
+            var actual = (from o1 in context.Set<OperatorEntityString>()
+                          from o2 in context.Set<OperatorEntityString>()
+                          from o3 in context.Set<OperatorEntityBool>()
+                          where ((EF.Functions.Like(o2.Value, "B") || o3.Value) & (o1.Value != null)) != false
+                          select new { Value1 = o1.Value, Value2 = o2.Value, Value3 = o3.Value }).ToList();
+        }
+    }
+
+    [ConditionalFact]
     public virtual async Task Procedural_predicate_six_sources_random()
     {
         var contextFactory = await InitializeAsync<OperatorsContext>(seed: Seed);
@@ -152,8 +172,9 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             {
                 var seed = new Random().Next();
 
+
+                // another: 616900147  (9-0)
                 seed = 1822249923;
-                //seed = 149932839;
                 var random = new Random(seed);
                 var maxDepth = 7;
 
