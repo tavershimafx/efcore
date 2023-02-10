@@ -8231,6 +8231,14 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
                 Assert.Equal(e.String, a.String);
             });
 
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Bitwise_and_on_bool_args_in_predicate(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<Gear>().Where(g => ((EF.Functions.Like(g.LeaderNickname, "Marcus") || g.HasSoulPatch) & (g.AssignedCity != null)) != false),
+            ss => ss.Set<Gear>().Where(g => ((g.LeaderNickname == "Marcus" || g.HasSoulPatch) & (g.AssignedCity != null)) != false));
+
     protected GearsOfWarContext CreateContext()
         => Fixture.CreateContext();
 

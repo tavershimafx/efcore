@@ -261,8 +261,21 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
         var left = (SqlExpression)Visit(sqlBinaryExpression.Left);
         var right = (SqlExpression)Visit(sqlBinaryExpression.Right);
 
-        if (sqlBinaryExpression.OperatorType == ExpressionType.AndAlso
-            || sqlBinaryExpression.OperatorType == ExpressionType.OrElse)
+        // convert bitwise OR/AND to &&/|| when args are bools
+        var binaryOperatorType = sqlBinaryExpression.OperatorType;
+        if ((binaryOperatorType == ExpressionType.And || binaryOperatorType == ExpressionType.Or)
+            && sqlBinaryExpression.Left.Type == typeof(bool)
+            && sqlBinaryExpression.Right.Type == typeof(bool))
+        {
+            binaryOperatorType = binaryOperatorType == ExpressionType.And
+                ? ExpressionType.AndAlso
+                : ExpressionType.OrElse;
+        }
+
+        if (binaryOperatorType == ExpressionType.AndAlso
+            || binaryOperatorType == ExpressionType.OrElse)
+        //if (sqlBinaryExpression.OperatorType == ExpressionType.AndAlso
+        //    || sqlBinaryExpression.OperatorType == ExpressionType.OrElse)
         {
             if (TryGetInExpressionCandidateInfo(left, out var leftCandidateInfo)
                 && TryGetInExpressionCandidateInfo(right, out var rightCandidateInfo)
@@ -278,9 +291,13 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
                     && !(rightCandidateInfo.ConstantValue is byte[]);
 
                 if ((leftCandidateInfo.OperationType == ExpressionType.Equal
-                        && sqlBinaryExpression.OperatorType == ExpressionType.OrElse)
+                        && binaryOperatorType == ExpressionType.OrElse)
                     || (leftCandidateInfo.OperationType == ExpressionType.NotEqual
-                        && sqlBinaryExpression.OperatorType == ExpressionType.AndAlso))
+                        && binaryOperatorType == ExpressionType.AndAlso))
+                //if ((leftCandidateInfo.OperationType == ExpressionType.Equal
+                //        && sqlBinaryExpression.OperatorType == ExpressionType.OrElse)
+                //    || (leftCandidateInfo.OperationType == ExpressionType.NotEqual
+                //        && sqlBinaryExpression.OperatorType == ExpressionType.AndAlso))
                 {
                     object leftValue;
                     object rightValue;
@@ -298,7 +315,8 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
                         // for c# null semantics it's fine because null semantics visitor extracts null back into proper null checks
                         if (_useRelationalNulls && (leftValue == null || rightValue == null))
                         {
-                            return sqlBinaryExpression.Update(left, right);
+                            return UpdateSqlBinaryExpression(sqlBinaryExpression, left, right, binaryOperatorType);
+                            //return sqlBinaryExpression.Update(left, right);
                         }
 
                         resultArray = ConstructCollection(leftValue, rightValue);
@@ -323,7 +341,8 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
 
                         if (_useRelationalNulls && rightValue == null)
                         {
-                            return sqlBinaryExpression.Update(left, right);
+                            return UpdateSqlBinaryExpression(sqlBinaryExpression, left, right, binaryOperatorType);
+                            //return sqlBinaryExpression.Update(left, right);
                         }
 
                         resultArray = AddToCollection((IEnumerable)leftValue, rightValue);
@@ -351,8 +370,25 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
             }
         }
 
-        return sqlBinaryExpression.Update(left, right);
+        return UpdateSqlBinaryExpression(sqlBinaryExpression, left, right, binaryOperatorType);
+        //return sqlBinaryExpression.Update(left, right);
     }
+
+    private SqlBinaryExpression UpdateSqlBinaryExpression(
+        SqlBinaryExpression sqlBinaryExpression,
+        SqlExpression newLeft,
+        SqlExpression newRight,
+        ExpressionType newExpressionType)
+        => newLeft != sqlBinaryExpression.Left
+            || newRight != sqlBinaryExpression.Right
+            || newExpressionType != sqlBinaryExpression.OperatorType
+            ? new SqlBinaryExpression(
+                newExpressionType,
+                newLeft,
+                newRight,
+                sqlBinaryExpression.Type,
+                sqlBinaryExpression.TypeMapping)
+            : sqlBinaryExpression;
 
     private static List<object> ConstructCollection(object left, object right)
         => new() { left, right };

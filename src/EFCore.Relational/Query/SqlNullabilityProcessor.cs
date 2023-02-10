@@ -1730,9 +1730,14 @@ public class SqlNullabilityProcessor
 
                 break;
 
+            //case SqlBinaryExpression sqlBinaryOperand
+            //    when sqlBinaryOperand.OperatorType != ExpressionType.AndAlso
+            //    && sqlBinaryOperand.OperatorType != ExpressionType.OrElse:
             case SqlBinaryExpression sqlBinaryOperand
                 when sqlBinaryOperand.OperatorType != ExpressionType.AndAlso
-                && sqlBinaryOperand.OperatorType != ExpressionType.OrElse:
+                && sqlBinaryOperand.OperatorType != ExpressionType.OrElse
+                && sqlBinaryOperand.OperatorType != ExpressionType.And
+                && sqlBinaryOperand.OperatorType != ExpressionType.Or:
             {
                 // in general:
                 // binaryOp(a, b) == null -> a == null || b == null

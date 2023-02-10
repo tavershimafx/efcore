@@ -51,6 +51,9 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             ((typeof(int), typeof(int)), typeof(bool), Expression.LessThanOrEqual),
             ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThan),
             ((typeof(int), typeof(int)), typeof(bool), Expression.GreaterThanOrEqual),
+
+            ((typeof(int), typeof(int)), typeof(int), Expression.And),
+            ((typeof(int), typeof(int)), typeof(int), Expression.Or),
             //((typeof(int), typeof(int)), typeof(int), Expression.LeftShift),
             //((typeof(int), typeof(int)), typeof(int), Expression.RightShift),
 
@@ -65,6 +68,9 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
             ((typeof(long), typeof(long)), typeof(bool), Expression.LessThanOrEqual),
             ((typeof(long), typeof(long)), typeof(bool), Expression.GreaterThan),
             ((typeof(long), typeof(long)), typeof(bool), Expression.GreaterThanOrEqual),
+
+            ((typeof(long), typeof(long)), typeof(int), Expression.And),
+            ((typeof(long), typeof(long)), typeof(int), Expression.Or),
 
             ((typeof(bool), typeof(bool)), typeof(bool), Expression.And),
             ((typeof(bool), typeof(bool)), typeof(bool), Expression.Or),
@@ -174,7 +180,7 @@ public abstract class OperatorsQueryTestBase : NonSharedModelTestBase
 
 
                 // another: 616900147  (9-0)
-                seed = 1822249923;
+                //seed = 1822249923;
                 var random = new Random(seed);
                 var maxDepth = 7;
 

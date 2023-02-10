@@ -55,7 +55,7 @@ public class RelationalParameterBasedSqlProcessor
     {
         canCache = true;
 
-        queryExpression = new BitwiseConverter(Dependencies).Visit(queryExpression);
+        //queryExpression = new BitwiseConverter(Dependencies).Visit(queryExpression);
 
         queryExpression = ProcessSqlNullability(queryExpression, parametersValues, out var sqlNullablityCanCache);
         canCache &= sqlNullablityCanCache;
