@@ -55,8 +55,6 @@ public class RelationalParameterBasedSqlProcessor
     {
         canCache = true;
 
-        //queryExpression = new BitwiseConverter(Dependencies).Visit(queryExpression);
-
         queryExpression = ProcessSqlNullability(queryExpression, parametersValues, out var sqlNullablityCanCache);
         canCache &= sqlNullablityCanCache;
 
@@ -92,36 +90,4 @@ public class RelationalParameterBasedSqlProcessor
         IReadOnlyDictionary<string, object?> parametersValues,
         out bool canCache)
         => new FromSqlParameterExpandingExpressionVisitor(Dependencies).Expand(queryExpression, parametersValues, out canCache);
-
-    private class BitwiseConverter : ExpressionVisitor
-    {
-        /// <summary>
-        ///     Relational provider-specific dependencies for this service.
-        /// </summary>
-        protected virtual RelationalParameterBasedSqlProcessorDependencies Dependencies { get; }
-
-        public BitwiseConverter(RelationalParameterBasedSqlProcessorDependencies dependencies)
-        {
-            Dependencies = dependencies;
-        }
-
-        protected override Expression VisitExtension(Expression extensionExpression)
-        {
-            if (extensionExpression is SqlBinaryExpression gfgf)
-            {
-                global::System.Console.WriteLine(gfgf);
-            }
-
-            if (extensionExpression is SqlBinaryExpression { OperatorType: ExpressionType.And or ExpressionType.Or } sqlBinaryExpression
-                && sqlBinaryExpression.Left.Type == typeof(bool)
-                && sqlBinaryExpression.Right.Type == typeof(bool))
-            {
-                return sqlBinaryExpression.OperatorType == ExpressionType.And
-                    ? Dependencies.SqlExpressionFactory.AndAlso(sqlBinaryExpression.Left, sqlBinaryExpression.Right)
-                    : Dependencies.SqlExpressionFactory.OrElse(sqlBinaryExpression.Left, sqlBinaryExpression.Right);
-            }
-
-            return base.VisitExtension(extensionExpression);
-        }
-    }
 }

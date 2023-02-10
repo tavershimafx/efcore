@@ -347,6 +347,8 @@ public class ExpressionPrinter : ExpressionVisitor
     /// <inheritdoc />
     protected override Expression VisitBinary(BinaryExpression binaryExpression)
     {
+        _stringBuilder.Append("(");
+
         Visit(binaryExpression.Left);
 
         if (binaryExpression.NodeType == ExpressionType.ArrayIndex)
@@ -370,6 +372,8 @@ public class ExpressionPrinter : ExpressionVisitor
 
             Visit(binaryExpression.Right);
         }
+
+        _stringBuilder.Append(")");
 
         return binaryExpression;
     }

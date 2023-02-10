@@ -263,14 +263,14 @@ public class SqlExpressionSimplifyingExpressionVisitor : ExpressionVisitor
 
         // convert bitwise OR/AND to &&/|| when args are bools
         var binaryOperatorType = sqlBinaryExpression.OperatorType;
-        if ((binaryOperatorType == ExpressionType.And || binaryOperatorType == ExpressionType.Or)
-            && sqlBinaryExpression.Left.Type == typeof(bool)
-            && sqlBinaryExpression.Right.Type == typeof(bool))
-        {
-            binaryOperatorType = binaryOperatorType == ExpressionType.And
-                ? ExpressionType.AndAlso
-                : ExpressionType.OrElse;
-        }
+        //if ((binaryOperatorType == ExpressionType.And || binaryOperatorType == ExpressionType.Or)
+        //    && sqlBinaryExpression.Left.Type == typeof(bool)
+        //    && sqlBinaryExpression.Right.Type == typeof(bool))
+        //{
+        //    binaryOperatorType = binaryOperatorType == ExpressionType.And
+        //        ? ExpressionType.AndAlso
+        //        : ExpressionType.OrElse;
+        //}
 
         if (binaryOperatorType == ExpressionType.AndAlso
             || binaryOperatorType == ExpressionType.OrElse)
