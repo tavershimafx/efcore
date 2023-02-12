@@ -9444,6 +9444,19 @@ FROM "Squads" AS "s"
 """);
     }
 
+    public override async Task Bitwise_and_on_bool_args_in_predicate(bool async)
+    {
+        await base.Bitwise_and_on_bool_args_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT "g"."Nickname", "g"."SquadId", "g"."AssignedCityName", "g"."CityOfBirthName", "g"."Discriminator", "g"."FullName", "g"."HasSoulPatch", "g"."LeaderNickname", "g"."LeaderSquadId", "g"."Rank"
+FROM "Gears" AS "g"
+LEFT JOIN "Cities" AS "c" ON "g"."AssignedCityName" = "c"."Name"
+WHERE ((("g"."LeaderNickname" LIKE 'Marcus') OR "g"."HasSoulPatch") & ("c"."Name" IS NOT NULL)) <> 0 OR (((("g"."LeaderNickname" LIKE 'Marcus') OR "g"."HasSoulPatch") & ("c"."Name" IS NOT NULL)) IS NULL)
+""");
+    }
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 }

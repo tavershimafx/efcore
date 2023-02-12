@@ -13196,6 +13196,37 @@ FROM [Squads] AS [s]
 """);
     }
 
+    public override async Task Bitwise_and_on_bool_args_in_predicate(bool async)
+    {
+        await base.Bitwise_and_on_bool_args_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT [t].[Nickname], [t].[SquadId], [t].[AssignedCityName], [t].[CityOfBirthName], [t].[FullName], [t].[HasSoulPatch], [t].[LeaderNickname], [t].[LeaderSquadId], [t].[Rank], [t].[Discriminator]
+FROM (
+    SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[Rank], N'Gear' AS [Discriminator]
+    FROM [Gears] AS [g]
+    UNION ALL
+    SELECT [o].[Nickname], [o].[SquadId], [o].[AssignedCityName], [o].[CityOfBirthName], [o].[FullName], [o].[HasSoulPatch], [o].[LeaderNickname], [o].[LeaderSquadId], [o].[Rank], N'Officer' AS [Discriminator]
+    FROM [Officers] AS [o]
+) AS [t]
+LEFT JOIN [Cities] AS [c] ON [t].[AssignedCityName] = [c].[Name]
+WHERE (CASE
+    WHEN ([t].[LeaderNickname] LIKE N'Marcus') OR [t].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) <> CAST(0 AS bit) OR ((CASE
+    WHEN ([t].[LeaderNickname] LIKE N'Marcus') OR [t].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) IS NULL)
+""");
+    }
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 }

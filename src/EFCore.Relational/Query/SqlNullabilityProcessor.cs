@@ -1732,12 +1732,14 @@ public class SqlNullabilityProcessor
 
             case SqlBinaryExpression sqlBinaryOperand
                 when sqlBinaryOperand.OperatorType != ExpressionType.AndAlso
-                && sqlBinaryOperand.OperatorType != ExpressionType.OrElse:
+                && sqlBinaryOperand.OperatorType != ExpressionType.OrElse
+                && sqlBinaryOperand.OperatorType != ExpressionType.And
+                && sqlBinaryOperand.OperatorType != ExpressionType.Or:
             {
                 // in general:
                 // binaryOp(a, b) == null -> a == null || b == null
                 // binaryOp(a, b) != null -> a != null && b != null
-                // for AndAlso, OrElse we can't do this optimization
+                // for AndAlso, OrElse (as well as bitwise And/Or) we can't do this optimization
                 // we could do something like this, but it seems too complicated:
                 // (a && b) == null -> a == null && b != 0 || a != 0 && b == null
                 // NOTE: we don't preserve nullabilities of left/right individually so we are using nullability binary expression as a whole

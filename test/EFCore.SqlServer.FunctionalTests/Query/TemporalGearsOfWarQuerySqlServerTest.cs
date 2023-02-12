@@ -9932,6 +9932,31 @@ FROM [Squads] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [s]
 """);
     }
 
+    public override async Task Bitwise_and_on_bool_args_in_predicate(bool async)
+    {
+        await base.Bitwise_and_on_bool_args_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[PeriodEnd], [g].[PeriodStart], [g].[Rank]
+FROM [Gears] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [g]
+LEFT JOIN [Cities] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [c] ON [g].[AssignedCityName] = [c].[Name]
+WHERE (CASE
+    WHEN ([g].[LeaderNickname] LIKE N'Marcus') OR [g].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) <> CAST(0 AS bit) OR ((CASE
+    WHEN ([g].[LeaderNickname] LIKE N'Marcus') OR [g].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) IS NULL)
+""");
+    }
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 }
