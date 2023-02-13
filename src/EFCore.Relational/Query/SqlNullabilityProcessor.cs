@@ -787,26 +787,34 @@ public class SqlNullabilityProcessor
 
         var updated = (SqlExpression)likeExpression.Update(match, pattern, escapeChar);
 
-        if (allowOptimizedExpansion)
+        if (allowOptimizedExpansion || UseRelationalNulls)
         {
-            // TODO: test if escape has any impact on nullability across providers
             nullable = matchNullable || patternNullable || escapeCharNullable;
 
             return updated;
         }
 
+        // converting to 2-value logic
+        // LIKE results in NULL if either match or pattern are NULL
+        // so we add null checks to return 'false' instead
         if (matchNullable)
         {
-            updated = _sqlExpressionFactory.AndAlso(
-                updated,
-                _sqlExpressionFactory.IsNotNull(match));
+            updated = SimplifyLogicalSqlBinaryExpression(
+                _sqlExpressionFactory.AndAlso(
+                    updated,
+                    ProcessNullNotNull(
+                        _sqlExpressionFactory.IsNotNull(match),
+                        operandNullable: true)));
         }
 
         if (patternNullable)
         {
-            updated = _sqlExpressionFactory.AndAlso(
-                updated,
-                _sqlExpressionFactory.IsNotNull(pattern));
+            updated = SimplifyLogicalSqlBinaryExpression(
+                _sqlExpressionFactory.AndAlso(
+                    updated,
+                    ProcessNullNotNull(
+                        _sqlExpressionFactory.IsNotNull(pattern),
+                        operandNullable: true)));
         }
 
         nullable = false;

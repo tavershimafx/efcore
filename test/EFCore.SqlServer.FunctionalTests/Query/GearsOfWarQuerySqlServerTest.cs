@@ -2461,7 +2461,7 @@ WHERE [g].[HasSoulPatch] = CAST(1 AS bit) OR ([t].[Note] LIKE N'%Cole%')
         AssertSql(
 """
 SELECT CASE
-    WHEN [g].[HasSoulPatch] = CAST(1 AS bit) AND ([t].[Note] LIKE N'%Cole%') THEN CAST(1 AS bit)
+    WHEN [g].[HasSoulPatch] = CAST(1 AS bit) AND ([t].[Note] LIKE N'%Cole%') AND ([t].[Note] IS NOT NULL) THEN CAST(1 AS bit)
     ELSE CAST(0 AS bit)
 END
 FROM [Tags] AS [t]
@@ -6040,7 +6040,7 @@ SELECT [w0].[Id], [w0].[AmmunitionType], [w0].[IsAutomatic], [w0].[Name], [w0].[
 FROM [Weapons] AS [w]
 LEFT JOIN [Weapons] AS [w0] ON [w].[SynergyWithId] = [w0].[Id]
 ORDER BY CASE
-    WHEN [w0].[Name] LIKE N'%Lancer' THEN CAST(1 AS bit)
+    WHEN ([w0].[Name] LIKE N'%Lancer') AND ([w0].[Name] IS NOT NULL) THEN CAST(1 AS bit)
     ELSE CAST(0 AS bit)
 END
 """);
@@ -10099,31 +10099,6 @@ WHERE (
 """
 SELECT [s].[Id], CAST(SUBSTRING([s].[Banner], 0 + 1, 1) AS tinyint), [s].[Name]
 FROM [Squads] AS [s]
-""");
-    }
-
-    public override async Task Bitwise_and_on_bool_args_in_predicate(bool async)
-    {
-        await base.Bitwise_and_on_bool_args_in_predicate(async);
-
-        AssertSql(
-"""
-SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[Rank]
-FROM [Gears] AS [g]
-LEFT JOIN [Cities] AS [c] ON [g].[AssignedCityName] = [c].[Name]
-WHERE (CASE
-    WHEN ([g].[LeaderNickname] LIKE N'Marcus') OR [g].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
-    ELSE CAST(0 AS bit)
-END & CASE
-    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
-    ELSE CAST(0 AS bit)
-END) <> CAST(0 AS bit) OR ((CASE
-    WHEN ([g].[LeaderNickname] LIKE N'Marcus') OR [g].[HasSoulPatch] = CAST(1 AS bit) THEN CAST(1 AS bit)
-    ELSE CAST(0 AS bit)
-END & CASE
-    WHEN [c].[Name] IS NOT NULL THEN CAST(1 AS bit)
-    ELSE CAST(0 AS bit)
-END) IS NULL)
 """);
     }
 

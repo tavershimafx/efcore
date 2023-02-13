@@ -160,7 +160,7 @@ WHERE ([f0].[LastName] LIKE N'') OR CHARINDEX([f0].[LastName], [f].[FirstName]) 
 SELECT [f].[FirstName] AS [fn], [f0].[LastName] AS [ln]
 FROM [FunkyCustomers] AS [f]
 CROSS JOIN [FunkyCustomers] AS [f0]
-WHERE NOT (([f0].[LastName] LIKE N'') OR CHARINDEX([f0].[LastName], [f].[FirstName]) > 0)
+WHERE NOT ((([f0].[LastName] LIKE N'') AND ([f0].[LastName] IS NOT NULL)) OR CHARINDEX([f0].[LastName], [f].[FirstName]) > 0)
 """);
     }
 

@@ -3710,7 +3710,7 @@ FROM "Weapons" AS "w"
 SELECT "w0"."Id", "w0"."AmmunitionType", "w0"."IsAutomatic", "w0"."Name", "w0"."OwnerFullName", "w0"."SynergyWithId"
 FROM "Weapons" AS "w"
 LEFT JOIN "Weapons" AS "w0" ON "w"."SynergyWithId" = "w0"."Id"
-ORDER BY "w0"."Name" LIKE '%Lancer'
+ORDER BY ("w0"."Name" LIKE '%Lancer') AND ("w0"."Name" IS NOT NULL)
 """);
     }
 
@@ -9441,19 +9441,6 @@ WHERE (
 """
 SELECT "s"."Id", "s"."Banner", "s"."Name"
 FROM "Squads" AS "s"
-""");
-    }
-
-    public override async Task Bitwise_and_on_bool_args_in_predicate(bool async)
-    {
-        await base.Bitwise_and_on_bool_args_in_predicate(async);
-
-        AssertSql(
-"""
-SELECT "g"."Nickname", "g"."SquadId", "g"."AssignedCityName", "g"."CityOfBirthName", "g"."Discriminator", "g"."FullName", "g"."HasSoulPatch", "g"."LeaderNickname", "g"."LeaderSquadId", "g"."Rank"
-FROM "Gears" AS "g"
-LEFT JOIN "Cities" AS "c" ON "g"."AssignedCityName" = "c"."Name"
-WHERE ((("g"."LeaderNickname" LIKE 'Marcus') OR "g"."HasSoulPatch") & ("c"."Name" IS NOT NULL)) <> 0 OR (((("g"."LeaderNickname" LIKE 'Marcus') OR "g"."HasSoulPatch") & ("c"."Name" IS NOT NULL)) IS NULL)
 """);
     }
 

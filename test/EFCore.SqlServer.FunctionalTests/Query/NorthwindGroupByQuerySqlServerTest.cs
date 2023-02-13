@@ -3179,7 +3179,7 @@ ORDER BY [t].[CustomerID]
 SELECT [t].[Key], COUNT(*) AS [Count]
 FROM (
     SELECT CASE
-        WHEN [o].[CustomerID] LIKE N'A%' THEN CAST(1 AS bit)
+        WHEN ([o].[CustomerID] LIKE N'A%') AND ([o].[CustomerID] IS NOT NULL) THEN CAST(1 AS bit)
         ELSE CAST(0 AS bit)
     END AS [Key]
     FROM [Orders] AS [o]
