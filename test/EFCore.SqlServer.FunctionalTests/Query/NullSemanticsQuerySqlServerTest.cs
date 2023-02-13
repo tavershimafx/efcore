@@ -2802,6 +2802,221 @@ INNER JOIN [Entities2] AS [e0] ON [e].[Id] = [e0].[Id]
 """);
     }
 
+    public override async Task Like_on_nullable_string_in_predicate(bool async)
+    {
+        await base.Like_on_nullable_string_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT [e].[Id]
+FROM [Entities1] AS [e]
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task Like_on_nullable_string_negated_in_predicate(bool async)
+    {
+        await base.Like_on_nullable_string_negated_in_predicate(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task Like_on_nullable_string_in_projection(bool async)
+    {
+        await base.Like_on_nullable_string_in_projection(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task Like_on_nullable_string_negated_in_projection(bool async)
+    {
+        await base.Like_on_nullable_string_negated_in_projection(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task OrderBy_like_on_nullable_string(bool async)
+    {
+        await base.OrderBy_like_on_nullable_string(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task OrderBy_like_on_nullable_string_negated(bool async)
+    {
+        await base.OrderBy_like_on_nullable_string_negated(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task OrderByDescending_like_on_nullable_string(bool async)
+    {
+        await base.OrderByDescending_like_on_nullable_string(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+    public override async Task OrderByDescending_like_on_nullable_string_negated(bool async)
+    {
+        await base.OrderByDescending_like_on_nullable_string_negated(async);
+
+        AssertSql(
+"""
+WHERE [e].[NullableStringA] LIKE N'Foo'
+""");
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public override async Task Is_null_on_bitwise_and_with_bool_args_returns_correct_results(bool async)
+    {
+        await base.Is_null_on_bitwise_and_with_bool_args_returns_correct_results(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Is_not_null_on_bitwise_and_with_bool_args_returns_correct_results(bool async)
+    {
+        await base.Is_not_null_on_bitwise_and_with_bool_args_returns_correct_results(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Is_null_on_bitwise_or_with_bool_args_returns_correct_results(bool async)
+    {
+        await base.Is_null_on_bitwise_or_with_bool_args_returns_correct_results(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Is_not_null_on_bitwise_or_with_bool_args_returns_correct_results(bool async)
+    {
+        await base.Is_not_null_on_bitwise_or_with_bool_args_returns_correct_results(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Is_null_on_non_bitwise_or_gets_optimized_for_non_bool(bool async)
+    {
+        await base.Is_null_on_non_bitwise_or_gets_optimized_for_non_bool(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Complex_predicate_with_like_with_bitwise_and(bool async)
+    {
+        await base.Complex_predicate_with_like_with_bitwise_and(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
+    public override async Task Complex_predicate_with_like_with_bitwise_and_variation1(bool async)
+    {
+        await base.Complex_predicate_with_like_with_bitwise_and_variation1(async);
+
+        AssertSql(
+"""
+SELECT [e].[Id], [e].[BoolA], [e].[BoolB], [e].[BoolC], [e].[IntA], [e].[IntB], [e].[IntC], [e].[NullableBoolA], [e].[NullableBoolB], [e].[NullableBoolC], [e].[NullableIntA], [e].[NullableIntB], [e].[NullableIntC], [e].[NullableStringA], [e].[NullableStringB], [e].[NullableStringC], [e].[StringA], [e].[StringB], [e].[StringC]
+FROM [Entities1] AS [e]
+WHERE (CASE
+    WHEN ([e].[NullableStringA] = N'Foo' AND ([e].[NullableStringA] IS NOT NULL)) OR [e].[BoolA] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [e].[NullableStringB] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) = CAST(1 AS bit)
+""");
+    }
+
+    public override async Task Kupson333(bool async)
+    {
+        await base.Kupson333(async);
+
+        AssertSql(
+"""
+SELECT [e].[Id], [e].[BoolA], [e].[BoolB], [e].[BoolC], [e].[IntA], [e].[IntB], [e].[IntC], [e].[NullableBoolA], [e].[NullableBoolB], [e].[NullableBoolC], [e].[NullableIntA], [e].[NullableIntB], [e].[NullableIntC], [e].[NullableStringA], [e].[NullableStringB], [e].[NullableStringC], [e].[StringA], [e].[StringB], [e].[StringC]
+FROM [Entities1] AS [e]
+WHERE (CASE
+    WHEN ([e].[NullableStringA] LIKE N'Foo') OR [e].[BoolA] = CAST(1 AS bit) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END & CASE
+    WHEN [e].[NullableStringB] IS NOT NULL THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END) = CAST(0 AS bit)
+""");
+    }
+
+    public override async Task Kupson4444(bool async)
+    {
+        await base.Kupson4444(async);
+
+        AssertSql(
+"""
+WHERE ([e].[NullableIntA] IS NOT NULL) AND ([e0].[NullableIntA] IS NOT NULL)
+""");
+    }
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 

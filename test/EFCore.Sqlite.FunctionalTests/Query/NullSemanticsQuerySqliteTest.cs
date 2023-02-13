@@ -173,6 +173,55 @@ WHERE ("e"."IntA" <> "e"."IntB") = ("e"."NullableBoolA" IS NOT NULL)
 """);
     }
 
+    public override async Task Like_on_nullable_string_in_predicate(bool async)
+    {
+        await base.Like_on_nullable_string_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT "e"."Id"
+FROM "Entities1" AS "e"
+WHERE "e"."NullableStringA" LIKE 'Foo'
+""");
+    }
+
+    public override async Task Like_on_nullable_string_negated_in_predicate(bool async)
+    {
+        await base.Like_on_nullable_string_negated_in_predicate(async);
+
+        AssertSql(
+"""
+SELECT "e"."Id"
+FROM "Entities1" AS "e"
+WHERE NOT ("e"."NullableStringA" LIKE 'Foo') OR ("e"."NullableStringA" IS NULL)
+""");
+    }
+
+    public override async Task Like_on_nullable_string_in_projection(bool async)
+    {
+        await base.Like_on_nullable_string_in_projection(async);
+
+        AssertSql(
+"""
+SELECT "e"."Id", ("e"."NullableStringA" LIKE 'Foo') AND ("e"."NullableStringA" IS NOT NULL) AS "Like"
+FROM "Entities1" AS "e"
+""");
+    }
+
+    public override async Task Like_on_nullable_string_negated_in_projection(bool async)
+    {
+        await base.Like_on_nullable_string_negated_in_projection(async);
+
+        AssertSql(
+"""
+SELECT "e"."Id", NOT ("e"."NullableStringA" LIKE 'Foo') OR ("e"."NullableStringA" IS NULL) AS "Like"
+FROM "Entities1" AS "e"
+""");
+    }
+
+
+
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 

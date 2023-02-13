@@ -785,9 +785,33 @@ public class SqlNullabilityProcessor
         var pattern = Visit(likeExpression.Pattern, out var patternNullable);
         var escapeChar = Visit(likeExpression.EscapeChar, out var escapeCharNullable);
 
-        nullable = matchNullable || patternNullable || escapeCharNullable;
+        var updated = (SqlExpression)likeExpression.Update(match, pattern, escapeChar);
 
-        return likeExpression.Update(match, pattern, escapeChar);
+        if (allowOptimizedExpansion)
+        {
+            // TODO: test if escape has any impact on nullability across providers
+            nullable = matchNullable || patternNullable || escapeCharNullable;
+
+            return updated;
+        }
+
+        if (matchNullable)
+        {
+            updated = _sqlExpressionFactory.AndAlso(
+                updated,
+                _sqlExpressionFactory.IsNotNull(match));
+        }
+
+        if (patternNullable)
+        {
+            updated = _sqlExpressionFactory.AndAlso(
+                updated,
+                _sqlExpressionFactory.IsNotNull(pattern));
+        }
+
+        nullable = false;
+
+        return updated;
     }
 
     /// <summary>
@@ -1732,14 +1756,18 @@ public class SqlNullabilityProcessor
 
             case SqlBinaryExpression sqlBinaryOperand
                 when sqlBinaryOperand.OperatorType != ExpressionType.AndAlso
-                && sqlBinaryOperand.OperatorType != ExpressionType.OrElse
-                && sqlBinaryOperand.OperatorType != ExpressionType.And
-                && sqlBinaryOperand.OperatorType != ExpressionType.Or:
+                    && sqlBinaryOperand.OperatorType != ExpressionType.OrElse:
+                    //&& (sqlBinaryOperand.OperatorType != ExpressionType.And
+                    //    || sqlBinaryOperand.Left.Type != typeof(bool)
+                    //    || sqlBinaryOperand.Right.Type != typeof(bool))
+                    //&& (sqlBinaryOperand.OperatorType != ExpressionType.Or
+                    //    || sqlBinaryOperand.Left.Type != typeof(bool)
+                    //    || sqlBinaryOperand.Right.Type != typeof(bool)):
             {
                 // in general:
                 // binaryOp(a, b) == null -> a == null || b == null
                 // binaryOp(a, b) != null -> a != null && b != null
-                // for AndAlso, OrElse (as well as bitwise And/Or) we can't do this optimization
+                // for AndAlso, OrElse (as well as bitwise And/Or on boolean arguments) we can't do this optimization
                 // we could do something like this, but it seems too complicated:
                 // (a && b) == null -> a == null && b != 0 || a != 0 && b == null
                 // NOTE: we don't preserve nullabilities of left/right individually so we are using nullability binary expression as a whole

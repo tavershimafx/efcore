@@ -1848,6 +1848,239 @@ public abstract class NullSemanticsQueryTestBase<TFixture> : QueryTestBase<TFixt
                   select (e1.NullableIntA ?? (e1.NullableIntB ?? (e2.NullableIntC ?? e2.NullableIntB)))
                       ?? e1.NullableIntC ?? (e2.NullableIntA ?? e2.NullableIntC ?? e1.NullableIntA));
 
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Like_on_nullable_string_in_predicate(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where EF.Functions.Like(e.NullableStringA, "Foo")
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where e.NullableStringA == "Foo"
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Like_on_nullable_string_negated_in_predicate(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where !EF.Functions.Like(e.NullableStringA, "Foo")
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where !(e.NullableStringA == "Foo")
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Like_on_nullable_string_in_projection(bool async)
+        => AssertQuery(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  select new { e.Id, Like = (bool?)EF.Functions.Like(e.NullableStringA, "Foo") },
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  select new { e.Id, Like = (bool?)(e.NullableStringA == "Foo") },
+            elementSorter: e => e.Id,
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.Id, a.Id);
+                Assert.Equal(e.Like, a.Like);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Like_on_nullable_string_negated_in_projection(bool async)
+        => AssertQuery(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  select new { e.Id, Like = !EF.Functions.Like(e.NullableStringA, "Foo") },
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  select new { e.Id, Like = !(e.NullableStringA == "Foo") },
+            elementSorter: e => e.Id,
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.Id, a.Id);
+                Assert.Equal(e.Like, a.Like);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task OrderBy_like_on_nullable_string(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby EF.Functions.Like(e.NullableStringA, "Foo"), e.Id
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby (e.NullableStringA == "Foo"), e.Id
+                  select e.Id,
+            assertOrder: true);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task OrderBy_like_on_nullable_string_negated(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby !EF.Functions.Like(e.NullableStringA, "Foo"), e.Id
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby !(e.NullableStringA == "Foo"), e.Id
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task OrderByDescending_like_on_nullable_string(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby EF.Functions.Like(e.NullableStringA, "Foo"), e.Id
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby (e.NullableStringA == "Foo"), e.Id
+                  select e.Id,
+            assertOrder: true);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task OrderByDescending_like_on_nullable_string_negated(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby !EF.Functions.Like(e.NullableStringA, "Foo"), e.Id
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  orderby !(e.NullableStringA == "Foo"), e.Id
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Is_null_on_bitwise_and_with_bool_args_returns_correct_results(bool async)
+        => AssertQuery(
+            async,
+            ss => from e1 in ss.Set<NullSemanticsEntity1>()
+                  join e2 in ss.Set<NullSemanticsEntity2>() on e1.Id equals e2.Id
+                  where (e1.NullableBoolA & e2.NullableBoolA) == null
+                  select new { e1, e2 },
+            elementSorter: e => (e.e1.Id, e.e2.Id),
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.e1.Id, a.e1.Id);
+                Assert.Equal(e.e2.Id, a.e2.Id);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Is_not_null_on_bitwise_and_with_bool_args_returns_correct_results(bool async)
+        => AssertQuery(
+            async,
+            ss => from e1 in ss.Set<NullSemanticsEntity1>()
+                  join e2 in ss.Set<NullSemanticsEntity2>() on e1.Id equals e2.Id
+                  where (e1.NullableBoolA & e2.NullableBoolA) != null
+                  select new { e1, e2 },
+            elementSorter: e => (e.e1.Id, e.e2.Id),
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.e1.Id, a.e1.Id);
+                Assert.Equal(e.e2.Id, a.e2.Id);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Is_null_on_bitwise_or_with_bool_args_returns_correct_results(bool async)
+        => AssertQuery(
+            async,
+            ss => from e1 in ss.Set<NullSemanticsEntity1>()
+                  join e2 in ss.Set<NullSemanticsEntity2>() on e1.Id equals e2.Id
+                  where (e1.NullableBoolA | e2.NullableBoolA) == null
+                  select new { e1, e2 },
+            elementSorter: e => (e.e1.Id, e.e2.Id),
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.e1.Id, a.e1.Id);
+                Assert.Equal(e.e2.Id, a.e2.Id);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Is_not_null_on_bitwise_or_with_bool_args_returns_correct_results(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (e.NullableBoolA | e.NullableBoolB) != null
+                  select e.Id);
+            //elementSorter: e => e.Id,
+            //elementAsserter: (e, a) =>
+            //{
+            //    Assert.Equal(e.e1.Id, a.e1.Id);
+            //    Assert.Equal(e.e2.Id, a.e2.Id);
+            //});
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Is_null_on_non_bitwise_or_gets_optimized_for_non_bool(bool async)
+        => AssertQuery(
+            async,
+            ss => from e1 in ss.Set<NullSemanticsEntity1>()
+                  join e2 in ss.Set<NullSemanticsEntity2>() on e1.Id equals e2.Id
+                  where (e1.NullableIntA | e2.NullableIntA) != null
+                  select new { e1, e2 },
+            elementSorter: e => (e.e1.Id, e.e2.Id),
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.e1.Id, a.e1.Id);
+                Assert.Equal(e.e2.Id, a.e2.Id);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Complex_predicate_with_like_with_bitwise_and(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((EF.Functions.Like(e.NullableStringA, "Foo") || e.BoolA) & e.NullableStringB != null)) != false
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((e.NullableStringA == "Foo") || e.BoolA) & e.NullableStringB != null) != false
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Complex_predicate_with_like_with_bitwise_and_variation1(bool async)
+        => AssertQuery(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((e.NullableStringA == "Foo") || e.BoolA) & e.NullableStringB != null) != false
+                  select e,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((e.NullableStringA == "Foo") || e.BoolA) & e.NullableStringB != null) != false
+                  select e);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Kupson333(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((EF.Functions.Like(e.NullableStringA, "Foo") || e.BoolA) & e.NullableStringB != null))
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where (((e.NullableStringA == "Foo") || e.BoolA) & e.NullableStringB != null)
+                  select e.Id);
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Kupson4444(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where !(((EF.Functions.Like(e.NullableStringA, "Foo") || e.BoolA) & e.NullableStringB != null))
+                  select e.Id,
+            ss => from e in ss.Set<NullSemanticsEntity1>()
+                  where !(((e.NullableStringA == "Foo") || e.BoolA) & e.NullableStringB != null)
+                  select e.Id);
+
     private string NormalizeDelimitersInRawString(string sql)
         => Fixture.TestStore.NormalizeDelimitersInRawString(sql);
 
