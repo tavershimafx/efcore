@@ -2802,6 +2802,21 @@ INNER JOIN [Entities2] AS [e0] ON [e].[Id] = [e0].[Id]
 """);
     }
 
+
+
+    public override async Task Is_null_on_bitwise_and_with_bool_args_returns_correct_results(bool async)
+    {
+        await base.Is_null_on_bitwise_and_with_bool_args_returns_correct_results(async);
+
+        AssertSql(
+"""
+SELECT [e].[Id], [e].[BoolA], [e].[BoolB], [e].[BoolC], [e].[IntA], [e].[IntB], [e].[IntC], [e].[NullableBoolA], [e].[NullableBoolB], [e].[NullableBoolC], [e].[NullableIntA], [e].[NullableIntB], [e].[NullableIntC], [e].[NullableStringA], [e].[NullableStringB], [e].[NullableStringC], [e].[StringA], [e].[StringB], [e].[StringC], [e0].[Id], [e0].[BoolA], [e0].[BoolB], [e0].[BoolC], [e0].[IntA], [e0].[IntB], [e0].[IntC], [e0].[NullableBoolA], [e0].[NullableBoolB], [e0].[NullableBoolC], [e0].[NullableIntA], [e0].[NullableIntB], [e0].[NullableIntC], [e0].[NullableStringA], [e0].[NullableStringB], [e0].[NullableStringC], [e0].[StringA], [e0].[StringB], [e0].[StringC]
+FROM [Entities1] AS [e]
+INNER JOIN [Entities2] AS [e0] ON [e].[Id] = [e0].[Id]
+WHERE (([e].[NullableBoolA] IS NULL) AND ([e0].[NullableBoolA] IS NULL)) OR (([e].[NullableBoolA] IS NULL) AND [e0].[NullableBoolA] = CAST(1 AS bit)) OR ([e].[NullableBoolA] = CAST(1 AS bit) AND ([e0].[NullableBoolA] IS NULL))
+""");
+    }
+
     private void AssertSql(params string[] expected)
         => Fixture.TestSqlLoggerFactory.AssertBaseline(expected);
 

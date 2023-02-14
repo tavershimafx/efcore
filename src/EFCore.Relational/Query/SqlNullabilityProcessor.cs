@@ -1730,6 +1730,149 @@ public class SqlNullabilityProcessor
 
                 break;
 
+            case SqlBinaryExpression bitwiseSqlBinaryExpression
+                when (bitwiseSqlBinaryExpression.OperatorType == ExpressionType.And
+                    && bitwiseSqlBinaryExpression.Left.Type == typeof(bool)
+                    && bitwiseSqlBinaryExpression.Right.Type == typeof(bool))
+                    || (bitwiseSqlBinaryExpression.OperatorType == ExpressionType.Or
+                        && bitwiseSqlBinaryExpression.Left.Type == typeof(bool)
+                        && bitwiseSqlBinaryExpression.Right.Type == typeof(bool)):
+                // a & b == null -> (a == null && b == null) || (a == null && b == true) || (a == true && b == null)
+                // a | b == null -> (a == null && b == null) || (a == null && b == false) || (a == false && b == null)
+                // a & b != null -> (a != null && b != null) || (a == null && b == false) || (a == false && b == null)
+                // a | b != null -> (a != null && b != null) || (a == true && b == null) || (a = null && b == true)
+
+                var leftIsNull = ProcessNullNotNull(
+                    _sqlExpressionFactory.IsNull(
+                        bitwiseSqlBinaryExpression.Left),
+                    operandNullable);
+
+                var leftIsNotNull = ProcessNullNotNull(
+                    _sqlExpressionFactory.IsNotNull(
+                        bitwiseSqlBinaryExpression.Left),
+                    operandNullable);
+
+                var rightIsNull = ProcessNullNotNull(
+                    _sqlExpressionFactory.IsNull(
+                        bitwiseSqlBinaryExpression.Right),
+                    operandNullable);
+
+                var rightIsNotNull = ProcessNullNotNull(
+                    _sqlExpressionFactory.IsNotNull(
+                        bitwiseSqlBinaryExpression.Right),
+                    operandNullable);
+
+                var leftIsTrue = _sqlExpressionFactory.Equal(
+                        bitwiseSqlBinaryExpression.Left,
+                        _sqlExpressionFactory.Constant(
+                            true,
+                            bitwiseSqlBinaryExpression.Left.TypeMapping));
+
+                var rightIsTrue = _sqlExpressionFactory.Equal(
+                        bitwiseSqlBinaryExpression.Right,
+                        _sqlExpressionFactory.Constant(
+                            true,
+                            bitwiseSqlBinaryExpression.Right.TypeMapping));
+
+                var leftIsFalse = _sqlExpressionFactory.Equal(
+                        bitwiseSqlBinaryExpression.Left,
+                        _sqlExpressionFactory.Constant(
+                            false,
+                            bitwiseSqlBinaryExpression.Left.TypeMapping));
+
+                var rightIsFalse = _sqlExpressionFactory.Equal(
+                        bitwiseSqlBinaryExpression.Right,
+                        _sqlExpressionFactory.Constant(
+                            false,
+                            bitwiseSqlBinaryExpression.Right.TypeMapping));
+
+                if (sqlUnaryExpression.OperatorType == ExpressionType.Equal)
+                {
+                    if (bitwiseSqlBinaryExpression.OperatorType == ExpressionType.And)
+                    {
+                        // a & b == null -> (a == null && b == null) || (a == null && b == true) || (a == true && b == null)
+                        return SimplifyLogicalSqlBinaryExpression(
+                            _sqlExpressionFactory.OrElse(
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.AndAlso(
+                                        leftIsNull,
+                                        rightIsNull)),
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.OrElse(
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsNull,
+                                                rightIsTrue)),
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsTrue,
+                                                rightIsNull))))));
+                    }
+                    else
+                    {
+                        // a | b == null -> (a == null && b == null) || (a == null && b == false) || (a == false && b == null)
+                        return SimplifyLogicalSqlBinaryExpression(
+                            _sqlExpressionFactory.OrElse(
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.AndAlso(
+                                        leftIsNull,
+                                        rightIsNull)),
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.OrElse(
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsNull,
+                                                rightIsFalse)),
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsFalse,
+                                                rightIsNull))))));
+                    }
+                }
+                else
+                {
+                    if (bitwiseSqlBinaryExpression.OperatorType == ExpressionType.And)
+                    {
+                        // a & b != null -> (a != null && b != null) || (a == null && b == false) || (a == false && b == null)
+                        return SimplifyLogicalSqlBinaryExpression(
+                            _sqlExpressionFactory.OrElse(
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.AndAlso(
+                                        leftIsNotNull,
+                                        rightIsNotNull)),
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.OrElse(
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsNull,
+                                                rightIsFalse)),
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsFalse,
+                                                rightIsNull))))));
+                    }
+                    else
+                    {
+                        // a | b != null -> (a != null && b != null) || (a == true && b == null) || (a == null && b == true)
+                        return SimplifyLogicalSqlBinaryExpression(
+                            _sqlExpressionFactory.OrElse(
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.AndAlso(
+                                        leftIsNotNull,
+                                        rightIsNotNull)),
+                                SimplifyLogicalSqlBinaryExpression(
+                                    _sqlExpressionFactory.OrElse(
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsTrue,
+                                                rightIsNull)),
+                                        SimplifyLogicalSqlBinaryExpression(
+                                            _sqlExpressionFactory.AndAlso(
+                                                leftIsNull,
+                                                rightIsTrue))))));
+                    }
+                }
+
             case SqlBinaryExpression sqlBinaryOperand
                 when sqlBinaryOperand.OperatorType != ExpressionType.AndAlso
                 && sqlBinaryOperand.OperatorType != ExpressionType.OrElse:
