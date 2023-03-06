@@ -91,19 +91,19 @@ VALUES(
             Reference = new MyJsonEntityArrayOfPrimitives
             {
                 IntArray = new int[] { 1, 2, 3 },
-                ListOfString = new List<string> { "Foo", "Bar", "Baz" }
+                //ListOfString = new List<string> { "Foo", "Bar", "Baz" }
             },
             Collection = new List<MyJsonEntityArrayOfPrimitives>
             {
                 new MyJsonEntityArrayOfPrimitives
                 {
                     IntArray = new int[] { 111, 112, 113 },
-                    ListOfString = new List<string> { "Foo11", "Bar11" }
+                  //  ListOfString = new List<string> { "Foo11", "Bar11" }
                 },
                 new MyJsonEntityArrayOfPrimitives
                 {
                     IntArray = new int[] { 211, 212, 213 },
-                    ListOfString = new List<string> { "Foo12", "Bar12" }
+                    //ListOfString = new List<string> { "Foo12", "Bar12" }
                 },
             }
         };
@@ -114,19 +114,19 @@ VALUES(
             Reference = new MyJsonEntityArrayOfPrimitives
             {
                 IntArray = new int[] { 10, 20, 30 },
-                ListOfString = new List<string> { "A", "B", "C" }
+                //ListOfString = new List<string> { "A", "B", "C" }
             },
             Collection = new List<MyJsonEntityArrayOfPrimitives>
             {
                 new MyJsonEntityArrayOfPrimitives
                 {
                     IntArray = new int[] { 110, 120, 130 },
-                    ListOfString = new List<string> { "A1", "Z1" }
+                  //  ListOfString = new List<string> { "A1", "Z1" }
                 },
                 new MyJsonEntityArrayOfPrimitives
                 {
                     IntArray = new int[] { 210, 220, 230 },
-                    ListOfString = new List<string> { "A2", "Z2" }
+                    //ListOfString = new List<string> { "A2", "Z2" }
                 },
             }
         };

@@ -1673,7 +1673,9 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
             // when implementing collection of primitives, make sure EAOD is translated correctly for them
             if (methodCallExpression.Method.IsGenericMethod
                 && (methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAt
-                    || methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAtOrDefault))
+                    || methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.ElementAtOrDefault
+                    || methodCallExpression.Method.GetGenericMethodDefinition() == EnumerableMethods.ElementAt
+                    || methodCallExpression.Method.GetGenericMethodDefinition() == EnumerableMethods.ElementAtOrDefault))
             {
                 source = methodCallExpression.Arguments[0];
                 var selectMethodCallExpression = default(MethodCallExpression);

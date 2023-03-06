@@ -760,6 +760,13 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
             return QueryCompilationContext.NotTranslatedExpression;
         }
 
+        // potential JSON array of primitives element access
+        if (methodCallExpression.Method.IsGenericMethod
+            && methodCallExpression.Method.GetGenericMethodDefinition() == EnumerableMethods.ElementAt)
+        {
+            var array = Visit(methodCallExpression.Arguments[0]);
+        }
+
         // EF Indexer property
         if (methodCallExpression.TryGetIndexerArguments(_model, out source, out propertyName)
             && TryBindMember(Visit(source), MemberIdentity.Create(propertyName)) is SqlExpression indexerResult)

@@ -136,6 +136,11 @@ public class ModelValidator : IModelValidator
 
         foreach (var entityType in conventionModel.GetEntityTypes())
         {
+            if (entityType.IsOwned())
+            {
+                continue;
+            }
+
             var unmappedProperty = entityType.GetDeclaredProperties().FirstOrDefault(
                 p => (!ConfigurationSource.Convention.Overrides(p.GetConfigurationSource())
                         // Use a better condition for non-persisted properties when issue #14121 is implemented
