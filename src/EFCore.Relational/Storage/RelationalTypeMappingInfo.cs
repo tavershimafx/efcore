@@ -86,7 +86,9 @@ public readonly record struct RelationalTypeMappingInfo
         DbType = (mappingHints as RelationalConverterMappingHints)?.DbType;
         StoreTypeName = storeTypeName;
         StoreTypeNameBase = storeTypeNameBase;
-     }
+
+        IsJson = false;
+    }
 
     /// <summary>
     ///     Creates a new instance of <see cref="RelationalTypeMappingInfo" />.
@@ -110,6 +112,8 @@ public readonly record struct RelationalTypeMappingInfo
         StoreTypeName = storeTypeName;
         StoreTypeNameBase = storeTypeNameBase;
         IsFixedLength = null;
+
+        IsJson = false;
     }
 
     /// <summary>
@@ -136,6 +140,8 @@ public readonly record struct RelationalTypeMappingInfo
         StoreTypeName = storeTypeName;
         StoreTypeNameBase = storeTypeNameBase;
         IsFixedLength = null;
+
+        IsJson = false;
     }
 
     /// <summary>
@@ -161,6 +167,8 @@ public readonly record struct RelationalTypeMappingInfo
         StoreTypeNameBase = source.StoreTypeNameBase;
         IsFixedLength = source.IsFixedLength ?? (mappingHints as RelationalConverterMappingHints)?.IsFixedLength;
         DbType = source.DbType ?? (mappingHints as RelationalConverterMappingHints)?.DbType;
+
+        IsJson = source.IsJson;
     }
 
     /// <summary>
@@ -193,6 +201,8 @@ public readonly record struct RelationalTypeMappingInfo
         IsFixedLength = fixedLength;
         StoreTypeName = storeTypeName;
         StoreTypeNameBase = storeTypeNameBase;
+
+        IsJson = false;
     }
 
     /// <summary>
@@ -259,6 +269,11 @@ public readonly record struct RelationalTypeMappingInfo
         get => _coreTypeMappingInfo.HasKeySemantics;
         init => _coreTypeMappingInfo = _coreTypeMappingInfo with { HasKeySemantics = value };
     }
+
+    /// <summary>
+    /// TODO
+    /// </summary>
+    public bool? IsJson { get; init; }
 
     /// <summary>
     ///     Indicates whether or not the mapping supports Unicode, or <see langword="null" /> if not defined.
