@@ -10732,10 +10732,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         /// </summary>
         public int? HardwareUnitId { get; private set; }
 
-        /// <summary>
-        /// Hardware unit associated with this container
-        /// </summary>
-        public HardwareUnit HardwareUnit { get; private set; }
 
         /// <summary>
         /// Id of the (old) eGate hardware unit
@@ -10819,19 +10815,9 @@ WHERE [e].[TimeSpan] = @__parameter_0
             string name,
             DateTime createdOn,
             int createdById)
-            : this(name, null, createdOn, createdById)
-        {
-        }
-
-        public Container(
-            string name,
-            HardwareUnit hardwareUnit,
-            DateTime createdOn,
-            int createdById)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
 
-            SetHardwareUnit(hardwareUnit, createdOn);
             // Immediately configure the container
             CurrentConfiguration = new ContainerConfiguration(
                 this,
@@ -10843,24 +10829,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
         {
             CurrentConfiguration = newConfiguration;
         }
-
-        public void SetHardwareUnit(HardwareUnit hardwareUnit, DateTime now)
-        {
-            // No change - nothing to do
-            if (HardwareUnit == hardwareUnit) return;
-
-            // Set hardware unit
-            HardwareUnit = hardwareUnit;
-            HardwareUnitId = hardwareUnit?.Id;
-
-            // Ensure the other direction link 
-            hardwareUnit?.SetContainer(this, now);
-        }
     }
-
-
-
-
 
 
 
@@ -10881,27 +10850,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public int SensorHeight { get; set; }
 
         #endregion
-    }
-
-
-
-
-    public class HardwareUnitEntityConfiguration : IEntityTypeConfiguration<HardwareUnit>
-    {
-        /// <inheritdoc />
-        public void Configure(EntityTypeBuilder<HardwareUnit> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedNever();
-
-            entity.Property(e => e.RegisteredOn)
-                .IsRequired();
-        }
     }
 
 
@@ -11050,14 +10998,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             entity.HasIndex(e => new { e.CustomerId, e.RfidTag })
                 .IsUnique();
 
-            // The Container to HardwareUnit is 1:1 relationship
-            entity.HasOne(e => e.HardwareUnit)
-                .WithOne(x => x.Container)
-                .IsRequired(false)
-                // Container is the dependent entity here
-                .HasForeignKey<Container>(c => c.HardwareUnitId)
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.OwnsOne(e => e.FillLevelBehavior,
                 o => o.ToTable("ContainerFillLevelBehavior")
             );
@@ -11070,61 +11010,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-    public class HardwareUnitConfigurationEntityConfiguration : IEntityTypeConfiguration<HardwareUnitConfiguration>
-    {
-        /// <inheritdoc />
-        public void Configure(EntityTypeBuilder<HardwareUnitConfiguration> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            // Current configuration is 1:1 relationship
-            entity.HasOne(e => e.HardwareUnit)
-                .WithOne(x => x.CurrentConfiguration)
-                // Configuration is the dependent entity here
-                .HasForeignKey<HardwareUnitConfiguration>(e => e.HardwareUnitId)
-                .IsRequired()
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Ensure only one configuration per hardware unit
-            entity.HasIndex(e => e.HardwareUnitId).IsUnique();
-
-            entity.Property(e => e.ConfigVersion)
-                .IsRequired();
-
-            entity.Property(e => e.CreatedOn)
-                .IsRequired();
-
-            entity.OwnsMany(e => e.RfTimeSchedule, o =>
-            {
-                o.Property(e => e.Id).ValueGeneratedOnAdd();
-                o.HasKey(e => e.Id);
-
-                o.ToTable("HardwareUnitConfigurationRfTimeSchedule");
-                o.WithOwner(o => o.Configuration);
-
-                o.HasIndex("ConfigurationId", nameof(RfTimeSchedule.ScheduledTime))
-                    .IsUnique();
-            });
-
-            entity.OwnsMany(e => e.RfIntervalSchedule, o =>
-            {
-                o.Property(e => e.Id).ValueGeneratedOnAdd();
-                o.HasKey(e => e.Id);
-
-                o.ToTable("HardwareUnitConfigurationRfIntervalSchedule");
-                o.WithOwner(o => o.Configuration);
-
-                o.HasIndex("ConfigurationId", nameof(RfIntervalSchedule.Period))
-                    .IsUnique();
-            });
-        }
-    }
 
 
     public class ContainerConfigurationFreeInterval : HardwareUnitIntervalBase
@@ -11248,18 +11133,8 @@ WHERE [e].[TimeSpan] = @__parameter_0
             CreatedById = createdById;
             CreatedOn = createdOn;
 
-            ConfigVersion = container.HardwareUnit == null
-                ? (container.CurrentConfiguration?.ConfigVersion ?? 0) + 1
-                : container.HardwareUnit.CurrentConfiguration == null
-                    ? container.HardwareUnit.GetNextConfigurationVersion()
-                    : container.HardwareUnit.CurrentConfiguration.BumpVersion(createdOn);
         }
 
-        public void SynchronizeVersion()
-        {
-            ConfigVersion = Container.HardwareUnit.CurrentConfiguration.ConfigVersion;
-            CreatedOn = Container.HardwareUnit.CurrentConfiguration.CreatedOn;
-        }
 
         public void AddFreeInterval(ContainerConfigurationFreeInterval freeInterval)
         {
@@ -11315,202 +11190,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-    public class HardwareUnit
-    {
-        public int Id { get; private set; }
-
-        public string Name => FormatName(Id);
-
-        public DateTime RegisteredOn { get; private set; }
-
-        public HardwareUnitStatus Status { get; set; }
-
-        public Container Container { get; private set; }
-
-        public HardwareUnitConfiguration CurrentConfiguration { get; private set; }
-
-        #region Latest telemetry "quick access"
-
-        public int ConfigVersion { get; private set; }
-
-        public DateTime? ConfigTimestamp { get; private set; }
-
-        #endregion
-
-        private HardwareUnit() { }
-
-        public HardwareUnit(int id)
-            : this(id, DateTime.UtcNow)
-        {
-        }
-
-        public HardwareUnit(int id, DateTime registeredOn)
-        {
-            Id = id;
-            RegisteredOn = registeredOn;
-        }
-
-        public static string FormatName(int? id)
-        {
-            return id?.ToString("X8", CultureInfo.InvariantCulture);
-        }
-
-        public void Configure(HardwareUnitConfiguration newConfiguration)
-        {
-            if (newConfiguration == CurrentConfiguration) return;
-
-            CurrentConfiguration = newConfiguration;
-            if (Container != null && Container.CurrentConfiguration != null)
-            {
-                Container.CurrentConfiguration.SynchronizeVersion();
-            }
-        }
-
-        public int GetNextConfigurationVersion()
-        {
-            var current = (new[] {
-                ConfigVersion,
-                CurrentConfiguration?.ConfigVersion ?? 0,
-                Container?.CurrentConfiguration?.ConfigVersion ?? 0
-            }).Max();
-            return current + 1;
-        }
-
-        internal void SetContainer(Container container, DateTime utcNow)
-        {
-            if (container == Container) return;
-
-            Container = container;
-            if (CurrentConfiguration != null && container?.CurrentConfiguration != null)
-            {
-                CurrentConfiguration.BumpVersion(utcNow);
-            }
-        }
-
-    }
-
-
-    public class RfTimeSchedule
-    {
-        public int Id { get; private set; }
-
-        public HardwareUnitConfiguration Configuration { get; private set; }
-
-        public DateTime ScheduledTime { get; private set; }
-
-        private RfTimeSchedule() { }
-
-        public RfTimeSchedule(DateTime scheduledTime)
-        {
-            ScheduledTime = scheduledTime;
-        }
-    }
-
-
-    public class RfIntervalSchedule
-    {
-        public int Id { get; private set; }
-
-        public HardwareUnitConfiguration Configuration { get; private set; }
-
-        public int Period { get; private set; }
-
-        private RfIntervalSchedule() { }
-
-        public RfIntervalSchedule(int period)
-        {
-            Period = period;
-        }
-
-    }
-
-
-
-    public class HardwareUnitConfiguration
-    {
-        public const int MaxCardReaders = 9;
-        public const int MaxCardAuthTypes = 9;
-        public const int MaxLogModules = 5;
-        public const int MaxRfTimeSchedules = 2;
-        public const int MaxRfIntervalSchedules = 2;
-
-        // Backing fields for collections. 
-        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
-        private readonly List<RfTimeSchedule> m_RfTimeSchedule = new(MaxRfTimeSchedules);
-        private readonly List<RfIntervalSchedule> m_RfIntervalSchedule = new(MaxRfIntervalSchedules);
-
-        public int Id { get; private set; }
-
-        public int HardwareUnitId { get; private set; }
-
-        public HardwareUnit HardwareUnit { get; private set; }
-
-        public int ConfigVersion { get; private set; }
-
-        public int? EmptyingDetectionId { get; private set; }
-
-        #region RF configuration 
-
-        public IReadOnlyCollection<RfTimeSchedule> RfTimeSchedule => m_RfTimeSchedule.AsReadOnly();
-
-        public IReadOnlyCollection<RfIntervalSchedule> RfIntervalSchedule => m_RfIntervalSchedule.AsReadOnly();
-
-        #endregion
-
-        public DateTime CreatedOn { get; private set; }
-
-        public int CreatedById { get; private set; }
-
-        private HardwareUnitConfiguration() { }
-
-        public HardwareUnitConfiguration(
-            HardwareUnit hardwareUnit,
-            DateTime createdOn,
-            int createdById
-            )
-        {
-            HardwareUnit = hardwareUnit ?? throw new ArgumentNullException(nameof(hardwareUnit));
-
-            if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
-            CreatedById = createdById;
-            CreatedOn = createdOn;
-
-            // Set version
-            ConfigVersion = hardwareUnit.GetNextConfigurationVersion();
-        }
-
-        public int BumpVersion(DateTime now)
-        {
-            ConfigVersion = HardwareUnit.GetNextConfigurationVersion();
-            CreatedOn = now;
-            // Synchronize version to container if needed
-            HardwareUnit.Container?.CurrentConfiguration?.SynchronizeVersion();
-            return ConfigVersion;
-        }
-
-        public void AddRfTimeSchedule(DateTime schedule)
-        {
-            var time = schedule.TimeOfDay;
-
-            if (m_RfTimeSchedule.Count >= MaxRfTimeSchedules) throw new ValidationException($"Too many RF Time Schedules, maximum of {MaxRfTimeSchedules} allowed.");
-            if (m_RfTimeSchedule.Any(t => t.ScheduledTime.TimeOfDay == time)) throw new ValidationException($"RF Time Schedule for time {time} already exists.");
-            m_RfTimeSchedule.Add(new RfTimeSchedule(schedule));
-        }
-
-        public void AddRfIntervalSchedule(int period)
-        {
-            if (m_RfIntervalSchedule.Count >= MaxRfIntervalSchedules) throw new ValidationException($"Too many RF Interval Schedules, maximum of {MaxRfIntervalSchedules} allowed.");
-            if (m_RfIntervalSchedule.Any(t => t.Period == period)) throw new ValidationException($"RF Interval Schedule with period {period} already exists.");
-            m_RfIntervalSchedule.Add(new RfIntervalSchedule(period));
-        }
-    }
-
-
-
-
-
-
-
 
 
 
@@ -11526,13 +11205,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public DbSet<ContainerConfiguration> ContainerConfigurations { get; set; }
 
-        //public DbSet<Customer> Customers { get; set; }
-
-        //public DbSet<Fraction> Fractions { get; set; }
-
-        //public DbSet<HardwareUnit> HardwareUnits { get; set; }
-
-        //public DbSet<HardwareUnitConfiguration> HardwareUnitConfigurations { get; set; }
 
         #endregion
 
@@ -11581,9 +11253,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             // Set global query filters for accessible customers
             modelBuilder.Entity<Container>()
                 .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
-
-            //modelBuilder.Entity<Customer>()
-            //    .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.Id));
         }
     }
 
