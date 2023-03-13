@@ -10707,43 +10707,13 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public ContainerFillLevelBehavior FillLevelBehavior { get; set; }
 
         public ContainerConfiguration CurrentConfiguration { get; private set; }
-
-        //private Container() { }
-
-        //public Container(
-        //    string name,
-        //    DateTime createdOn,
-        //    int createdById)
-        //{
-        //    Name = name ?? throw new ArgumentNullException(nameof(name));
-
-        //    // Immediately configure the container
-        //    CurrentConfiguration = new ContainerConfiguration(
-        //        this,
-        //        createdOn,
-        //        createdById);
-        //}
     }
 
 
 
     public class ContainerFillLevelBehavior
     {
-        #region Behavior configuration
-
-        //public int ThresholdYellow { get; set; }
-
         public int ThresholdRed { get; set; }
-
-        #endregion
-
-        //#region Hardware configuration
-
-        //public int FillHeight { get; set; }
-
-        //public int SensorHeight { get; set; }
-
-        //#endregion
     }
 
 
@@ -10752,11 +10722,8 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     public class ContainerConfigurationEntityConfiguration : IEntityTypeConfiguration<ContainerConfiguration>
     {
-        /// <inheritdoc />
         public void Configure(EntityTypeBuilder<ContainerConfiguration> entity)
         {
-            //if (entity == null) throw new ArgumentNullException(nameof(entity));
-
             entity.HasKey(e => e.Id);
 
             entity.Property(e => e.Id)
@@ -10771,15 +10738,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
                 .IsRequired()
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Ensure only one configuration per container
             entity.HasIndex(c => c.ContainerId).IsUnique();
-
-            //entity.Property(e => e.ConfigVersion)
-            //    .IsRequired();
-
-
-            //entity.Property(e => e.CreatedOn)
-            //    .IsRequired();
         }
     }
 
@@ -10788,8 +10747,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
     {
         public void Configure(EntityTypeBuilder<Container> entity)
         {
-            //if (entity == null) throw new ArgumentNullException(nameof(entity));
-
             entity
                 .ToTable("Containers")
                 .HasKey(e => e.Id);
@@ -10811,51 +10768,14 @@ WHERE [e].[TimeSpan] = @__parameter_0
     }
 
 
-
-
-
-
     public class ContainerConfiguration
     {
-        ///// <summary>
-        ///// Waste Type for unknown fraction
-        ///// </summary>
-        //public const string UnknownWaste = "NOTSET";
-
         public int Id { get; private set; }
 
         public int ContainerId { get; private set; }
 
         public Container Container { get; private set; }
-
-        //public int ConfigVersion { get; private set; }
-
-
-        //public DateTime CreatedOn { get; private set; }
-
-        //public int CreatedById { get; private set; }
-
-
-        //private ContainerConfiguration() { }
-
-        //public ContainerConfiguration(
-        //    Container container,
-        //    DateTime createdOn,
-        //    int createdById)
-        //{
-        //    Container = container ?? throw new ArgumentNullException(nameof(container));
-
-        //    if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
-        //    CreatedById = createdById;
-        //    CreatedOn = createdOn;
-
-        //}
-
-
-
     }
-
-
 
     public partial class EGateDigiDbContext : DbContext
     {
@@ -10893,111 +10813,25 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     public abstract class CurrentUserBase : ICurrentUser
     {
-        /// <inheritdoc />
         public abstract int Id { get; }
-
-        /// <inheritdoc />
-        public abstract string Username { get; }
-
-        /// <inheritdoc />
-        public abstract string DeviceId { get; }
-
-        /// <inheritdoc />
         public abstract IReadOnlyList<int> AccessibleCustomers { get; }
-
-        /// <inheritdoc />
-        public abstract IList<Claim> Claims { get; }
-
-        /// <inheritdoc />
-        public abstract bool IsServiceApp { get; }
-
-        /// <inheritdoc />
-        public abstract bool HasAnyRoleOf(params string[] roles);
-
-        /// <inheritdoc />
-        public void ThrowIfNoAccessibleCustomer(int customerId)
-        {
-            if (!AccessibleCustomers.Contains(customerId))
-            {
-                throw new UnauthorizedAccessException();
-            }
-        }
-
-        /// <inheritdoc />
-        public void ThrowIfNoAccessibleCustomer(IEnumerable<int> customerIds)
-        {
-            if (!customerIds.Intersect(AccessibleCustomers).Any())
-            {
-                throw new UnauthorizedAccessException();
-            }
-        }
-
-        /// <inheritdoc />
-        public void ThrowIfAnyInaccessibleCustomer(IEnumerable<int> customerIds)
-        {
-            // Note: This starts the enumeration twice
-            if (!customerIds.Any() || customerIds.Except(AccessibleCustomers).Any())
-            {
-                throw new UnauthorizedAccessException();
-            }
-        }
-
     }
-
-
-
-
-
 
 
     public class CurrentUserMock : CurrentUserBase
     {
-        #region ICurrentUser 
-
-        /// <inheritdoc />
         public override int Id => MyId;
 
-        /// <inheritdoc />
-        public override string Username => MyUsername;
-
-        /// <inheritdoc />
-        public override string DeviceId => MyDeviceId;
-
-        /// <inheritdoc />
-        public override bool IsServiceApp => MyIsServiceApp;
-
-        /// <inheritdoc />
         public override IReadOnlyList<int> AccessibleCustomers => new ReadOnlyCollection<int>(Customers);
 
-        /// <inheritdoc />
-        public override IList<Claim> Claims => throw new NotImplementedException();
-
-        /// <inheritdoc />
-        public override bool HasAnyRoleOf(params string[] roles)
-        {
-            return Roles.Any(r => roles.Contains(r));
-        }
-
-        #endregion
-
         public int MyId { get; set; }
-
-        public string MyUsername { get; set; }
-
-        public string MyDeviceId { get; set; }
-
-        public bool MyIsServiceApp { get; set; }
-
-        public IList<string> Roles { get; set; }
 
         public IList<int> Customers { get; set; }
 
         public CurrentUserMock()
         {
             MyId = 1;
-            MyUsername = "mock.user";
             Customers = new List<int> { 1 };
-            Roles = new List<string>(0);
         }
     }
 
@@ -11005,35 +10839,8 @@ WHERE [e].[TimeSpan] = @__parameter_0
     public interface ICurrentUser
     {
         int Id { get; }
-
-        string Username { get; }
-
-        string DeviceId { get; }
-
-        bool IsServiceApp { get; }
-
         IReadOnlyList<int> AccessibleCustomers { get; }
-
-        IList<Claim> Claims { get; }
-
-        public bool HasAnyRoleOf(params string[] roles);
-
-        void ThrowIfAnyInaccessibleCustomer(IEnumerable<int> customerIds);
-
-        void ThrowIfNoAccessibleCustomer(int customerId);
-
-        void ThrowIfNoAccessibleCustomer(IEnumerable<int> customerIds);
     }
-
-
-
-
-
-
-
-
-
-
 
     protected override string StoreName
         => "QueryBugsTest";
