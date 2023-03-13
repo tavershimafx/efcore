@@ -6,6 +6,9 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Globalization;
+using System.Security.Claims;
+using Azure.Core;
+using System.Threading;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
@@ -10670,6 +10673,1315 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+
+
+
+
+
+
+    [ConditionalFact]
+    public void Fubarson()
+    {
+        using var dbContext = new EGateDigiDbContext(new CurrentUserMock());
+
+        dbContext.Database.EnsureDeleted();
+        dbContext.Database.EnsureCreated();
+
+
+        //var id = 1;
+
+        //var entity = dbContext.Fractions
+        //    .Include(group => group.Customer)
+        //    .FirstOrDefault(e => e.Id == id);
+
+
+        var query = dbContext.ContainerConfigurations
+            //.AsSplitQuery()
+            .Include(e => e.Container);
+                //.ThenInclude(e => e.HardwareUnit)
+                //    .ThenInclude(e => e.CurrentConfiguration)
+            //.Where(e => e.Fraction == entity);
+
+        var result = query.ToList();
+
+    }
+
+
+
+
+    public class Container
+    {
+        // Limits on container configuration
+
+        public const int MaxFreeIntervals = 5;
+        public const int MaxBlockingIntervals = 5;
+        public const int MaxRegionCodes = 3;
+        public const int MaxCardReaders = 9;
+        public const int MaxCardAuthTypes = 9;
+        public const int MaxLogModules = 5;
+
+        /// <summary>
+        /// Id of the container
+        /// </summary>
+        public int Id { get; private set; }
+
+        /// <summary>
+        /// Id of the customer
+        /// </summary>
+        public int CustomerId { get; private set; }
+
+        /// <summary>
+        /// Customer the container belongs to
+        /// </summary>
+        public Customer Customer { get; private set; }
+
+        /// <summary>
+        /// Name of the container
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// Id of the hardware unit associated with this container
+        /// </summary>
+        public int? HardwareUnitId { get; private set; }
+
+        /// <summary>
+        /// Hardware unit associated with this container
+        /// </summary>
+        public HardwareUnit HardwareUnit { get; private set; }
+
+        /// <summary>
+        /// Id of the (old) eGate hardware unit
+        /// </summary>
+        public int? EGateHardwareUnitId { get; set; }
+
+        /// <summary>
+        /// Id of the fill level sensor associated with this container
+        /// </summary>
+        public int? FillLevelSensorId { get; private set; }
+
+        /// <summary>
+        /// Fill level behavior for this container
+        /// </summary>
+        public ContainerFillLevelBehavior FillLevelBehavior { get; set; }
+
+        /// <summary>
+        /// Gets whether the container is active
+        /// </summary>
+        public bool IsActive { get; set; }
+
+        /// <summary>
+        /// Gets current configuration
+        /// </summary>
+        public ContainerConfiguration CurrentConfiguration { get; private set; }
+
+        /// <summary>
+        /// RFID tag assigned to this container
+        /// </summary>
+        public string RfidTag { get; set; }
+
+        #region Container parameters
+
+        /// <summary>
+        /// Volume of the container [m3]
+        /// </summary>
+        public double Volume { get; set; }
+
+        #endregion
+
+        #region Last live values
+
+        /// <summary>
+        /// Last fill of the container by inserts
+        /// </summary>
+        public int LastInsertCounter { get; private set; }
+
+        /// <summary>
+        /// Last fill of the container by inserts in percents
+        /// </summary>
+        public double LastInsertPercent { get; private set; }
+
+        /// <summary>
+        /// Last telemetry time
+        /// </summary>
+        public DateTime? LastTelemetryTime { get; private set; }
+
+        /// <summary>
+        /// Last known fill level
+        /// </summary>
+        public int LastFillLevel { get; private set; }
+
+        /// <summary>
+        /// Last fill percent
+        /// </summary>
+        public double LastFillPercent { get; private set; }
+
+        /// <summary>
+        /// Last time of fill level measurement
+        /// </summary>
+        public DateTime? LastFillMeasurementTime { get; private set; }
+
+        #endregion
+
+        /// <summary>
+        /// Constructor for serialization/EF
+        /// </summary>
+        private Container() { }
+
+        public Container(
+            Customer customer,
+            string name,
+            DateTime createdOn,
+            int createdById)
+            : this(customer, name, null, createdOn, createdById)
+        {
+        }
+
+        public Container(
+            Customer customer,
+            string name,
+            HardwareUnit hardwareUnit,
+            DateTime createdOn,
+            int createdById)
+        {
+            Customer = customer ?? throw new ArgumentNullException(nameof(customer));
+            CustomerId = customer.Id;
+
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+
+            SetHardwareUnit(hardwareUnit, createdOn);
+            // Immediately configure the container
+            CurrentConfiguration = new ContainerConfiguration(
+                this,
+                createdOn,
+                createdById);
+        }
+
+        public void Configure(ContainerConfiguration newConfiguration)
+        {
+            CurrentConfiguration = newConfiguration;
+        }
+
+        public void SetHardwareUnit(HardwareUnit hardwareUnit, DateTime now)
+        {
+            // No change - nothing to do
+            if (HardwareUnit == hardwareUnit) return;
+
+            // Set hardware unit
+            HardwareUnit = hardwareUnit;
+            HardwareUnitId = hardwareUnit?.Id;
+
+            // Ensure the other direction link 
+            hardwareUnit?.SetContainer(this, now);
+        }
+
+        public void SetCustomer(Customer customer, DateTime now)
+        {
+            if (customer is null) throw new ArgumentNullException(nameof(customer));
+
+            if (Customer == customer) return;
+
+            // Assign customer
+            Customer = customer;
+            CustomerId = customer.Id;
+
+            // Cleanup customer related data for referential integrity
+            CurrentConfiguration.SetFraction(null);
+
+            // Bump configuration version
+            HardwareUnit?.CurrentConfiguration?.BumpVersion(now);
+        }
+    }
+
+
+
+
+
+
+
+    public class ContainerFillLevelBehavior
+    {
+        #region Behavior configuration
+
+        public int ThresholdYellow { get; set; }
+
+        public int ThresholdRed { get; set; }
+
+        #endregion
+
+        #region Hardware configuration
+
+        public int FillHeight { get; set; }
+
+        public int SensorHeight { get; set; }
+
+        #endregion
+    }
+
+
+
+
+    public class HardwareUnitEntityConfiguration : IEntityTypeConfiguration<HardwareUnit>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<HardwareUnit> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedNever();
+
+            entity.Property(e => e.RegisteredOn)
+                .IsRequired();
+        }
+    }
+
+    public class FractionEntityConfiguration : IEntityTypeConfiguration<Fraction>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<Fraction> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.HasIndex(e => new { e.CustomerId, e.Name })
+                .IsUnique();
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(250);
+
+            entity.Property(e => e.WasteType)
+                .IsRequired()
+                .HasMaxLength(6);
+        }
+    }
+
+
+
+
+    public class ContainerConfigurationBlockIntervalEntityConfiguration : IEntityTypeConfiguration<ContainerConfigurationBlockInterval>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<ContainerConfigurationBlockInterval> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.HasOne(e => e.Configuration)
+                .WithMany(x => x.BlockIntervals)
+                .HasForeignKey(e => e.ConfigurationId)
+                .IsRequired();
+
+            entity
+                .Property(e => e.DaysOfWeek)
+                .HasColumnName("DaysOfWeek");
+
+            entity
+                .Property(e => e.IntervalStart)
+                .HasColumnName("IntervalStart");
+
+            entity
+                .Property(e => e.IntervalEnd)
+                .HasColumnName("IntervalEnd");
+
+            entity
+                .Property(e => e.Type)
+                .HasColumnName("Type");
+
+            // Interval type and start must be unique per configuration
+            entity
+                .HasIndex(e => new { e.ConfigurationId, e.Type, e.IntervalStart })
+                .IsUnique();
+        }
+    }
+
+
+
+    public class ContainerConfigurationEntityConfiguration : IEntityTypeConfiguration<ContainerConfiguration>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<ContainerConfiguration> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            // Current configuration is 1:1 relationship
+            entity.HasOne(e => e.Container)
+                .WithOne(x => x.CurrentConfiguration)
+                // Configuration is the dependent entity
+                .HasForeignKey<ContainerConfiguration>(e => e.ContainerId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure only one configuration per container
+            entity.HasIndex(c => c.ContainerId).IsUnique();
+
+            entity.Property(e => e.ConfigVersion)
+                .IsRequired();
+
+            entity.HasOne(e => e.Fraction)
+                .WithMany(x => x.Configurations)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(e => e.CreatedOn)
+                .IsRequired();
+        }
+    }
+
+
+
+    public class ContainerConfigurationFreeIntervalEntityConfiguration : IEntityTypeConfiguration<ContainerConfigurationFreeInterval>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<ContainerConfigurationFreeInterval> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.HasOne(e => e.Configuration)
+                .WithMany(x => x.FreeIntervals)
+                .HasForeignKey(e => e.ConfigurationId)
+                .IsRequired();
+
+            entity
+                .Property(e => e.DaysOfWeek)
+                .HasColumnName("DaysOfWeek");
+            entity
+                .Property(e => e.IntervalStart)
+                .HasColumnName("IntervalStart");
+            entity
+                .Property(e => e.IntervalEnd)
+                .HasColumnName("IntervalEnd");
+            entity
+                .Property(e => e.Type)
+                .HasColumnName("Type");
+            // Interval type and start must be unique per configuration
+            entity
+                .HasIndex(e => new { e.ConfigurationId, e.Type, e.IntervalStart })
+                .IsUnique();
+
+        }
+    }
+
+
+    public class ContinerEntityConfiguration : IEntityTypeConfiguration<Container>
+    {
+        public void Configure(EntityTypeBuilder<Container> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity
+                .ToTable("Containers")
+                .HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.HasOne(e => e.Customer)
+                .WithMany(x => x.Containers)
+                .HasForeignKey(e => e.CustomerId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(e => e.CustomerId);
+
+            entity.Property(e => e.Name)
+                .HasMaxLength(250)
+                .IsRequired();
+
+            entity.Property(e => e.RfidTag)
+                .HasMaxLength(12);
+
+            // RFID tag must be unique across customer
+            entity.HasIndex(e => new { e.CustomerId, e.RfidTag })
+                .IsUnique();
+
+            // The Container to HardwareUnit is 1:1 relationship
+            entity.HasOne(e => e.HardwareUnit)
+                .WithOne(x => x.Container)
+                .IsRequired(false)
+                // Container is the dependent entity here
+                .HasForeignKey<Container>(c => c.HardwareUnitId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.OwnsOne(e => e.FillLevelBehavior,
+                o => o.ToTable("ContainerFillLevelBehavior")
+            );
+
+            // To ensure the 1:1, we force the uniqueness on the relation
+            entity.HasIndex(e => e.HardwareUnitId)
+                .IsUnique();
+        }
+    }
+
+    public class CustomerEntityConfiguration : IEntityTypeConfiguration<Customer>
+    {
+        public void Configure(EntityTypeBuilder<Customer> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.Name)
+                .HasMaxLength(250)
+                .IsRequired();
+
+            entity.HasIndex(e => e.Name)
+                .IsUnique();
+
+            // Parent references another customer
+            entity.HasOne(e => e.Parent)
+                .WithMany()
+                .HasForeignKey(e => e.ParentId)
+                .IsRequired(false);
+
+            entity.Property(e => e.BlePrefix)
+                .HasMaxLength(Customer.MaxBleLength)
+                .IsRequired();
+
+            entity.HasIndex(e => e.BlePrefix)
+                .IsUnique();
+        }
+    }
+
+
+    public class HardwareUnitConfigurationEntityConfiguration : IEntityTypeConfiguration<HardwareUnitConfiguration>
+    {
+        /// <inheritdoc />
+        public void Configure(EntityTypeBuilder<HardwareUnitConfiguration> entity)
+        {
+            if (entity == null) throw new ArgumentNullException(nameof(entity));
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .IsRequired()
+                .ValueGeneratedOnAdd();
+
+            // Current configuration is 1:1 relationship
+            entity.HasOne(e => e.HardwareUnit)
+                .WithOne(x => x.CurrentConfiguration)
+                // Configuration is the dependent entity here
+                .HasForeignKey<HardwareUnitConfiguration>(e => e.HardwareUnitId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure only one configuration per hardware unit
+            entity.HasIndex(e => e.HardwareUnitId).IsUnique();
+
+            entity.Property(e => e.ConfigVersion)
+                .IsRequired();
+
+            entity.Property(e => e.CreatedOn)
+                .IsRequired();
+
+            entity.OwnsMany(e => e.RfTimeSchedule, o =>
+            {
+                o.Property(e => e.Id).ValueGeneratedOnAdd();
+                o.HasKey(e => e.Id);
+
+                o.ToTable("HardwareUnitConfigurationRfTimeSchedule");
+                o.WithOwner(o => o.Configuration);
+
+                o.HasIndex("ConfigurationId", nameof(RfTimeSchedule.ScheduledTime))
+                    .IsUnique();
+            });
+
+            entity.OwnsMany(e => e.RfIntervalSchedule, o =>
+            {
+                o.Property(e => e.Id).ValueGeneratedOnAdd();
+                o.HasKey(e => e.Id);
+
+                o.ToTable("HardwareUnitConfigurationRfIntervalSchedule");
+                o.WithOwner(o => o.Configuration);
+
+                o.HasIndex("ConfigurationId", nameof(RfIntervalSchedule.Period))
+                    .IsUnique();
+            });
+        }
+    }
+
+
+    public class ContainerConfigurationFreeInterval : HardwareUnitIntervalBase
+    {
+        public int Id { get; private set; }
+
+        public int ConfigurationId { get; private set; }
+
+        public ContainerConfiguration Configuration { get; private set; }
+
+        public ContainerConfigurationFreeInterval() { }
+
+        public ContainerConfigurationFreeInterval(ContainerConfiguration configuration)
+        {
+            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            ConfigurationId = configuration.Id;
+        }
+    }
+
+
+
+    public class ContainerConfigurationBlockInterval : HardwareUnitIntervalBase
+    {
+        public int Id { get; private set; }
+
+        public int ConfigurationId { get; private set; }
+
+        public ContainerConfiguration Configuration { get; private set; }
+
+        public ContainerConfigurationBlockInterval() { }
+
+        public ContainerConfigurationBlockInterval(ContainerConfiguration configuration)
+        {
+            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            ConfigurationId = configuration.Id;
+        }
+    }
+
+
+
+    public enum HardwareUnitIntervalType
+    {
+        Unknown = 0,
+        TimeInterval = 1,
+        PartOfDayUtc = 2,
+        PartOfDayLocal = 3,
+    }
+
+
+    public abstract class HardwareUnitIntervalBase
+    {
+        public HardwareUnitIntervalType Type { get; set; }
+
+        public DateTime IntervalStart { get; set; }
+
+        public DateTime IntervalEnd { get; set; }
+
+        public HardwareUnitIntervalDaysOfWeek DaysOfWeek { get; set; }
+    }
+
+
+    [Flags]
+    public enum HardwareUnitIntervalDaysOfWeek
+    {
+        None = 0,
+        Sunday = 1,
+        Monday = 2,
+        Tuesday = 4,
+        Wednesday = 8,
+        Thursday = 16,
+        Friday = 32,
+        Saturday = 64
+    }
+
+
+
+    public class ContainerConfiguration
+    {
+        /// <summary>
+        /// Waste Type for unknown fraction
+        /// </summary>
+        public const string UnknownWaste = "NOTSET";
+
+        // Backing fields for collections. 
+        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
+        private readonly List<ContainerConfigurationFreeInterval> m_FreeIntervals = new(Container.MaxFreeIntervals);
+        private readonly List<ContainerConfigurationBlockInterval> m_BlockIntervals = new(Container.MaxBlockingIntervals);
+
+        public int Id { get; private set; }
+
+        public int ContainerId { get; private set; }
+
+        public Container Container { get; private set; }
+
+        public int ConfigVersion { get; private set; }
+
+        #region Intervals
+
+        public IReadOnlyCollection<ContainerConfigurationFreeInterval> FreeIntervals => m_FreeIntervals.AsReadOnly();
+
+        public IReadOnlyCollection<ContainerConfigurationBlockInterval> BlockIntervals => m_BlockIntervals.AsReadOnly();
+
+        #endregion
+
+        #region Fraction configuration
+
+        public int? FractionId { get; private set; }
+
+        public Fraction Fraction { get; private set; }
+
+        #endregion
+
+        public DateTime CreatedOn { get; private set; }
+
+        public int CreatedById { get; private set; }
+
+        public bool HasCustomerSpecificData => Fraction != null;
+
+        private ContainerConfiguration() { }
+
+        public ContainerConfiguration(
+            Container container,
+            DateTime createdOn,
+            int createdById)
+        {
+            Container = container ?? throw new ArgumentNullException(nameof(container));
+
+            if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
+            CreatedById = createdById;
+            CreatedOn = createdOn;
+
+            ConfigVersion = container.HardwareUnit == null
+                ? (container.CurrentConfiguration?.ConfigVersion ?? 0) + 1
+                : container.HardwareUnit.CurrentConfiguration == null
+                    ? container.HardwareUnit.GetNextConfigurationVersion()
+                    : container.HardwareUnit.CurrentConfiguration.BumpVersion(createdOn);
+        }
+
+        public void SynchronizeVersion()
+        {
+            ConfigVersion = Container.HardwareUnit.CurrentConfiguration.ConfigVersion;
+            CreatedOn = Container.HardwareUnit.CurrentConfiguration.CreatedOn;
+        }
+
+        public void AddFreeInterval(ContainerConfigurationFreeInterval freeInterval)
+        {
+            if (m_FreeIntervals.Count >= Container.MaxFreeIntervals)
+                throw new ValidationException($"Too many free intervals, maximum of {Container.MaxFreeIntervals} allowed.");
+            m_FreeIntervals.Add(freeInterval);
+        }
+
+        public void AddBlockingInterval(ContainerConfigurationBlockInterval blockingInterval)
+        {
+            if (m_BlockIntervals.Count >= Container.MaxBlockingIntervals)
+                throw new ValidationException($"Too many blocking intervals, maximum of {Container.MaxBlockingIntervals} allowed.");
+            m_BlockIntervals.Add(blockingInterval);
+        }
+
+        public void SetFraction(Fraction fraction)
+        {
+            if (fraction != null && fraction.CustomerId != Container.CustomerId)
+            {
+                throw new ValidationException($"Customer mismatch between Container and Fraction Preset");
+            }
+
+            Fraction = fraction;
+            FractionId = fraction?.Id;
+        }
+
+    }
+
+
+    public class Customer
+    {
+        // Backing fields for collections. 
+        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
+        private readonly List<Container> m_Containers = new();
+
+        public const int RootId = 1;
+
+        public const int MaxBleLength = 6;
+
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public int? ParentId { get; set; }
+
+        public Customer Parent { get; set; }
+
+        public string BlePrefix { get; set; }
+
+        public IReadOnlyCollection<Container> Containers => m_Containers.AsReadOnly();
+
+        public static bool IsSeeded(int id)
+        {
+            return IsRoot(id);
+        }
+
+        public static bool IsRoot(int id) => id == RootId;
+
+    }
+
+    public class Fraction : ConfigurationGroupBase<ContainerConfiguration>
+    {
+        public string WasteType { get; set; }
+
+        private Fraction() : base() { }
+
+        public Fraction(Customer customer, string name, string wasteType)
+            : base(customer, name)
+        {
+            WasteType = wasteType;
+        }
+    }
+
+
+
+
+    public abstract class ConfigurationGroupBase<T> where T : class
+    {
+        private readonly List<T> m_Configurations = new();
+
+        public IReadOnlyCollection<T> Configurations => m_Configurations.AsReadOnly();
+
+        public int Id { get; private set; }
+
+        public int CustomerId { get; private set; }
+
+        public Customer Customer { get; private set; }
+
+        public string Name { get; set; }
+
+        public string Description { get; set; }
+
+        protected ConfigurationGroupBase() { }
+
+        protected ConfigurationGroupBase(Customer customer, string name)
+        {
+            Customer = customer ?? throw new ArgumentNullException(nameof(customer));
+            CustomerId = customer.Id;
+
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentOutOfRangeException(nameof(name));
+        }
+    }
+
+
+
+    public enum HardwareUnitStatus
+    {
+        Active = 0,
+
+        InStore = 1,
+
+        InRepair = 2,
+
+        Defect = 128,
+    }
+
+
+
+    public class HardwareUnit
+    {
+        public int Id { get; private set; }
+
+        public string Name => FormatName(Id);
+
+        public DateTime RegisteredOn { get; private set; }
+
+        public HardwareUnitStatus Status { get; set; }
+
+        public Container Container { get; private set; }
+
+        public HardwareUnitConfiguration CurrentConfiguration { get; private set; }
+
+        #region Latest telemetry "quick access"
+
+        public int ConfigVersion { get; private set; }
+
+        public DateTime? ConfigTimestamp { get; private set; }
+
+        #endregion
+
+        private HardwareUnit() { }
+
+        public HardwareUnit(int id)
+            : this(id, DateTime.UtcNow)
+        {
+        }
+
+        public HardwareUnit(int id, DateTime registeredOn)
+        {
+            Id = id;
+            RegisteredOn = registeredOn;
+        }
+
+        public static string FormatName(int? id)
+        {
+            return id?.ToString("X8", CultureInfo.InvariantCulture);
+        }
+
+        public void Configure(HardwareUnitConfiguration newConfiguration)
+        {
+            if (newConfiguration == CurrentConfiguration) return;
+
+            CurrentConfiguration = newConfiguration;
+            if (Container != null && Container.CurrentConfiguration != null)
+            {
+                Container.CurrentConfiguration.SynchronizeVersion();
+            }
+        }
+
+        public int GetNextConfigurationVersion()
+        {
+            var current = (new[] {
+                ConfigVersion,
+                CurrentConfiguration?.ConfigVersion ?? 0,
+                Container?.CurrentConfiguration?.ConfigVersion ?? 0
+            }).Max();
+            return current + 1;
+        }
+
+        internal void SetContainer(Container container, DateTime utcNow)
+        {
+            if (container == Container) return;
+
+            Container = container;
+            if (CurrentConfiguration != null && container?.CurrentConfiguration != null)
+            {
+                CurrentConfiguration.BumpVersion(utcNow);
+            }
+        }
+
+    }
+
+
+    public class RfTimeSchedule
+    {
+        public int Id { get; private set; }
+
+        public HardwareUnitConfiguration Configuration { get; private set; }
+
+        public DateTime ScheduledTime { get; private set; }
+
+        private RfTimeSchedule() { }
+
+        public RfTimeSchedule(DateTime scheduledTime)
+        {
+            ScheduledTime = scheduledTime;
+        }
+    }
+
+
+    public class RfIntervalSchedule
+    {
+        public int Id { get; private set; }
+
+        public HardwareUnitConfiguration Configuration { get; private set; }
+
+        public int Period { get; private set; }
+
+        private RfIntervalSchedule() { }
+
+        public RfIntervalSchedule(int period)
+        {
+            Period = period;
+        }
+
+    }
+
+
+
+    public class HardwareUnitConfiguration
+    {
+        public const int MaxCardReaders = 9;
+        public const int MaxCardAuthTypes = 9;
+        public const int MaxLogModules = 5;
+        public const int MaxRfTimeSchedules = 2;
+        public const int MaxRfIntervalSchedules = 2;
+
+        // Backing fields for collections. 
+        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
+        private readonly List<RfTimeSchedule> m_RfTimeSchedule = new(MaxRfTimeSchedules);
+        private readonly List<RfIntervalSchedule> m_RfIntervalSchedule = new(MaxRfIntervalSchedules);
+
+        public int Id { get; private set; }
+
+        public int HardwareUnitId { get; private set; }
+
+        public HardwareUnit HardwareUnit { get; private set; }
+
+        public int ConfigVersion { get; private set; }
+
+        public int? EmptyingDetectionId { get; private set; }
+
+        #region RF configuration 
+
+        public IReadOnlyCollection<RfTimeSchedule> RfTimeSchedule => m_RfTimeSchedule.AsReadOnly();
+
+        public IReadOnlyCollection<RfIntervalSchedule> RfIntervalSchedule => m_RfIntervalSchedule.AsReadOnly();
+
+        #endregion
+
+        public DateTime CreatedOn { get; private set; }
+
+        public int CreatedById { get; private set; }
+
+        private HardwareUnitConfiguration() { }
+
+        public HardwareUnitConfiguration(
+            HardwareUnit hardwareUnit,
+            DateTime createdOn,
+            int createdById
+            )
+        {
+            HardwareUnit = hardwareUnit ?? throw new ArgumentNullException(nameof(hardwareUnit));
+
+            if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
+            CreatedById = createdById;
+            CreatedOn = createdOn;
+
+            // Set version
+            ConfigVersion = hardwareUnit.GetNextConfigurationVersion();
+        }
+
+        public int BumpVersion(DateTime now)
+        {
+            ConfigVersion = HardwareUnit.GetNextConfigurationVersion();
+            CreatedOn = now;
+            // Synchronize version to container if needed
+            HardwareUnit.Container?.CurrentConfiguration?.SynchronizeVersion();
+            return ConfigVersion;
+        }
+
+        public void AddRfTimeSchedule(DateTime schedule)
+        {
+            var time = schedule.TimeOfDay;
+
+            if (m_RfTimeSchedule.Count >= MaxRfTimeSchedules) throw new ValidationException($"Too many RF Time Schedules, maximum of {MaxRfTimeSchedules} allowed.");
+            if (m_RfTimeSchedule.Any(t => t.ScheduledTime.TimeOfDay == time)) throw new ValidationException($"RF Time Schedule for time {time} already exists.");
+            m_RfTimeSchedule.Add(new RfTimeSchedule(schedule));
+        }
+
+        public void AddRfIntervalSchedule(int period)
+        {
+            if (m_RfIntervalSchedule.Count >= MaxRfIntervalSchedules) throw new ValidationException($"Too many RF Interval Schedules, maximum of {MaxRfIntervalSchedules} allowed.");
+            if (m_RfIntervalSchedule.Any(t => t.Period == period)) throw new ValidationException($"RF Interval Schedule with period {period} already exists.");
+            m_RfIntervalSchedule.Add(new RfIntervalSchedule(period));
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public partial class EGateDigiDbContext : DbContext
+    {
+        #region Database tables
+
+        public DbSet<Container> Containers { get; set; }
+
+        public DbSet<ContainerConfiguration> ContainerConfigurations { get; set; }
+
+        public DbSet<Customer> Customers { get; set; }
+
+        public DbSet<Fraction> Fractions { get; set; }
+
+        public DbSet<HardwareUnit> HardwareUnits { get; set; }
+
+        public DbSet<HardwareUnitConfiguration> HardwareUnitConfigurations { get; set; }
+
+        #endregion
+
+        protected ICurrentUser CurrentUser { get; }
+
+        public EGateDigiDbContext(
+            ICurrentUser currentUser)
+        {
+            CurrentUser = currentUser;
+        }
+
+        //public EGateDigiDbContext(
+        //    DbContextOptions options,
+        //    ICurrentUser currentUser)
+        //    : base(options)
+        //{
+        //    CurrentUser = currentUser;
+        //}
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+
+
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            if (modelBuilder == null) throw new ArgumentNullException(nameof(modelBuilder));
+
+            base.OnModelCreating(modelBuilder);
+
+            // Configure database structure via IEntityTypeConfiguration classes
+            var assembly = typeof(EGateDigiDbContext).Assembly;
+
+            modelBuilder.ApplyConfigurationsFromAssembly(assembly);
+
+            ConfigureFilters(modelBuilder);
+
+            // Seeded data
+            modelBuilder.SeedData(SeededData.Data, SeededData.OwnedData);
+
+            // Special type handling configuration
+            modelBuilder
+                .EnforceDateTimeAsUtc()
+                .MapVersionToString();
+        }
+
+        private void ConfigureFilters(ModelBuilder modelBuilder)
+        {
+            if (CurrentUser == null) return;
+
+            // Set global query filters for accessible customers
+            modelBuilder.Entity<Container>()
+                .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
+
+            modelBuilder.Entity<Customer>()
+                .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.Id));
+
+            modelBuilder.Entity<Fraction>()
+                .HasQueryFilter(e => CurrentUser.AccessibleCustomers.Contains(e.CustomerId));
+        }
+    }
+
+
+
+
+
+    public abstract class CurrentUserBase : ICurrentUser
+    {
+        /// <inheritdoc />
+        public abstract int Id { get; }
+
+        /// <inheritdoc />
+        public abstract string Username { get; }
+
+        /// <inheritdoc />
+        public abstract string DeviceId { get; }
+
+        /// <inheritdoc />
+        public abstract IReadOnlyList<int> AccessibleCustomers { get; }
+
+        /// <inheritdoc />
+        public abstract IList<Claim> Claims { get; }
+
+        /// <inheritdoc />
+        public abstract bool IsServiceApp { get; }
+
+        /// <inheritdoc />
+        public abstract bool HasAnyRoleOf(params string[] roles);
+
+        /// <inheritdoc />
+        public void ThrowIfNoAccessibleCustomer(int customerId)
+        {
+            if (!AccessibleCustomers.Contains(customerId))
+            {
+                throw new UnauthorizedAccessException();
+            }
+        }
+
+        /// <inheritdoc />
+        public void ThrowIfNoAccessibleCustomer(IEnumerable<int> customerIds)
+        {
+            if (!customerIds.Intersect(AccessibleCustomers).Any())
+            {
+                throw new UnauthorizedAccessException();
+            }
+        }
+
+        /// <inheritdoc />
+        public void ThrowIfAnyInaccessibleCustomer(IEnumerable<int> customerIds)
+        {
+            // Note: This starts the enumeration twice
+            if (!customerIds.Any() || customerIds.Except(AccessibleCustomers).Any())
+            {
+                throw new UnauthorizedAccessException();
+            }
+        }
+
+    }
+
+
+
+
+
+
+
+    public class CurrentUserMock : CurrentUserBase
+    {
+        #region ICurrentUser 
+
+        /// <inheritdoc />
+        public override int Id => MyId;
+
+        /// <inheritdoc />
+        public override string Username => MyUsername;
+
+        /// <inheritdoc />
+        public override string DeviceId => MyDeviceId;
+
+        /// <inheritdoc />
+        public override bool IsServiceApp => MyIsServiceApp;
+
+        /// <inheritdoc />
+        public override IReadOnlyList<int> AccessibleCustomers => new ReadOnlyCollection<int>(Customers);
+
+        /// <inheritdoc />
+        public override IList<Claim> Claims => throw new NotImplementedException();
+
+        /// <inheritdoc />
+        public override bool HasAnyRoleOf(params string[] roles)
+        {
+            return Roles.Any(r => roles.Contains(r));
+        }
+
+        #endregion
+
+        public int MyId { get; set; }
+
+        public string MyUsername { get; set; }
+
+        public string MyDeviceId { get; set; }
+
+        public bool MyIsServiceApp { get; set; }
+
+        public IList<string> Roles { get; set; }
+
+        public IList<int> Customers { get; set; }
+
+        public CurrentUserMock()
+        {
+            MyId = 1;
+            MyUsername = "mock.user";
+            Customers = new List<int> { 1 };
+            Roles = new List<string>(0);
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+    public static class SeededData
+    {
+        public static readonly IDictionary<Type, IReadOnlyList<object>> Data
+            = new Dictionary<Type, IReadOnlyList<object>>
+        {
+            {
+                typeof(Customer),
+                new List<Customer>
+                {
+                    new Customer
+                    {
+                        Id = Customer.RootId,
+                        Parent = null,
+                        Name = "Customer",
+                        BlePrefix = "CST",
+                    }
+                }
+            },
+        };
+
+        // Seeded owned data
+        public static readonly Dictionary<Type, Dictionary<string, object[]>> OwnedData = new()
+        {
+        };
+
+        static SeededData()
+        {
+        }
+
+        public static IReadOnlyList<TEntity> GetSeeded<TEntity>()
+        {
+            if (Data.TryGetValue(typeof(TEntity), out var list))
+            {
+                return (IReadOnlyList<TEntity>)list.Cast<TEntity>();
+            }
+            return Array.Empty<TEntity>();
+        }
+    }
+
+
+
+
+
+
+    public interface ICurrentUser
+    {
+        int Id { get; }
+
+        string Username { get; }
+
+        string DeviceId { get; }
+
+        bool IsServiceApp { get; }
+
+        IReadOnlyList<int> AccessibleCustomers { get; }
+
+        IList<Claim> Claims { get; }
+
+        public bool HasAnyRoleOf(params string[] roles);
+
+        void ThrowIfAnyInaccessibleCustomer(IEnumerable<int> customerIds);
+
+        void ThrowIfNoAccessibleCustomer(int customerId);
+
+        void ThrowIfNoAccessibleCustomer(IEnumerable<int> customerIds);
+    }
+
+
+
+
+
+
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 
@@ -10716,3 +12028,200 @@ WHERE [e].[TimeSpan] = @__parameter_0
     protected void AssertSql(params string[] expected)
         => TestSqlLoggerFactory.AssertBaseline(expected);
 }
+
+
+
+public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
+{
+    public static readonly UtcDateTimeConverter Instance = new();
+
+    public UtcDateTimeConverter()
+        : base(
+            // To database, write as UTC
+            v => v.ToUniversalTime(),
+            // From database, set UTC kind
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+          )
+    {
+    }
+}
+
+
+
+public static class ModelExtensions
+{
+    #region Data Seeding
+
+    public static IEnumerable<(Type Type, IList<PropertyInfo> Owned)> GetEntitiesInDependencyOrder(
+        this IReadOnlyModel model,
+        IDictionary<Type, IReadOnlyList<object>> data)
+    {
+        if (data == null) throw new ArgumentNullException(nameof(data));
+
+        var typeCount = data.Count;
+
+        // Get data from model
+        var dependenciesPerType = new Dictionary<Type, IList<Type>>(typeCount);
+        var ownershipsPerType = new Dictionary<Type, IList<PropertyInfo>>(typeCount);
+
+        foreach (var entityType in data.Keys)
+        {
+            var entityModel = model.FindEntityType(entityType);
+
+            var dependecies = new List<Type>();
+            var ownedProperties = new List<PropertyInfo>();
+
+            // Get dependencies and owned properties
+            var navigations = entityModel.GetNavigations();
+            foreach (var navigation in navigations)
+            {
+                // Check for FK relationship
+                var principal = navigation.ForeignKey.PrincipalEntityType.ClrType;
+                if (principal != entityType && data.ContainsKey(principal)) // Note the check of entity type may fail on self-reference
+                {
+                    // Add dependency, but only if it is also seeded
+                    dependecies.Add(principal);
+                }
+                // Check for owned properties
+                if (navigation.TargetEntityType.IsOwned())
+                {
+                    ownedProperties.Add(navigation.PropertyInfo);
+                }
+            }
+
+            dependenciesPerType.Add(entityType, dependecies);
+            ownershipsPerType.Add(entityType, ownedProperties);
+        }
+
+        return OrderByDependencyChain(dependenciesPerType)
+            .Select(t => (t, ownershipsPerType[t] ?? Array.Empty<PropertyInfo>()));
+    }
+
+    private static IEnumerable<Type> OrderByDependencyChain(IDictionary<Type, IList<Type>> dependenciesPerType)
+    {
+        var countPerType = new Dictionary<Type, int>(dependenciesPerType.Count);
+
+        // Note this used recursion and will stack overflow on circular dependencies.
+        // For now it is OK as this is run on tests anyway 
+        // and the issue will manifest on build time/tests
+        int countDependencies(Type entityType)
+        {
+            var dependencies = dependenciesPerType[entityType];
+            var count = dependencies.Count + dependencies.Sum(d => countDependencies(d));
+            return count;
+        }
+
+        foreach (var kv in dependenciesPerType)
+        {
+            var count = kv.Value.Count;
+
+            foreach (var dependency in kv.Value)
+            {
+                count += countDependencies(dependency);
+            }
+            countPerType.Add(kv.Key, count);
+        }
+
+        return countPerType
+            .OrderBy(kv => kv.Value)
+            .Select(kv => kv.Key);
+    }
+
+    #endregion
+}
+
+
+
+
+public static class ModelBuilderExtensions
+{
+    #region Data Seeding
+
+    public static void SeedData(
+        this ModelBuilder modelBuilder,
+        IDictionary<Type, IReadOnlyList<object>> data,
+        Dictionary<Type, Dictionary<string, object[]>> ownedData)
+    {
+        if (data == null) throw new ArgumentNullException(nameof(data));
+        if (ownedData == null) throw new ArgumentNullException(nameof(ownedData));
+
+        var model = modelBuilder.Model;
+        var entitiesByDependency = model.GetEntitiesInDependencyOrder(data);
+
+        foreach (var record in entitiesByDependency)
+        {
+            // Seed data
+            var entityType = record.Type;
+            var entity = modelBuilder.Entity(entityType);
+            entity.HasData(data[entityType]);
+
+            // Check for owned types
+            var ownedProperties = record.Owned;
+            foreach (var ownedProperty in ownedProperties)
+            {
+                var propertyName = ownedProperty.Name;
+                var propertyType = ownedProperty.PropertyType;
+                // TODO: Support owns many?
+                entity
+                    .OwnsOne(propertyType, propertyName)
+                    .HasData(ownedData[entityType][propertyName]);
+            }
+        }
+    }
+
+    #endregion
+
+    #region DateTime UTC enforcement
+
+    public static ModelBuilder EnforceDateTimeAsUtc(this ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var properties = entityType
+                .GetProperties()
+                .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?));
+            foreach (var property in properties)
+            {
+                // Skip TIMESTAMP properties
+                if (property.ClrType.GetCustomAttribute<TimestampAttribute>(true) != null) continue;
+                // Set the converter
+                property.SetValueConverter(UtcDateTimeConverter.Instance);
+            }
+        }
+        return modelBuilder;
+    }
+
+    #endregion
+
+    #region Version persistence
+
+    private static readonly ValueConverter<Version, string> VersionConverter = new(
+        // To database, write as string
+        v => v.ToString(),
+        // From database, set UTC kind
+        v => Version.Parse(v),
+        new ConverterMappingHints(unicode: true)
+    );
+
+    public static ModelBuilder MapVersionToString(this ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var properties = entityType.ClrType
+                .GetProperties()
+                .Where(p => p.PropertyType == typeof(Version));
+            foreach (var property in properties)
+            {
+                // Set the converter
+                modelBuilder
+                    .Entity(entityType.Name)
+                    .Property(property.Name)
+                    .HasConversion(VersionConverter);
+            }
+        }
+        return modelBuilder;
+    }
+
+    #endregion
+}
+
