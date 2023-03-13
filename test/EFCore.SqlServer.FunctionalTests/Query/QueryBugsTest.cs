@@ -10700,39 +10700,22 @@ WHERE [e].[TimeSpan] = @__parameter_0
     {
         // Limits on container configuration
 
-        public const int MaxFreeIntervals = 5;
-        public const int MaxBlockingIntervals = 5;
-        public const int MaxRegionCodes = 3;
-        public const int MaxCardReaders = 9;
-        public const int MaxCardAuthTypes = 9;
-        public const int MaxLogModules = 5;
+        //public const int MaxFreeIntervals = 5;
+        //public const int MaxBlockingIntervals = 5;
+        //public const int MaxRegionCodes = 3;
+        //public const int MaxCardReaders = 9;
+        //public const int MaxCardAuthTypes = 9;
+        //public const int MaxLogModules = 5;
 
-        /// <summary>
-        /// Id of the container
-        /// </summary>
         public int Id { get; private set; }
 
-        /// <summary>
-        /// Id of the customer
-        /// </summary>
         public int CustomerId { get; private set; }
 
-        /// <summary>
-        /// Name of the container
-        /// </summary>
         public string Name { get; set; }
 
-        /// <summary>
-        /// Fill level behavior for this container
-        /// </summary>
         public ContainerFillLevelBehavior FillLevelBehavior { get; set; }
 
-        /// <summary>
-        /// Gets current configuration
-        /// </summary>
         public ContainerConfiguration CurrentConfiguration { get; private set; }
-
-
 
         /// <summary>
         /// Constructor for serialization/EF
@@ -10753,10 +10736,10 @@ WHERE [e].[TimeSpan] = @__parameter_0
                 createdById);
         }
 
-        public void Configure(ContainerConfiguration newConfiguration)
-        {
-            CurrentConfiguration = newConfiguration;
-        }
+        //public void Configure(ContainerConfiguration newConfiguration)
+        //{
+        //    CurrentConfiguration = newConfiguration;
+        //}
     }
 
 
@@ -10891,28 +10874,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-    public abstract class ConfigurationGroupBase<T> where T : class
-    {
-        private readonly List<T> m_Configurations = new();
-
-        public IReadOnlyCollection<T> Configurations => m_Configurations.AsReadOnly();
-
-        public int Id { get; private set; }
-
-        public int CustomerId { get; private set; }
-
-
-        public string Name { get; set; }
-
-        public string Description { get; set; }
-
-        protected ConfigurationGroupBase() { }
-
-    }
-
-
-
-
     public partial class EGateDigiDbContext : DbContext
     {
         #region Database tables
@@ -10942,30 +10903,16 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            if (modelBuilder == null) throw new ArgumentNullException(nameof(modelBuilder));
-
-            base.OnModelCreating(modelBuilder);
-
             // Configure database structure via IEntityTypeConfiguration classes
             var assembly = typeof(EGateDigiDbContext).Assembly;
 
             modelBuilder.ApplyConfigurationsFromAssembly(assembly);
 
             ConfigureFilters(modelBuilder);
-
-            // Seeded data
-            modelBuilder.SeedData(SeededData.Data, SeededData.OwnedData);
-
-            // Special type handling configuration
-            modelBuilder
-                .EnforceDateTimeAsUtc()
-                .MapVersionToString();
         }
 
         private void ConfigureFilters(ModelBuilder modelBuilder)
         {
-            if (CurrentUser == null) return;
-
             // Set global query filters for accessible customers
             modelBuilder.Entity<Container>()
                 .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
@@ -11087,45 +11034,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
     }
 
 
-
-
-
-
-
-
-
-
-
-
-    public static class SeededData
-    {
-        public static readonly IDictionary<Type, IReadOnlyList<object>> Data
-            = new Dictionary<Type, IReadOnlyList<object>>();
-
-        // Seeded owned data
-        public static readonly Dictionary<Type, Dictionary<string, object[]>> OwnedData = new()
-        {
-        };
-
-        static SeededData()
-        {
-        }
-
-        public static IReadOnlyList<TEntity> GetSeeded<TEntity>()
-        {
-            if (Data.TryGetValue(typeof(TEntity), out var list))
-            {
-                return (IReadOnlyList<TEntity>)list.Cast<TEntity>();
-            }
-            return Array.Empty<TEntity>();
-        }
-    }
-
-
-
-
-
-
     public interface ICurrentUser
     {
         int Id { get; }
@@ -11222,183 +11130,3 @@ public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
     {
     }
 }
-
-
-
-public static class ModelExtensions
-{
-    #region Data Seeding
-
-    public static IEnumerable<(Type Type, IList<PropertyInfo> Owned)> GetEntitiesInDependencyOrder(
-        this IReadOnlyModel model,
-        IDictionary<Type, IReadOnlyList<object>> data)
-    {
-        if (data == null) throw new ArgumentNullException(nameof(data));
-
-        var typeCount = data.Count;
-
-        // Get data from model
-        var dependenciesPerType = new Dictionary<Type, IList<Type>>(typeCount);
-        var ownershipsPerType = new Dictionary<Type, IList<PropertyInfo>>(typeCount);
-
-        foreach (var entityType in data.Keys)
-        {
-            var entityModel = model.FindEntityType(entityType);
-
-            var dependecies = new List<Type>();
-            var ownedProperties = new List<PropertyInfo>();
-
-            // Get dependencies and owned properties
-            var navigations = entityModel.GetNavigations();
-            foreach (var navigation in navigations)
-            {
-                // Check for FK relationship
-                var principal = navigation.ForeignKey.PrincipalEntityType.ClrType;
-                if (principal != entityType && data.ContainsKey(principal)) // Note the check of entity type may fail on self-reference
-                {
-                    // Add dependency, but only if it is also seeded
-                    dependecies.Add(principal);
-                }
-                // Check for owned properties
-                if (navigation.TargetEntityType.IsOwned())
-                {
-                    ownedProperties.Add(navigation.PropertyInfo);
-                }
-            }
-
-            dependenciesPerType.Add(entityType, dependecies);
-            ownershipsPerType.Add(entityType, ownedProperties);
-        }
-
-        return OrderByDependencyChain(dependenciesPerType)
-            .Select(t => (t, ownershipsPerType[t] ?? Array.Empty<PropertyInfo>()));
-    }
-
-    private static IEnumerable<Type> OrderByDependencyChain(IDictionary<Type, IList<Type>> dependenciesPerType)
-    {
-        var countPerType = new Dictionary<Type, int>(dependenciesPerType.Count);
-
-        // Note this used recursion and will stack overflow on circular dependencies.
-        // For now it is OK as this is run on tests anyway 
-        // and the issue will manifest on build time/tests
-        int countDependencies(Type entityType)
-        {
-            var dependencies = dependenciesPerType[entityType];
-            var count = dependencies.Count + dependencies.Sum(d => countDependencies(d));
-            return count;
-        }
-
-        foreach (var kv in dependenciesPerType)
-        {
-            var count = kv.Value.Count;
-
-            foreach (var dependency in kv.Value)
-            {
-                count += countDependencies(dependency);
-            }
-            countPerType.Add(kv.Key, count);
-        }
-
-        return countPerType
-            .OrderBy(kv => kv.Value)
-            .Select(kv => kv.Key);
-    }
-
-    #endregion
-}
-
-
-
-
-public static class ModelBuilderExtensions
-{
-    #region Data Seeding
-
-    public static void SeedData(
-        this ModelBuilder modelBuilder,
-        IDictionary<Type, IReadOnlyList<object>> data,
-        Dictionary<Type, Dictionary<string, object[]>> ownedData)
-    {
-        if (data == null) throw new ArgumentNullException(nameof(data));
-        if (ownedData == null) throw new ArgumentNullException(nameof(ownedData));
-
-        var model = modelBuilder.Model;
-        var entitiesByDependency = model.GetEntitiesInDependencyOrder(data);
-
-        foreach (var record in entitiesByDependency)
-        {
-            // Seed data
-            var entityType = record.Type;
-            var entity = modelBuilder.Entity(entityType);
-            entity.HasData(data[entityType]);
-
-            // Check for owned types
-            var ownedProperties = record.Owned;
-            foreach (var ownedProperty in ownedProperties)
-            {
-                var propertyName = ownedProperty.Name;
-                var propertyType = ownedProperty.PropertyType;
-                // TODO: Support owns many?
-                entity
-                    .OwnsOne(propertyType, propertyName)
-                    .HasData(ownedData[entityType][propertyName]);
-            }
-        }
-    }
-
-    #endregion
-
-    #region DateTime UTC enforcement
-
-    public static ModelBuilder EnforceDateTimeAsUtc(this ModelBuilder modelBuilder)
-    {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            var properties = entityType
-                .GetProperties()
-                .Where(p => p.ClrType == typeof(DateTime) || p.ClrType == typeof(DateTime?));
-            foreach (var property in properties)
-            {
-                // Skip TIMESTAMP properties
-                if (property.ClrType.GetCustomAttribute<TimestampAttribute>(true) != null) continue;
-                // Set the converter
-                property.SetValueConverter(UtcDateTimeConverter.Instance);
-            }
-        }
-        return modelBuilder;
-    }
-
-    #endregion
-
-    #region Version persistence
-
-    private static readonly ValueConverter<Version, string> VersionConverter = new(
-        // To database, write as string
-        v => v.ToString(),
-        // From database, set UTC kind
-        v => Version.Parse(v),
-        new ConverterMappingHints(unicode: true)
-    );
-
-    public static ModelBuilder MapVersionToString(this ModelBuilder modelBuilder)
-    {
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            var properties = entityType.ClrType
-                .GetProperties()
-                .Where(p => p.PropertyType == typeof(Version));
-            foreach (var property in properties)
-            {
-                // Set the converter
-                modelBuilder
-                    .Entity(entityType.Name)
-                    .Property(property.Name)
-                    .HasConversion(VersionConverter);
-            }
-        }
-        return modelBuilder;
-    }
-
-    #endregion
-}
-
