@@ -10691,27 +10691,10 @@ WHERE [e].[TimeSpan] = @__parameter_0
         dbContext.Database.EnsureDeleted();
         dbContext.Database.EnsureCreated();
 
-
-        //var id = 1;
-
-        //var entity = dbContext.Fractions
-        //    .Include(group => group.Customer)
-        //    .FirstOrDefault(e => e.Id == id);
-
-
         var query = dbContext.ContainerConfigurations
-            //.AsSplitQuery()
-            .Include(e => e.Container);
-                //.ThenInclude(e => e.HardwareUnit)
-                //    .ThenInclude(e => e.CurrentConfiguration)
-            //.Where(e => e.Fraction == entity);
-
-        var result = query.ToList();
-
+            .Include(e => e.Container)
+            .ToList();
     }
-
-
-
 
     public class Container
     {
@@ -10889,9 +10872,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             Customer = customer;
             CustomerId = customer.Id;
 
-            // Cleanup customer related data for referential integrity
-            CurrentConfiguration.SetFraction(null);
-
             // Bump configuration version
             HardwareUnit?.CurrentConfiguration?.BumpVersion(now);
         }
@@ -10942,35 +10922,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
                 .IsRequired();
         }
     }
-
-    public class FractionEntityConfiguration : IEntityTypeConfiguration<Fraction>
-    {
-        /// <inheritdoc />
-        public void Configure(EntityTypeBuilder<Fraction> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.Name)
-                .IsRequired()
-                .HasMaxLength(250);
-            entity.HasIndex(e => new { e.CustomerId, e.Name })
-                .IsUnique();
-
-            entity.Property(e => e.Description)
-                .HasMaxLength(250);
-
-            entity.Property(e => e.WasteType)
-                .IsRequired()
-                .HasMaxLength(6);
-        }
-    }
-
 
 
 
@@ -11044,10 +10995,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             entity.Property(e => e.ConfigVersion)
                 .IsRequired();
 
-            entity.HasOne(e => e.Fraction)
-                .WithMany(x => x.Configurations)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
 
             entity.Property(e => e.CreatedOn)
                 .IsRequired();
@@ -11340,19 +11287,11 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         #endregion
 
-        #region Fraction configuration
-
-        public int? FractionId { get; private set; }
-
-        public Fraction Fraction { get; private set; }
-
-        #endregion
 
         public DateTime CreatedOn { get; private set; }
 
         public int CreatedById { get; private set; }
 
-        public bool HasCustomerSpecificData => Fraction != null;
 
         private ContainerConfiguration() { }
 
@@ -11394,16 +11333,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             m_BlockIntervals.Add(blockingInterval);
         }
 
-        public void SetFraction(Fraction fraction)
-        {
-            if (fraction != null && fraction.CustomerId != Container.CustomerId)
-            {
-                throw new ValidationException($"Customer mismatch between Container and Fraction Preset");
-            }
-
-            Fraction = fraction;
-            FractionId = fraction?.Id;
-        }
 
     }
 
@@ -11437,19 +11366,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public static bool IsRoot(int id) => id == RootId;
 
-    }
-
-    public class Fraction : ConfigurationGroupBase<ContainerConfiguration>
-    {
-        public string WasteType { get; set; }
-
-        private Fraction() : base() { }
-
-        public Fraction(Customer customer, string name, string wasteType)
-            : base(customer, name)
-        {
-            WasteType = wasteType;
-        }
     }
 
 
@@ -11709,13 +11625,13 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public DbSet<ContainerConfiguration> ContainerConfigurations { get; set; }
 
-        public DbSet<Customer> Customers { get; set; }
+        //public DbSet<Customer> Customers { get; set; }
 
-        public DbSet<Fraction> Fractions { get; set; }
+        //public DbSet<Fraction> Fractions { get; set; }
 
-        public DbSet<HardwareUnit> HardwareUnits { get; set; }
+        //public DbSet<HardwareUnit> HardwareUnits { get; set; }
 
-        public DbSet<HardwareUnitConfiguration> HardwareUnitConfigurations { get; set; }
+        //public DbSet<HardwareUnitConfiguration> HardwareUnitConfigurations { get; set; }
 
         #endregion
 
@@ -11727,13 +11643,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
             CurrentUser = currentUser;
         }
 
-        //public EGateDigiDbContext(
-        //    DbContextOptions options,
-        //    ICurrentUser currentUser)
-        //    : base(options)
-        //{
-        //    CurrentUser = currentUser;
-        //}
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -11772,11 +11681,8 @@ WHERE [e].[TimeSpan] = @__parameter_0
             modelBuilder.Entity<Container>()
                 .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
 
-            modelBuilder.Entity<Customer>()
-                .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.Id));
-
-            modelBuilder.Entity<Fraction>()
-                .HasQueryFilter(e => CurrentUser.AccessibleCustomers.Contains(e.CustomerId));
+            //modelBuilder.Entity<Customer>()
+            //    .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.Id));
         }
     }
 
