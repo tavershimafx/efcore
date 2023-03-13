@@ -10720,7 +10720,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
         /// <summary>
         /// Customer the container belongs to
         /// </summary>
-        public Customer Customer { get; private set; }
+        //public Customer Customer { get; private set; }
 
         /// <summary>
         /// Name of the container
@@ -10816,24 +10816,19 @@ WHERE [e].[TimeSpan] = @__parameter_0
         private Container() { }
 
         public Container(
-            Customer customer,
             string name,
             DateTime createdOn,
             int createdById)
-            : this(customer, name, null, createdOn, createdById)
+            : this(name, null, createdOn, createdById)
         {
         }
 
         public Container(
-            Customer customer,
             string name,
             HardwareUnit hardwareUnit,
             DateTime createdOn,
             int createdById)
         {
-            Customer = customer ?? throw new ArgumentNullException(nameof(customer));
-            CustomerId = customer.Id;
-
             Name = name ?? throw new ArgumentNullException(nameof(name));
 
             SetHardwareUnit(hardwareUnit, createdOn);
@@ -10860,20 +10855,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
             // Ensure the other direction link 
             hardwareUnit?.SetContainer(this, now);
-        }
-
-        public void SetCustomer(Customer customer, DateTime now)
-        {
-            if (customer is null) throw new ArgumentNullException(nameof(customer));
-
-            if (Customer == customer) return;
-
-            // Assign customer
-            Customer = customer;
-            CustomerId = customer.Id;
-
-            // Bump configuration version
-            HardwareUnit?.CurrentConfiguration?.BumpVersion(now);
         }
     }
 
@@ -11056,12 +11037,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
                 .IsRequired()
                 .ValueGeneratedOnAdd();
 
-            entity.HasOne(e => e.Customer)
-                .WithMany(x => x.Containers)
-                .HasForeignKey(e => e.CustomerId)
-                .IsRequired()
-                .OnDelete(DeleteBehavior.Restrict);
-
             entity.HasIndex(e => e.CustomerId);
 
             entity.Property(e => e.Name)
@@ -11093,39 +11068,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         }
     }
 
-    public class CustomerEntityConfiguration : IEntityTypeConfiguration<Customer>
-    {
-        public void Configure(EntityTypeBuilder<Customer> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(250)
-                .IsRequired();
-
-            entity.HasIndex(e => e.Name)
-                .IsUnique();
-
-            // Parent references another customer
-            entity.HasOne(e => e.Parent)
-                .WithMany()
-                .HasForeignKey(e => e.ParentId)
-                .IsRequired(false);
-
-            entity.Property(e => e.BlePrefix)
-                .HasMaxLength(Customer.MaxBleLength)
-                .IsRequired();
-
-            entity.HasIndex(e => e.BlePrefix)
-                .IsUnique();
-        }
-    }
 
 
     public class HardwareUnitConfigurationEntityConfiguration : IEntityTypeConfiguration<HardwareUnitConfiguration>
@@ -11337,39 +11279,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
     }
 
 
-    public class Customer
-    {
-        // Backing fields for collections. 
-        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
-        private readonly List<Container> m_Containers = new();
-
-        public const int RootId = 1;
-
-        public const int MaxBleLength = 6;
-
-        public int Id { get; set; }
-
-        public string Name { get; set; }
-
-        public int? ParentId { get; set; }
-
-        public Customer Parent { get; set; }
-
-        public string BlePrefix { get; set; }
-
-        public IReadOnlyCollection<Container> Containers => m_Containers.AsReadOnly();
-
-        public static bool IsSeeded(int id)
-        {
-            return IsRoot(id);
-        }
-
-        public static bool IsRoot(int id) => id == RootId;
-
-    }
-
-
-
 
     public abstract class ConfigurationGroupBase<T> where T : class
     {
@@ -11381,7 +11290,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public int CustomerId { get; private set; }
 
-        public Customer Customer { get; private set; }
+        //public Customer Customer { get; private set; }
 
         public string Name { get; set; }
 
@@ -11389,14 +11298,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         protected ConfigurationGroupBase() { }
 
-        protected ConfigurationGroupBase(Customer customer, string name)
-        {
-            Customer = customer ?? throw new ArgumentNullException(nameof(customer));
-            CustomerId = customer.Id;
-
-            Name = name ?? throw new ArgumentNullException(nameof(name));
-            if (string.IsNullOrWhiteSpace(name)) throw new ArgumentOutOfRangeException(nameof(name));
-        }
     }
 
 
@@ -11814,22 +11715,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
     public static class SeededData
     {
         public static readonly IDictionary<Type, IReadOnlyList<object>> Data
-            = new Dictionary<Type, IReadOnlyList<object>>
-        {
-            {
-                typeof(Customer),
-                new List<Customer>
-                {
-                    new Customer
-                    {
-                        Id = Customer.RootId,
-                        Parent = null,
-                        Name = "Customer",
-                        BlePrefix = "CST",
-                    }
-                }
-            },
-        };
+            = new Dictionary<Type, IReadOnlyList<object>>();
 
         // Seeded owned data
         public static readonly Dictionary<Type, Dictionary<string, object[]>> OwnedData = new()
