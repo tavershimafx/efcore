@@ -10698,15 +10698,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     public class Container
     {
-        // Limits on container configuration
-
-        //public const int MaxFreeIntervals = 5;
-        //public const int MaxBlockingIntervals = 5;
-        //public const int MaxRegionCodes = 3;
-        //public const int MaxCardReaders = 9;
-        //public const int MaxCardAuthTypes = 9;
-        //public const int MaxLogModules = 5;
-
         public int Id { get; private set; }
 
         public int CustomerId { get; private set; }
@@ -10717,28 +10708,20 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public ContainerConfiguration CurrentConfiguration { get; private set; }
 
-        /// <summary>
-        /// Constructor for serialization/EF
-        /// </summary>
-        private Container() { }
+        //private Container() { }
 
-        public Container(
-            string name,
-            DateTime createdOn,
-            int createdById)
-        {
-            Name = name ?? throw new ArgumentNullException(nameof(name));
-
-            // Immediately configure the container
-            CurrentConfiguration = new ContainerConfiguration(
-                this,
-                createdOn,
-                createdById);
-        }
-
-        //public void Configure(ContainerConfiguration newConfiguration)
+        //public Container(
+        //    string name,
+        //    DateTime createdOn,
+        //    int createdById)
         //{
-        //    CurrentConfiguration = newConfiguration;
+        //    Name = name ?? throw new ArgumentNullException(nameof(name));
+
+        //    // Immediately configure the container
+        //    CurrentConfiguration = new ContainerConfiguration(
+        //        this,
+        //        createdOn,
+        //        createdById);
         //}
     }
 
@@ -10748,19 +10731,19 @@ WHERE [e].[TimeSpan] = @__parameter_0
     {
         #region Behavior configuration
 
-        public int ThresholdYellow { get; set; }
+        //public int ThresholdYellow { get; set; }
 
         public int ThresholdRed { get; set; }
 
         #endregion
 
-        #region Hardware configuration
+        //#region Hardware configuration
 
-        public int FillHeight { get; set; }
+        //public int FillHeight { get; set; }
 
-        public int SensorHeight { get; set; }
+        //public int SensorHeight { get; set; }
 
-        #endregion
+        //#endregion
     }
 
 
@@ -10772,7 +10755,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
         /// <inheritdoc />
         public void Configure(EntityTypeBuilder<ContainerConfiguration> entity)
         {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            //if (entity == null) throw new ArgumentNullException(nameof(entity));
 
             entity.HasKey(e => e.Id);
 
@@ -10791,12 +10774,12 @@ WHERE [e].[TimeSpan] = @__parameter_0
             // Ensure only one configuration per container
             entity.HasIndex(c => c.ContainerId).IsUnique();
 
-            entity.Property(e => e.ConfigVersion)
-                .IsRequired();
+            //entity.Property(e => e.ConfigVersion)
+            //    .IsRequired();
 
 
-            entity.Property(e => e.CreatedOn)
-                .IsRequired();
+            //entity.Property(e => e.CreatedOn)
+            //    .IsRequired();
         }
     }
 
@@ -10805,7 +10788,7 @@ WHERE [e].[TimeSpan] = @__parameter_0
     {
         public void Configure(EntityTypeBuilder<Container> entity)
         {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
+            //if (entity == null) throw new ArgumentNullException(nameof(entity));
 
             entity
                 .ToTable("Containers")
@@ -10834,10 +10817,10 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     public class ContainerConfiguration
     {
-        /// <summary>
-        /// Waste Type for unknown fraction
-        /// </summary>
-        public const string UnknownWaste = "NOTSET";
+        ///// <summary>
+        ///// Waste Type for unknown fraction
+        ///// </summary>
+        //public const string UnknownWaste = "NOTSET";
 
         public int Id { get; private set; }
 
@@ -10845,28 +10828,28 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public Container Container { get; private set; }
 
-        public int ConfigVersion { get; private set; }
+        //public int ConfigVersion { get; private set; }
 
 
-        public DateTime CreatedOn { get; private set; }
+        //public DateTime CreatedOn { get; private set; }
 
-        public int CreatedById { get; private set; }
+        //public int CreatedById { get; private set; }
 
 
-        private ContainerConfiguration() { }
+        //private ContainerConfiguration() { }
 
-        public ContainerConfiguration(
-            Container container,
-            DateTime createdOn,
-            int createdById)
-        {
-            Container = container ?? throw new ArgumentNullException(nameof(container));
+        //public ContainerConfiguration(
+        //    Container container,
+        //    DateTime createdOn,
+        //    int createdById)
+        //{
+        //    Container = container ?? throw new ArgumentNullException(nameof(container));
 
-            if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
-            CreatedById = createdById;
-            CreatedOn = createdOn;
+        //    if (createdById == 0) throw new ArgumentOutOfRangeException(nameof(createdById));
+        //    CreatedById = createdById;
+        //    CreatedOn = createdOn;
 
-        }
+        //}
 
 
 
@@ -10876,14 +10859,9 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     public partial class EGateDigiDbContext : DbContext
     {
-        #region Database tables
-
         public DbSet<Container> Containers { get; set; }
 
         public DbSet<ContainerConfiguration> ContainerConfigurations { get; set; }
-
-
-        #endregion
 
         protected ICurrentUser CurrentUser { get; }
 
@@ -10900,7 +10878,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         }
 
 
-
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Configure database structure via IEntityTypeConfiguration classes
@@ -10908,19 +10885,10 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
             modelBuilder.ApplyConfigurationsFromAssembly(assembly);
 
-            ConfigureFilters(modelBuilder);
-        }
-
-        private void ConfigureFilters(ModelBuilder modelBuilder)
-        {
-            // Set global query filters for accessible customers
             modelBuilder.Entity<Container>()
                 .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
         }
     }
-
-
-
 
 
     public abstract class CurrentUserBase : ICurrentUser
@@ -11116,17 +11084,17 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
-{
-    public static readonly UtcDateTimeConverter Instance = new();
+//public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
+//{
+//    public static readonly UtcDateTimeConverter Instance = new();
 
-    public UtcDateTimeConverter()
-        : base(
-            // To database, write as UTC
-            v => v.ToUniversalTime(),
-            // From database, set UTC kind
-            v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
-          )
-    {
-    }
-}
+//    public UtcDateTimeConverter()
+//        : base(
+//            // To database, write as UTC
+//            v => v.ToUniversalTime(),
+//            // From database, set UTC kind
+//            v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+//          )
+//    {
+//    }
+//}
