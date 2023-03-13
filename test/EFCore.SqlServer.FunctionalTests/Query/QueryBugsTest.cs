@@ -10718,30 +10718,9 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public int CustomerId { get; private set; }
 
         /// <summary>
-        /// Customer the container belongs to
-        /// </summary>
-        //public Customer Customer { get; private set; }
-
-        /// <summary>
         /// Name of the container
         /// </summary>
         public string Name { get; set; }
-
-        /// <summary>
-        /// Id of the hardware unit associated with this container
-        /// </summary>
-        public int? HardwareUnitId { get; private set; }
-
-
-        /// <summary>
-        /// Id of the (old) eGate hardware unit
-        /// </summary>
-        public int? EGateHardwareUnitId { get; set; }
-
-        /// <summary>
-        /// Id of the fill level sensor associated with this container
-        /// </summary>
-        public int? FillLevelSensorId { get; private set; }
 
         /// <summary>
         /// Fill level behavior for this container
@@ -10749,62 +10728,11 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public ContainerFillLevelBehavior FillLevelBehavior { get; set; }
 
         /// <summary>
-        /// Gets whether the container is active
-        /// </summary>
-        public bool IsActive { get; set; }
-
-        /// <summary>
         /// Gets current configuration
         /// </summary>
         public ContainerConfiguration CurrentConfiguration { get; private set; }
 
-        /// <summary>
-        /// RFID tag assigned to this container
-        /// </summary>
-        public string RfidTag { get; set; }
 
-        #region Container parameters
-
-        /// <summary>
-        /// Volume of the container [m3]
-        /// </summary>
-        public double Volume { get; set; }
-
-        #endregion
-
-        #region Last live values
-
-        /// <summary>
-        /// Last fill of the container by inserts
-        /// </summary>
-        public int LastInsertCounter { get; private set; }
-
-        /// <summary>
-        /// Last fill of the container by inserts in percents
-        /// </summary>
-        public double LastInsertPercent { get; private set; }
-
-        /// <summary>
-        /// Last telemetry time
-        /// </summary>
-        public DateTime? LastTelemetryTime { get; private set; }
-
-        /// <summary>
-        /// Last known fill level
-        /// </summary>
-        public int LastFillLevel { get; private set; }
-
-        /// <summary>
-        /// Last fill percent
-        /// </summary>
-        public double LastFillPercent { get; private set; }
-
-        /// <summary>
-        /// Last time of fill level measurement
-        /// </summary>
-        public DateTime? LastFillMeasurementTime { get; private set; }
-
-        #endregion
 
         /// <summary>
         /// Constructor for serialization/EF
@@ -10910,20 +10838,9 @@ WHERE [e].[TimeSpan] = @__parameter_0
                 .HasMaxLength(250)
                 .IsRequired();
 
-            entity.Property(e => e.RfidTag)
-                .HasMaxLength(12);
-
-            // RFID tag must be unique across customer
-            entity.HasIndex(e => new { e.CustomerId, e.RfidTag })
-                .IsUnique();
-
             entity.OwnsOne(e => e.FillLevelBehavior,
                 o => o.ToTable("ContainerFillLevelBehavior")
             );
-
-            // To ensure the 1:1, we force the uniqueness on the relation
-            entity.HasIndex(e => e.HardwareUnitId)
-                .IsUnique();
         }
     }
 
