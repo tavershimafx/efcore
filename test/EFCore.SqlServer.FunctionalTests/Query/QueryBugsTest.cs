@@ -10854,47 +10854,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-    public class ContainerConfigurationBlockIntervalEntityConfiguration : IEntityTypeConfiguration<ContainerConfigurationBlockInterval>
-    {
-        /// <inheritdoc />
-        public void Configure(EntityTypeBuilder<ContainerConfigurationBlockInterval> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            entity.HasOne(e => e.Configuration)
-                .WithMany(x => x.BlockIntervals)
-                .HasForeignKey(e => e.ConfigurationId)
-                .IsRequired();
-
-            entity
-                .Property(e => e.DaysOfWeek)
-                .HasColumnName("DaysOfWeek");
-
-            entity
-                .Property(e => e.IntervalStart)
-                .HasColumnName("IntervalStart");
-
-            entity
-                .Property(e => e.IntervalEnd)
-                .HasColumnName("IntervalEnd");
-
-            entity
-                .Property(e => e.Type)
-                .HasColumnName("Type");
-
-            // Interval type and start must be unique per configuration
-            entity
-                .HasIndex(e => new { e.ConfigurationId, e.Type, e.IntervalStart })
-                .IsUnique();
-        }
-    }
-
 
 
     public class ContainerConfigurationEntityConfiguration : IEntityTypeConfiguration<ContainerConfiguration>
@@ -10927,46 +10886,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
             entity.Property(e => e.CreatedOn)
                 .IsRequired();
-        }
-    }
-
-
-
-    public class ContainerConfigurationFreeIntervalEntityConfiguration : IEntityTypeConfiguration<ContainerConfigurationFreeInterval>
-    {
-        /// <inheritdoc />
-        public void Configure(EntityTypeBuilder<ContainerConfigurationFreeInterval> entity)
-        {
-            if (entity == null) throw new ArgumentNullException(nameof(entity));
-
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            entity.HasOne(e => e.Configuration)
-                .WithMany(x => x.FreeIntervals)
-                .HasForeignKey(e => e.ConfigurationId)
-                .IsRequired();
-
-            entity
-                .Property(e => e.DaysOfWeek)
-                .HasColumnName("DaysOfWeek");
-            entity
-                .Property(e => e.IntervalStart)
-                .HasColumnName("IntervalStart");
-            entity
-                .Property(e => e.IntervalEnd)
-                .HasColumnName("IntervalEnd");
-            entity
-                .Property(e => e.Type)
-                .HasColumnName("Type");
-            // Interval type and start must be unique per configuration
-            entity
-                .HasIndex(e => new { e.ConfigurationId, e.Type, e.IntervalStart })
-                .IsUnique();
-
         }
     }
 
@@ -11012,79 +10931,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
 
-    public class ContainerConfigurationFreeInterval : HardwareUnitIntervalBase
-    {
-        public int Id { get; private set; }
-
-        public int ConfigurationId { get; private set; }
-
-        public ContainerConfiguration Configuration { get; private set; }
-
-        public ContainerConfigurationFreeInterval() { }
-
-        public ContainerConfigurationFreeInterval(ContainerConfiguration configuration)
-        {
-            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            ConfigurationId = configuration.Id;
-        }
-    }
-
-
-
-    public class ContainerConfigurationBlockInterval : HardwareUnitIntervalBase
-    {
-        public int Id { get; private set; }
-
-        public int ConfigurationId { get; private set; }
-
-        public ContainerConfiguration Configuration { get; private set; }
-
-        public ContainerConfigurationBlockInterval() { }
-
-        public ContainerConfigurationBlockInterval(ContainerConfiguration configuration)
-        {
-            Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            ConfigurationId = configuration.Id;
-        }
-    }
-
-
-
-    public enum HardwareUnitIntervalType
-    {
-        Unknown = 0,
-        TimeInterval = 1,
-        PartOfDayUtc = 2,
-        PartOfDayLocal = 3,
-    }
-
-
-    public abstract class HardwareUnitIntervalBase
-    {
-        public HardwareUnitIntervalType Type { get; set; }
-
-        public DateTime IntervalStart { get; set; }
-
-        public DateTime IntervalEnd { get; set; }
-
-        public HardwareUnitIntervalDaysOfWeek DaysOfWeek { get; set; }
-    }
-
-
-    [Flags]
-    public enum HardwareUnitIntervalDaysOfWeek
-    {
-        None = 0,
-        Sunday = 1,
-        Monday = 2,
-        Tuesday = 4,
-        Wednesday = 8,
-        Thursday = 16,
-        Friday = 32,
-        Saturday = 64
-    }
-
-
 
     public class ContainerConfiguration
     {
@@ -11093,11 +10939,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         /// </summary>
         public const string UnknownWaste = "NOTSET";
 
-        // Backing fields for collections. 
-        // Note: It is important that the names match the property name (i.e. RegionCodes => m_RegionCodes) for EF considering those as backing fields
-        private readonly List<ContainerConfigurationFreeInterval> m_FreeIntervals = new(Container.MaxFreeIntervals);
-        private readonly List<ContainerConfigurationBlockInterval> m_BlockIntervals = new(Container.MaxBlockingIntervals);
-
         public int Id { get; private set; }
 
         public int ContainerId { get; private set; }
@@ -11105,14 +10946,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public Container Container { get; private set; }
 
         public int ConfigVersion { get; private set; }
-
-        #region Intervals
-
-        public IReadOnlyCollection<ContainerConfigurationFreeInterval> FreeIntervals => m_FreeIntervals.AsReadOnly();
-
-        public IReadOnlyCollection<ContainerConfigurationBlockInterval> BlockIntervals => m_BlockIntervals.AsReadOnly();
-
-        #endregion
 
 
         public DateTime CreatedOn { get; private set; }
@@ -11136,20 +10969,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         }
 
 
-        public void AddFreeInterval(ContainerConfigurationFreeInterval freeInterval)
-        {
-            if (m_FreeIntervals.Count >= Container.MaxFreeIntervals)
-                throw new ValidationException($"Too many free intervals, maximum of {Container.MaxFreeIntervals} allowed.");
-            m_FreeIntervals.Add(freeInterval);
-        }
-
-        public void AddBlockingInterval(ContainerConfigurationBlockInterval blockingInterval)
-        {
-            if (m_BlockIntervals.Count >= Container.MaxBlockingIntervals)
-                throw new ValidationException($"Too many blocking intervals, maximum of {Container.MaxBlockingIntervals} allowed.");
-            m_BlockIntervals.Add(blockingInterval);
-        }
-
 
     }
 
@@ -11165,7 +10984,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         public int CustomerId { get; private set; }
 
-        //public Customer Customer { get; private set; }
 
         public string Name { get; set; }
 
@@ -11174,25 +10992,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         protected ConfigurationGroupBase() { }
 
     }
-
-
-
-    public enum HardwareUnitStatus
-    {
-        Active = 0,
-
-        InStore = 1,
-
-        InRepair = 2,
-
-        Defect = 128,
-    }
-
-
-
-
-
-
 
 
 
