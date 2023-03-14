@@ -10684,9 +10684,9 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
     [ConditionalFact]
-    public void Fubarson()
+    public void Test30358()
     {
-        using var dbContext = new EGateDigiDbContext(new CurrentUserMock());
+        using var dbContext = new EGateDigiDbContext();
 
         dbContext.Database.EnsureDeleted();
         dbContext.Database.EnsureCreated();
@@ -10716,58 +10716,6 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public int ThresholdRed { get; set; }
     }
 
-
-
-
-
-    public class ContainerConfigurationEntityConfiguration : IEntityTypeConfiguration<ContainerConfiguration>
-    {
-        public void Configure(EntityTypeBuilder<ContainerConfiguration> entity)
-        {
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            // Current configuration is 1:1 relationship
-            entity.HasOne(e => e.Container)
-                .WithOne(x => x.CurrentConfiguration)
-                // Configuration is the dependent entity
-                .HasForeignKey<ContainerConfiguration>(e => e.ContainerId)
-                .IsRequired()
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasIndex(c => c.ContainerId).IsUnique();
-        }
-    }
-
-
-    public class ContinerEntityConfiguration : IEntityTypeConfiguration<Container>
-    {
-        public void Configure(EntityTypeBuilder<Container> entity)
-        {
-            entity
-                .ToTable("Containers")
-                .HasKey(e => e.Id);
-
-            entity.Property(e => e.Id)
-                .IsRequired()
-                .ValueGeneratedOnAdd();
-
-            entity.HasIndex(e => e.CustomerId);
-
-            entity.Property(e => e.Name)
-                .HasMaxLength(250)
-                .IsRequired();
-
-            entity.OwnsOne(e => e.FillLevelBehavior,
-                o => o.ToTable("ContainerFillLevelBehavior")
-            );
-        }
-    }
-
-
     public class ContainerConfiguration
     {
         public int Id { get; private set; }
@@ -10777,20 +10725,11 @@ WHERE [e].[TimeSpan] = @__parameter_0
         public Container Container { get; private set; }
     }
 
-    public partial class EGateDigiDbContext : DbContext
+    public class EGateDigiDbContext : DbContext
     {
         public DbSet<Container> Containers { get; set; }
 
         public DbSet<ContainerConfiguration> ContainerConfigurations { get; set; }
-
-        protected ICurrentUser CurrentUser { get; }
-
-        public EGateDigiDbContext(
-            ICurrentUser currentUser)
-        {
-            CurrentUser = currentUser;
-        }
-
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -10800,46 +10739,50 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            // Configure database structure via IEntityTypeConfiguration classes
-            var assembly = typeof(EGateDigiDbContext).Assembly;
+            modelBuilder.Entity<ContainerConfiguration>(entity =>
+            {
+                entity.HasKey(e => e.Id);
 
-            modelBuilder.ApplyConfigurationsFromAssembly(assembly);
+                entity.Property(e => e.Id)
+                    .IsRequired()
+                    .ValueGeneratedOnAdd();
+
+                // Current configuration is 1:1 relationship
+                entity.HasOne(e => e.Container)
+                    .WithOne(x => x.CurrentConfiguration)
+                    // Configuration is the dependent entity
+                    .HasForeignKey<ContainerConfiguration>(e => e.ContainerId)
+                    .IsRequired()
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(c => c.ContainerId).IsUnique();
+            });
+
+
+            modelBuilder.Entity<Container>(entity =>
+            {
+                entity
+                    .ToTable("Containers")
+                    .HasKey(e => e.Id);
+
+                entity.Property(e => e.Id)
+                    .IsRequired()
+                    .ValueGeneratedOnAdd();
+
+                entity.HasIndex(e => e.CustomerId);
+
+                entity.Property(e => e.Name)
+                    .HasMaxLength(250)
+                    .IsRequired();
+
+                entity.OwnsOne(e => e.FillLevelBehavior,
+                    o => o.ToTable("ContainerFillLevelBehavior")
+                );
+            });
 
             modelBuilder.Entity<Container>()
-                .HasQueryFilter(c => CurrentUser.AccessibleCustomers.Contains(c.CustomerId));
+                .HasQueryFilter(c => c.CustomerId == 1);
         }
-    }
-
-
-    public abstract class CurrentUserBase : ICurrentUser
-    {
-        public abstract int Id { get; }
-        public abstract IReadOnlyList<int> AccessibleCustomers { get; }
-    }
-
-
-    public class CurrentUserMock : CurrentUserBase
-    {
-        public override int Id => MyId;
-
-        public override IReadOnlyList<int> AccessibleCustomers => new ReadOnlyCollection<int>(Customers);
-
-        public int MyId { get; set; }
-
-        public IList<int> Customers { get; set; }
-
-        public CurrentUserMock()
-        {
-            MyId = 1;
-            Customers = new List<int> { 1 };
-        }
-    }
-
-
-    public interface ICurrentUser
-    {
-        int Id { get; }
-        IReadOnlyList<int> AccessibleCustomers { get; }
     }
 
     protected override string StoreName
@@ -10888,20 +10831,3 @@ WHERE [e].[TimeSpan] = @__parameter_0
     protected void AssertSql(params string[] expected)
         => TestSqlLoggerFactory.AssertBaseline(expected);
 }
-
-
-
-//public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
-//{
-//    public static readonly UtcDateTimeConverter Instance = new();
-
-//    public UtcDateTimeConverter()
-//        : base(
-//            // To database, write as UTC
-//            v => v.ToUniversalTime(),
-//            // From database, set UTC kind
-//            v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
-//          )
-//    {
-//    }
-//}
