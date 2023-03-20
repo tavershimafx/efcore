@@ -10670,6 +10670,70 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+    [ConditionalFact]
+    public void Kuspn()
+    {
+        using var ctx = new MyContext();
+        ctx.Database.EnsureDeleted();
+        ctx.Database.EnsureCreated();
+
+        var list = ctx.TestEntities
+            .AsNoTracking()
+            .Include(x => x.ChildEntities)
+            .ToList()
+            .Select(t => new TestEntity()
+            {
+                Id = t.Id,
+                JsonColumn = t.JsonColumn,
+                ChildEntities = t.ChildEntities,
+            }).ToList();
+
+
+        //var list = ctx.TestEntities
+        //    .AsNoTracking()
+        //    .Select(t => new TestEntity()
+        //    {
+        //        Id = t.Id,
+        //        JsonColumn = t.JsonColumn,
+        //        ChildEntities = t.ChildEntities,
+        //    }).ToList();
+
+    }
+
+    public class TestEntity
+    {
+        public Guid Id { get; set; }
+        public JsonColumn JsonColumn { get; set; }
+        public ICollection<TestChildEntity> ChildEntities { get; set; }
+    }
+
+
+    public class JsonColumn
+    {
+        public string Text { get; set; }
+    }
+
+    public class TestChildEntity
+    {
+        public Guid Id { get; set; }
+    }
+
+    public class MyContext : DbContext
+    {
+        public DbSet<TestEntity> TestEntities { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<TestEntity>().OwnsOne(e => e.JsonColumn/*, nav => nav.ToJson()*/);
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
     protected override string StoreName
         => "QueryBugsTest";
 
