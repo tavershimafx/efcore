@@ -10670,6 +10670,258 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+    [ConditionalFact]
+    public async Task Fubarson()
+    {
+        using (var dbcontext = new MyContext())
+        {
+            //dbcontext.Database.EnsureDeleted();
+            //dbcontext.Database.EnsureCreated();
+
+            Guid userId = Guid.Parse("a74fe6ee-11ae-4cc2-bdbe-6e9e880db745");
+
+            var works = await(from message in dbcontext.Messages
+                              join recipient in dbcontext.Recipient
+                                   on message.Id equals recipient.Message.Id into recipientGrouping
+                              from recipientg in recipientGrouping.Where(x => x.UserId == Guid.Parse("a74fe6ee-11ae-4cc2-bdbe-6e9e880db745")).DefaultIfEmpty()
+                              join reads in dbcontext.ReadBy
+                                   on message.Id equals reads.Message.Id into readsGrouping
+                              from readsg in readsGrouping.Where(x => x.UserId == Guid.Parse("a74fe6ee-11ae-4cc2-bdbe-6e9e880db745")).DefaultIfEmpty()
+                              select new { message, recipientg, readsg }
+                                     ).ToListAsync();
+
+
+            //Creates
+            //Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+            //SELECT m."Id", t."Id", t."MessageId", t."UserId", t0."Id", t0."MessageId", t0."UserId"
+            //FROM dbo."Message" AS m
+            //LEFT JOIN (
+            //  SELECT r."Id", r."MessageId", r."UserId", m0."Id" AS "Id0"
+            //  FROM dbo."Recipient" AS r
+            //  INNER JOIN dbo."Message" AS m0 ON r."MessageId" = m0."Id"
+            //  WHERE r."UserId" = 'a74fe6ee-11ae-4cc2-bdbe-6e9e880db745'
+            //) AS t ON m."Id" = t."Id0"
+            //LEFT JOIN (
+            //  SELECT r0."Id", r0."MessageId", r0."UserId", m1."Id" AS "Id0"
+            //  FROM dbo."ReadBy" AS r0
+            //  INNER JOIN dbo."Message" AS m1 ON r0."MessageId" = m1."Id"
+            //  WHERE r0."UserId" = 'a74fe6ee-11ae-4cc2-bdbe-6e9e880db745'
+            //) AS t0 ON m."Id" = t0."Id0"
+
+            var workstoo = await (from message in dbcontext.Messages
+                                  join recipient in dbcontext.Recipient
+                                        on message.Id equals recipient.Message.Id into recipientGrouping
+                                  from recipientg in recipientGrouping.Where(x => x.UserId == Guid.Parse("a74fe6ee-11ae-4cc2-bdbe-6e9e880db745")).DefaultIfEmpty()
+                                  join reads in dbcontext.ReadBy
+                                        on message.Id equals reads.Message.Id into readsGrouping
+                                  from readsg in readsGrouping.Where(x => x.UserId == userId).DefaultIfEmpty()
+                                  select new { message, recipientg, readsg }
+                                     ).ToListAsync();
+
+            //Creates
+            //Executing DbCommand [Parameters=[@__userId_0='a74fe6ee-11ae-4cc2-bdbe-6e9e880db745'], CommandType='Text', CommandTimeout='30']
+            //SELECT m."Id", t."Id", t."MessageId", t."UserId", t0."Id", t0."MessageId", t0."UserId"
+            //FROM dbo."Message" AS m
+            //LEFT JOIN (
+            //  SELECT r."Id", r."MessageId", r."UserId", m0."Id" AS "Id0"
+            //  FROM dbo."Recipient" AS r
+            //  INNER JOIN dbo."Message" AS m0 ON r."MessageId" = m0."Id"
+            //  WHERE r."UserId" = 'a74fe6ee-11ae-4cc2-bdbe-6e9e880db745'
+            //) AS t ON m."Id" = t."Id0"
+            //LEFT JOIN LATERAL (
+            //  SELECT r0."Id", r0."MessageId", r0."UserId"
+            //  FROM dbo."ReadBy" AS r0
+            //  INNER JOIN dbo."Message" AS m1 ON r0."MessageId" = m1."Id"
+            //  WHERE m."Id" = m1."Id" AND r0."UserId" = @__userId_0
+            //) AS t0 ON TRUE
+
+
+            //Throws Groupjoin Exception
+            var dosntwork = await (from message in dbcontext.Messages
+                                   join recipient in dbcontext.Recipient
+                                        on message.Id equals recipient.Message.Id into recipientGrouping
+                                   from recipientg in recipientGrouping.Where(x => x.UserId == userId).DefaultIfEmpty()
+                                   join reads in dbcontext.ReadBy
+                                        on message.Id equals reads.Message.Id into readsGrouping
+                                   from readsg in readsGrouping.Where(x => x.UserId == userId).DefaultIfEmpty()
+                                   select new { message, recipientg, readsg }
+                                     ).ToListAsync();
+
+
+
+
+        }
+    }
+
+
+    public partial class Message30575
+    {
+        [Key]
+        [Required]
+        [System.ComponentModel.Description("Unique identifier")]
+        public Guid Id { get; set; }
+
+        public virtual ICollection<ReadBy> ReadBy { get; private set; }
+
+        public virtual ICollection<Recipient> Recipient { get; private set; }
+
+    }
+
+    public partial class ReadBy
+    {
+        [Key]
+        [Required]
+        [System.ComponentModel.Description("Unique identifier")]
+        public Guid Id { get; set; }
+
+        [Required]
+        [System.ComponentModel.Description("Foreign key for Message.ReadReceipt <--> ReadReceipt.Message. ")]
+        public Guid MessageId { get; set; }
+
+        [Required]
+        [System.ComponentModel.Description("Foreign key for ReadReceipt.User --> User. ")]
+        public Guid UserId { get; set; }
+
+        public virtual Message30575 Message { get; set; }
+
+        public virtual User User { get; set; }
+    }
+
+    public partial class Recipient
+    {
+        [Key]
+        [Required]
+        [System.ComponentModel.Description("Unique identifier")]
+        public Guid Id { get; set; }
+
+        [Required]
+        [System.ComponentModel.Description("Foreign key for Recipient.User --> User. ")]
+        public Guid UserId { get; set; }
+
+        public virtual Message30575 Message { get; set; }
+
+        public virtual User User { get; set; }
+
+    }
+
+
+
+    public partial class User
+    {
+        [Key]
+        [Required]
+        [System.ComponentModel.Description("Unique identifier")]
+        public Guid Id { get; set; }
+    }
+
+
+
+    public class MyContext : DbContext
+{
+    public virtual DbSet<Message30575> Messages { get; set; }
+    public virtual DbSet<ReadBy> ReadBy { get; set; }
+    public virtual DbSet<Recipient> Recipient { get; set; }
+    public virtual DbSet<User> User { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasDefaultSchema("dbo");
+
+        modelBuilder.Entity<Message30575>()
+                    .ToTable("Message")
+                    .HasKey(t => t.Id);
+        modelBuilder.Entity<Message30575>()
+                    .Property(t => t.Id)
+                    .ValueGeneratedOnAdd()
+                    .IsRequired();
+        modelBuilder.Entity<Message30575>()
+                    .HasMany<ReadBy>(p => p.ReadBy)
+                    .WithOne(p => p.Message)
+                    .HasForeignKey(k => k.MessageId)
+                    .IsRequired();
+        modelBuilder.Entity<Message30575>()
+                    .HasMany<Recipient>(p => p.Recipient)
+                    .WithOne(p => p.Message)
+                    .HasForeignKey("MessageId")
+                    .IsRequired();
+
+        modelBuilder.Entity<ReadBy>()
+                    .ToTable("ReadBy")
+                    .HasKey(t => t.Id);
+        modelBuilder.Entity<ReadBy>()
+                    .Property(t => t.Id)
+                    .ValueGeneratedOnAdd()
+                    .IsRequired();
+        modelBuilder.Entity<ReadBy>()
+                    .Property(t => t.MessageId)
+                    .IsRequired();
+        modelBuilder.Entity<ReadBy>().HasIndex(t => t.MessageId);
+        modelBuilder.Entity<ReadBy>()
+                    .Property(t => t.UserId)
+                    .IsRequired();
+        modelBuilder.Entity<ReadBy>().HasIndex(t => t.UserId);
+        modelBuilder.Entity<ReadBy>()
+                    .HasOne(p => p.User)
+                    .WithMany()
+                    .HasForeignKey(k => k.UserId)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .IsRequired();
+
+        modelBuilder.Entity<Recipient>()
+                    .ToTable("Recipient")
+                    .HasKey(t => t.Id);
+        modelBuilder.Entity<Recipient>()
+                    .Property(t => t.Id)
+                    .ValueGeneratedOnAdd()
+                    .IsRequired();
+        modelBuilder.Entity<Recipient>()
+                    .Property(t => t.UserId)
+                    .IsRequired();
+        modelBuilder.Entity<Recipient>().HasIndex(t => t.UserId);
+        modelBuilder.Entity<Recipient>()
+                    .HasOne(p => p.User)
+                    .WithMany()
+                    .HasForeignKey(k => k.UserId)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .IsRequired();
+
+        modelBuilder.Entity<User>()
+                    .ToTable("User")
+                    .HasKey(t => t.Id);
+        modelBuilder.Entity<User>()
+                    .Property(t => t.Id)
+                    .ValueGeneratedNever()
+                    .IsRequired();
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+    }
+}
+
+
+
+
+
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 

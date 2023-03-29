@@ -17,6 +17,34 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
     private readonly QueryCompilationContext _queryCompilationContext;
     private readonly SelectManyVerifyingExpressionVisitor _selectManyVerifyingExpressionVisitor = new();
     private readonly GroupJoinConvertingExpressionVisitor _groupJoinConvertingExpressionVisitor = new();
+    private readonly List<ParameterExpression> _externalParameters = new();
+
+    private class Fubarson : ExpressionVisitor
+    {
+        private readonly List<ParameterExpression> _lambdaParameters = new();
+
+        public List<ParameterExpression> ExternalParameters { get; } = new();
+
+        protected override Expression VisitLambda<T>(Expression<T> lambdaExpression)
+        {
+            _lambdaParameters.AddRange(lambdaExpression.Parameters);
+
+            return base.VisitLambda(lambdaExpression);
+        }
+
+        protected override Expression VisitParameter(ParameterExpression parameterExpression)
+        {
+            if (!_lambdaParameters.Contains(parameterExpression))
+            {
+                if (!ExternalParameters.Contains(parameterExpression))
+                {
+                    ExternalParameters.Add(parameterExpression);
+                }
+            }
+
+            return base.VisitParameter(parameterExpression);
+        }
+    }
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -37,6 +65,10 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
     /// </summary>
     public virtual Expression Normalize(Expression expression)
     {
+        var fubarson = new Fubarson();
+        fubarson.Visit(expression);
+        _externalParameters.AddRange(fubarson.ExternalParameters);
+
         var result = Visit(expression);
 
         return _groupJoinConvertingExpressionVisitor.Visit(result);
@@ -470,7 +502,9 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
 
                 var correlatedCollectionSelector = _selectManyVerifyingExpressionVisitor
                     .VerifyCollectionSelector(
-                        collectionSelectorBody, groupJoinResultSelector.Parameters[1]);
+                        collectionSelectorBody,
+                        groupJoinResultSelector.Parameters[1],
+                        _externalParameters);
 
                 if (!correlatedCollectionSelector)
                 {
@@ -568,7 +602,9 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
 
                 var correlatedCollectionSelector = _selectManyVerifyingExpressionVisitor
                     .VerifyCollectionSelector(
-                        groupJoinResultSelectorBody, groupJoinResultSelector.Parameters[1]);
+                        groupJoinResultSelectorBody,
+                        groupJoinResultSelector.Parameters[1],
+                        _externalParameters);
 
                 if (!correlatedCollectionSelector)
                 {
@@ -682,11 +718,12 @@ public class QueryableMethodNormalizingExpressionVisitor : ExpressionVisitor
         private int _rootParameterCount;
         private bool _correlated;
 
-        public bool VerifyCollectionSelector(Expression body, ParameterExpression rootParameter)
+        public bool VerifyCollectionSelector(Expression body, ParameterExpression rootParameter, List<ParameterExpression> externalParameters)
         {
             _correlated = false;
             _rootParameterCount = 0;
             _rootParameter = rootParameter;
+            _allowedParameters.AddRange(externalParameters);
 
             Visit(body);
 
