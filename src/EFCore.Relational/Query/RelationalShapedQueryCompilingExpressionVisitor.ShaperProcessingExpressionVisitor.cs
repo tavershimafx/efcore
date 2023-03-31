@@ -1083,11 +1083,23 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             {
                 var index = methodCallExpression.Arguments[1].GetConstantValue<int>();
                 var property = methodCallExpression.Arguments[2].GetConstantValue<IProperty?>();
+
+                if (property != null && property.Name.EndsWith("Id", StringComparison.Ordinal))
+                {
+                    var i = 1;
+                    if (i == 2) throw new InvalidOperationException();
+                }
+
                 var mappingParameter = (ParameterExpression)((MethodCallExpression)methodCallExpression.Arguments[0]).Object!;
 
                 if (_jsonMaterializationContextParameterMapping.ContainsKey(mappingParameter))
                 {
                     var (jsonElementParameter, keyPropertyValuesParameter) = _jsonMaterializationContextParameterMapping[mappingParameter];
+
+                    if (property!.ToString() == "Property: Commit.Id (int) Required PK AfterSave:Throw ValueGenerated.OnAdd")
+                    {
+                        return CreateExtractJsonPropertyExpression(jsonElementParameter, property);
+                    }
 
                     return property!.IsPrimaryKey()
                         ? Expression.MakeIndex(
