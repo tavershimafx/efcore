@@ -10670,6 +10670,131 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+
+
+
+
+
+    ExpressionPrinter.Print(
+
+new Microsoft.EntityFrameworkCore.Query.ExpressionPrinter().Print(
+
+
+public class MyContext : DbContext
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+
+
+
+
+
+
+
+    [ConditionalFact]
+    public void Fubar()
+    {
+        var ctx = new MyContext();
+        ctx.Database.EnsureDeleted();
+        ctx.Database.EnsureCreated();
+        var query = ctx.Set<Disability>().ToList();
+    }
+
+    public class Disability
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        //public List<JsonTest> Test { get; set; }
+        public JsonTest Test { get; set; }
+    }
+
+    public class JsonTest
+    {
+        public string Value { get; set; }
+        public string Type { get; set; }
+
+        public JsonTest(string value, string type)
+        {
+            Value = value;
+            Type = type;
+        }
+    }
+
+    public class MyContext : DbContext
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Disability>(builder =>
+            {
+                builder.ToTable("Disabilities");
+
+                builder.HasData(new
+                {
+                    Id = 1,
+                    Name = "testMigration",
+                });
+
+                //builder.OwnsMany(y => y.Test, option =>
+                //{
+                //    option.ToJson();
+
+                //    option.HasData(new
+                //    {
+                //        DisabilityId = 1,
+                //        Id = 1,
+                //        Value = "someValue",
+                //        Type = "someType",
+                //    });
+                //});
+
+
+                builder.OwnsOne(y => y.Test, option =>
+                {
+                    //option.ToJson();
+
+                    option.HasData(new
+                    {
+                        DisabilityId = 1,
+                        Value = "someValue",
+                        Type = "someType",
+                    });
+                });
+            });
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 
