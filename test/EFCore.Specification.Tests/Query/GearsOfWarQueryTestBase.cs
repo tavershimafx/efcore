@@ -39,7 +39,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
     public virtual Task Entity_equality_empty(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Gear>().Where(g => g == new Gear()));
+            ss => ss.Set<Gear>().Where(g => g == new Gear()),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -490,8 +491,9 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         return AssertQuery(
             async,
 #pragma warning disable CS0458 // The result of the expression is always 'null'
-            ss => ss.Set<Weapon>().Where(w => (w.AmmunitionType & null) > 0));
+            ss => ss.Set<Weapon>().Where(w => (w.AmmunitionType & null) > 0),
 #pragma warning restore CS0458 // The result of the expression is always 'null'
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -1121,7 +1123,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
             // ReSharper disable once EqualExpressionComparison
             ss => from g in ss.Set<Gear>()
                   where new { Five = 5 } == new { Five = 5 }
-                  select g.Nickname);
+                  select g.Nickname,
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -4467,7 +4470,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         => AssertQuery(
             async,
             ss => ss.Set<Squad>().Where(s => s.Name == "Kilo")
-                .Where(s => s.Members.Where(m => m.HasSoulPatch).Select(m => m.SquadId).FirstOrDefault() != 0).Select(s => s.Name));
+                .Where(s => s.Members.Where(m => m.HasSoulPatch).Select(m => m.SquadId).FirstOrDefault() != 0).Select(s => s.Name),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -5954,7 +5958,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         return AssertQuery(
             async,
             ss => ss.Set<Gear>().GroupBy(g => g.FullName).Where(g => g.Key.StartsWith(prm)).Select(g => g.Key),
-            ss => ss.Set<Gear>().GroupBy(g => g.FullName).Where(g => false).Select(g => g.Key));
+            ss => ss.Set<Gear>().GroupBy(g => g.FullName).Where(g => false).Select(g => g.Key),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -5990,7 +5995,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         return AssertQuery(
             async,
             ss => ss.Set<Gear>().Where(g => prm != null),
-            ss => ss.Set<Gear>().Where(g => false));
+            ss => ss.Set<Gear>().Where(g => false),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -6040,7 +6046,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         rank = null;
         await AssertQuery(
             async,
-            ss => ss.Set<Gear>().Where(g => (g.Rank | rank) != rank));
+            ss => ss.Set<Gear>().Where(g => (g.Rank | rank) != rank),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -6205,14 +6212,14 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
     public virtual Task Byte_array_filter_by_length_literal(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Squad>().Where(w => w.Banner.Length == 1),
-            ss => ss.Set<Squad>().Where(w => w.Banner != null && w.Banner.Length == 1));
+            ss => ss.Set<Squad>().Where(w => w.Banner.Length == 2),
+            ss => ss.Set<Squad>().Where(w => w.Banner != null && w.Banner.Length == 2));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
     public virtual Task Byte_array_filter_by_length_parameter(bool async)
     {
-        var someByteArr = new[] { (byte)42 };
+        var someByteArr = new[] { (byte)42, (byte)24 };
         return AssertQuery(
             async,
             ss => ss.Set<Squad>().Where(w => w.Banner.Length == someByteArr.Length),
@@ -6326,7 +6333,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         {
             return AssertQuery(
                 isAsync,
-                ss => ss.Set<LocustLeader>().Where(w => w.ThreatLevel >= (5 + (long?)w.ThreatLevel)));
+                ss => ss.Set<LocustLeader>().Where(w => w.ThreatLevel <= (5 + (long?)w.ThreatLevel)));
         }
     }
 
@@ -6393,7 +6400,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         => AssertQuery(
             async,
             ss => ss.Set<Mission>()
-                .Where(m => m.Duration.Minutes == 1));
+                .Where(m => m.Duration.Minutes == 2));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -6401,7 +6408,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         => AssertQuery(
             async,
             ss => ss.Set<Mission>()
-                .Where(m => m.Duration.Seconds == 1));
+                .Where(m => m.Duration.Seconds == 3));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -6409,7 +6416,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         => AssertQuery(
             async,
             ss => ss.Set<Mission>()
-                .Where(m => m.Duration.Milliseconds == 1));
+                .Where(m => m.Duration.Milliseconds == 456));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -7938,7 +7945,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
     public virtual Task Comparison_with_value_converted_subclass(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Faction>().Where(f => f.ServerAddress == IPAddress.Loopback));
+            ss => ss.Set<Faction>().Where(f => f.ServerAddress != IPAddress.Loopback));
 
     private static readonly IEnumerable<AmmunitionType?> _weaponTypes = new AmmunitionType?[] { AmmunitionType.Cartridge };
 
@@ -8144,14 +8151,16 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
     public virtual Task Where_subquery_equality_to_null_with_composite_key(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Squad>().Where(s => s.Members.OrderBy(e => e.Nickname).FirstOrDefault() == null));
+            ss => ss.Set<Squad>().Where(s => s.Members.OrderBy(e => e.Nickname).FirstOrDefault() == null),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
     public virtual Task Where_subquery_equality_to_null_without_composite_key(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Gear>().Where(s => s.Weapons.OrderBy(e => e.Name).FirstOrDefault() == null));
+            ss => ss.Set<Gear>().Where(s => s.Weapons.OrderBy(e => e.Name).FirstOrDefault() == null),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

@@ -7549,7 +7549,7 @@ WHERE CHARINDEX(0x01, [s].[Banner]) > 0
 """
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
 FROM [Squads] AS [s]
-WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 1
+WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 2
 """);
     }
 
@@ -7559,7 +7559,7 @@ WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 1
 
         AssertSql(
 """
-@__p_0='1'
+@__p_0='2'
 
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
 FROM [Squads] AS [s]
@@ -7778,7 +7778,7 @@ WHERE CAST([l].[ThreatLevel] AS tinyint) >= CAST(5 AS tinyint)
 """
 SELECT [l].[Name], [l].[Discriminator], [l].[LocustHordeId], [l].[ThreatLevel], [l].[ThreatLevelByte], [l].[ThreatLevelNullableByte], [l].[DefeatedByNickname], [l].[DefeatedBySquadId], [l].[HighCommandId]
 FROM [LocustLeaders] AS [l]
-WHERE CAST([l].[ThreatLevel] AS bigint) >= CAST(5 AS bigint) + CAST([l].[ThreatLevel] AS bigint)
+WHERE CAST([l].[ThreatLevel] AS bigint) <= CAST(5 AS bigint) + CAST([l].[ThreatLevel] AS bigint)
 """);
     }
 
@@ -9224,7 +9224,7 @@ FROM [Gears] AS [g]
 """
 SELECT [f].[Id], [f].[CapitalName], [f].[Discriminator], [f].[Name], [f].[ServerAddress], [f].[CommanderName], [f].[Eradicated]
 FROM [Factions] AS [f]
-WHERE [f].[ServerAddress] = CAST(N'127.0.0.1' AS nvarchar(45))
+WHERE [f].[ServerAddress] <> CAST(N'127.0.0.1' AS nvarchar(45)) OR [f].[ServerAddress] IS NULL
 """);
     }
 
@@ -9343,8 +9343,8 @@ WHERE [g].[HasSoulPatch] = CAST(1 AS bit) AND [g].[HasSoulPatch] IN (CAST(0 AS b
 
         AssertSql(
 """
-@__place_0='Seattle' (Size = 4000)
-@__place_0_1='Seattle' (Size = 100) (DbType = AnsiString)
+@__place_0='Tyrus' (Size = 4000)
+@__place_0_1='Tyrus' (Size = 100) (DbType = AnsiString)
 
 SELECT [c].[Name], [c].[Location], [c].[Nation]
 FROM [Cities] AS [c]

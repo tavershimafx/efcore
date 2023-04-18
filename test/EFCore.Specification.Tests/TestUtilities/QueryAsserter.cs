@@ -87,6 +87,7 @@ public class QueryAsserter
         Action<TResult, TResult> elementAsserter,
         bool assertOrder,
         int entryCount,
+        bool assertEmptyResult,
         bool async,
         string testMethodName,
         bool filteredQuery = false)
@@ -107,6 +108,15 @@ public class QueryAsserter
             : query.ToList();
 
         AssertRogueExecution(actual.Count, query);
+
+        if (assertEmptyResult && actual.Count != 0)
+        {
+            throw new InvalidOperationException("Query returned results but no results were expected. If the query should return results set 'assertEmptyResult' to false in the 'AssertQuery' method.");
+        }
+        else if (!assertEmptyResult && actual.Count == 0)
+        {
+            throw new InvalidOperationException("Query returned no results. If the query should return no results set 'assertEmptyResult' to true in the 'AssertQuery' method.");
+        }
 
         var expectedData = GetExpectedData(context, filteredQuery);
         var expected = RewriteExpectedQuery(expectedQuery(expectedData)).ToList();
@@ -155,6 +165,7 @@ public class QueryAsserter
         Func<ISetSource, IQueryable<TResult>> actualQuery,
         Func<ISetSource, IQueryable<TResult>> expectedQuery,
         bool assertOrder,
+        bool assertEmptyResult,
         bool async,
         string testMethodName,
         bool filteredQuery = false)
@@ -176,6 +187,15 @@ public class QueryAsserter
             : query.ToList();
 
         AssertRogueExecution(actual.Count, query);
+
+        if (assertEmptyResult && actual.Count != 0)
+        {
+            throw new InvalidOperationException("Query returned results but no results were expected. If the query should return results set 'assertEmptyResult' to false in the 'AssertQuery' method.");
+        }
+        else if (!assertEmptyResult && actual.Count == 0)
+        {
+            throw new InvalidOperationException("Query returned no results. If the query should return no results set 'assertEmptyResult' to true in the 'AssertQuery' method.");
+        }
 
         var expectedData = GetExpectedData(context, filteredQuery);
         var expected = RewriteExpectedQuery(expectedQuery(expectedData)).ToList();
@@ -192,6 +212,7 @@ public class QueryAsserter
         Func<ISetSource, IQueryable<TResult?>> actualQuery,
         Func<ISetSource, IQueryable<TResult?>> expectedQuery,
         bool assertOrder,
+        bool assertEmptyResult,
         bool async,
         string testMethodName,
         bool filteredQuery = false)
@@ -213,6 +234,15 @@ public class QueryAsserter
             : query.ToList();
 
         AssertRogueExecution(actual.Count, query);
+
+        if (assertEmptyResult && actual.Count != 0)
+        {
+            throw new InvalidOperationException("Query returned results but no results were expected. If the query should return results set 'assertEmptyResult' to false in the 'AssertQuery' method.");
+        }
+        else if (!assertEmptyResult && actual.Count == 0)
+        {
+            throw new InvalidOperationException("Query returned no results. If the query should return no results set 'assertEmptyResult' to true in the 'AssertQuery' method.");
+        }
 
         var expectedData = GetExpectedData(context, filteredQuery);
         var expected = RewriteExpectedQuery(expectedQuery(expectedData)).ToList();

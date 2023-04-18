@@ -25,14 +25,16 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
     public virtual Task Entity_equality_empty(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Level1>().Where(l => l.OneToOne_Optional_FK1 == new Level2()));
+            ss => ss.Set<Level1>().Where(l => l.OneToOne_Optional_FK1 == new Level2()),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
     public virtual Task Key_equality_when_sentinel_ef_property(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Level1>().Where(l => EF.Property<int>(l.OneToOne_Optional_FK1, "Id") == 0));
+            ss => ss.Set<Level1>().Where(l => EF.Property<int>(l.OneToOne_Optional_FK1, "Id") == 0),
+            assertEmptyResult: true);
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -1655,9 +1657,9 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
     public virtual Task Contains_with_subquery_optional_navigation_and_constant_item(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Level1>().Where(l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.Distinct().Select(l3 => l3.Id).Contains(1)),
+            ss => ss.Set<Level1>().Where(l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.Distinct().Select(l3 => l3.Id).Contains(10)),
             ss => ss.Set<Level1>().Where(
-                l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.MaybeScalar(x => x.Distinct().Select(l3 => l3.Id).Contains(1))
+                l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.MaybeScalar(x => x.Distinct().Select(l3 => l3.Id).Contains(10))
                     == true));
 
     [ConditionalTheory]
@@ -1666,10 +1668,10 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
         => AssertQuery(
             async,
             ss => ss.Set<Level1>().Where(
-                l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.Select(l3 => l3.Name.Length).Distinct().Contains(1)),
+                l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.Select(l3 => l3.Name.Length).Distinct().Contains(5)),
             ss => ss.Set<Level1>().Where(
                 l1 => l1.OneToOne_Optional_FK1.OneToMany_Optional2.MaybeScalar(
-                        x => x.Select(l3 => l3.Name.Length).Distinct().Contains(1))
+                        x => x.Select(l3 => l3.Name.Length).Distinct().Contains(5))
                     == true));
 
     [ConditionalTheory]
@@ -1720,7 +1722,7 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
                 .Where(
                     l1 => EF.Property<string>(
                             ss.Set<Level2>().OrderBy(l2i => l2i.Id).First().OneToOne_Required_FK_Inverse2, "Name")
-                        == "L1 02"));
+                        == "L1 10"));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -2185,7 +2187,7 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
         => AssertQuery(
             async,
             ss => ss.Set<Level3>()
-                .Where(l3 => l3.OneToMany_Required_Inverse3.OneToOne_Required_FK_Inverse2.Name == "L1 03")
+                .Where(l3 => l3.OneToMany_Required_Inverse3.OneToOne_Required_FK_Inverse2.Name == "L1 10")
                 .OrderBy(l3 => l3.Level2_Required_Id)
                 .Skip(0)
                 .Take(10)
@@ -3038,7 +3040,7 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
                             : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3 == null
                                 ? null
                                 : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3.Name)
-                    == "L4 01"));
+                    == "L1 04"));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -3111,7 +3113,7 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
     public virtual Task Select_with_joined_where_clause_cast_using_as(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Level1>().Where(w => w.Id == w.OneToOne_Optional_FK1.Id as int?));
+            ss => ss.Set<Level1>().Where(w => w.Id != w.OneToOne_Optional_FK1.Id as int?));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

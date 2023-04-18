@@ -10082,7 +10082,7 @@ WHERE CHARINDEX(0x01, [s].[Banner]) > 0
 """
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
 FROM [Squads] AS [s]
-WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 1
+WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 2
 """);
     }
 
@@ -10092,7 +10092,7 @@ WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 1
 
         AssertSql(
 """
-@__p_0='1'
+@__p_0='2'
 
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
 FROM [Squads] AS [s]
@@ -10353,7 +10353,7 @@ FROM (
     SELECT [l0].[Name], [l0].[LocustHordeId], [l0].[ThreatLevel], [l0].[ThreatLevelByte], [l0].[ThreatLevelNullableByte], [l0].[DefeatedByNickname], [l0].[DefeatedBySquadId], [l0].[HighCommandId], N'LocustCommander' AS [Discriminator]
     FROM [LocustCommanders] AS [l0]
 ) AS [t]
-WHERE CAST([t].[ThreatLevel] AS bigint) >= CAST(5 AS bigint) + CAST([t].[ThreatLevel] AS bigint)
+WHERE CAST([t].[ThreatLevel] AS bigint) <= CAST(5 AS bigint) + CAST([t].[ThreatLevel] AS bigint)
 """);
     }
 
@@ -10421,7 +10421,7 @@ WHERE DATEPART(hour, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(minute, [m].[Duration]) = 1
+WHERE DATEPART(minute, [m].[Duration]) = 2
 """);
     }
 
@@ -10433,7 +10433,7 @@ WHERE DATEPART(minute, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(second, [m].[Duration]) = 1
+WHERE DATEPART(second, [m].[Duration]) = 3
 """);
     }
 
@@ -10445,7 +10445,7 @@ WHERE DATEPART(second, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(millisecond, [m].[Duration]) = 1
+WHERE DATEPART(millisecond, [m].[Duration]) = 456
 """);
     }
 
@@ -11945,8 +11945,8 @@ WHERE [t].[HasSoulPatch] = CAST(1 AS bit) AND [t].[HasSoulPatch] IN (CAST(0 AS b
 
         AssertSql(
 """
-@__place_0='Seattle' (Size = 4000)
-@__place_0_1='Seattle' (Size = 100) (DbType = AnsiString)
+@__place_0='Tyrus' (Size = 4000)
+@__place_0_1='Tyrus' (Size = 100) (DbType = AnsiString)
 
 SELECT [c].[Name], [c].[Location], [c].[Nation]
 FROM [Cities] AS [c]
@@ -12168,7 +12168,7 @@ FROM [Officers] AS [o]
 """
 SELECT [l].[Id], [l].[CapitalName], [l].[Name], [l].[ServerAddress], [l].[CommanderName], [l].[Eradicated]
 FROM [LocustHordes] AS [l]
-WHERE [l].[ServerAddress] = CAST(N'127.0.0.1' AS nvarchar(45))
+WHERE [l].[ServerAddress] <> CAST(N'127.0.0.1' AS nvarchar(45)) OR [l].[ServerAddress] IS NULL
 """);
     }
 

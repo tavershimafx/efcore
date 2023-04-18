@@ -18,7 +18,7 @@ public abstract class GearsOfWarQueryRelationalTestBase<TFixture> : GearsOfWarQu
     [MemberData(nameof(IsAsyncData))]
     public virtual Task Parameter_used_multiple_times_take_appropriate_inferred_type_mapping(bool async)
     {
-        var place = "Seattle";
+        var place = "Tyrus";
         return AssertQuery(
             async,
             ss => ss.Set<City>().Where(e => e.Nation == place || e.Location == place || e.Location == place));
