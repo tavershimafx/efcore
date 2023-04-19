@@ -1981,7 +1981,7 @@ public abstract class ComplexNavigationsCollectionsQueryTestBase<TFixture> : Que
                 .Include(l1 => l1.OneToMany_Optional1.OrderByDescending(x => x.Name).Skip(2).Take(4))
                 .ThenInclude(l2 => l2.OneToOne_Optional_FK2)
                 .OrderByDescending(l1 => l1.Id)
-                .Skip(10)
+                .Skip(8)
                 .Take(5),
             assertOrder: true,
             elementAsserter: (e, a) => AssertInclude(

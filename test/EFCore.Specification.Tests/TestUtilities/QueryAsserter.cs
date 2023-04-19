@@ -119,6 +119,10 @@ public class QueryAsserter
         }
 
         var expectedData = GetExpectedData(context, filteredQuery);
+
+        var kupa = RewriteExpectedQuery(expectedQuery(expectedData));
+        var siki = kupa.ToList();
+
         var expected = RewriteExpectedQuery(expectedQuery(expectedData)).ToList();
 
         if (!assertOrder

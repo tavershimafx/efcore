@@ -7846,7 +7846,7 @@ WHERE DATEPART(hour, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[BriefingDocument], [m].[BriefingDocumentFileExtension], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(minute, [m].[Duration]) = 1
+WHERE DATEPART(minute, [m].[Duration]) = 2
 """);
     }
 
@@ -7858,7 +7858,7 @@ WHERE DATEPART(minute, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[BriefingDocument], [m].[BriefingDocumentFileExtension], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(second, [m].[Duration]) = 1
+WHERE DATEPART(second, [m].[Duration]) = 3
 """);
     }
 
@@ -7870,7 +7870,7 @@ WHERE DATEPART(second, [m].[Duration]) = 1
 """
 SELECT [m].[Id], [m].[BriefingDocument], [m].[BriefingDocumentFileExtension], [m].[CodeName], [m].[Date], [m].[Duration], [m].[Rating], [m].[Time], [m].[Timeline]
 FROM [Missions] AS [m]
-WHERE DATEPART(millisecond, [m].[Duration]) = 1
+WHERE DATEPART(millisecond, [m].[Duration]) = 456
 """);
     }
 
@@ -7982,7 +7982,7 @@ CROSS APPLY (
     WHERE NOT (EXISTS (
         SELECT 1
         FROM [LocustLeaders] AS [l0]
-        WHERE [l0].[ThreatLevelByte] = [l].[ThreatLevelByte]))
+        WHERE [l0].[ThreatLevelByte] <> CAST(5 AS tinyint) AND [l0].[ThreatLevelByte] = [l].[ThreatLevelByte]))
 ) AS [t]
 """);
     }
@@ -8020,7 +8020,7 @@ CROSS APPLY (
     WHERE NOT (EXISTS (
         SELECT 1
         FROM [LocustLeaders] AS [l0]
-        WHERE [l0].[ThreatLevelNullableByte] = [l].[ThreatLevelNullableByte] OR ([l0].[ThreatLevelNullableByte] IS NULL AND [l].[ThreatLevelNullableByte] IS NULL)))
+        WHERE ([l0].[ThreatLevelNullableByte] <> CAST(5 AS tinyint) OR [l0].[ThreatLevelNullableByte] IS NULL) AND ([l0].[ThreatLevelNullableByte] = [l].[ThreatLevelNullableByte] OR ([l0].[ThreatLevelNullableByte] IS NULL AND [l].[ThreatLevelNullableByte] IS NULL))))
 ) AS [t]
 """);
     }
@@ -9367,9 +9367,9 @@ ORDER BY [g].[Nickname]
 """);
     }
 
-    public override async Task Include_after_Select_throws(bool async)
+    public override async Task Include_after_Select(bool async)
     {
-        await base.Include_after_Select_throws(async);
+        await base.Include_after_Select(async);
 
         AssertSql(
 """
@@ -9509,17 +9509,17 @@ WHERE [m].[CodeName] = N'Operation Foobar'
 """);
     }
 
-    public override async Task Include_after_SelectMany_throws(bool async)
+    public override async Task Include_after_SelectMany(bool async)
     {
-        await base.Include_after_SelectMany_throws(async);
+        await base.Include_after_SelectMany(async);
 
         AssertSql(
 """
-SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[Rank], [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
-FROM [Factions] AS [f]
-LEFT JOIN [Cities] AS [c] ON [f].[CapitalName] = [c].[Name]
-INNER JOIN [Gears] AS [g] ON [c].[Name] = [g].[CityOfBirthName]
-INNER JOIN [Squads] AS [s] ON [g].[SquadId] = [s].[Id]
+SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[Rank], [s].[Id], [w].[Id], [w].[AmmunitionType], [w].[IsAutomatic], [w].[Name], [w].[OwnerFullName], [w].[SynergyWithId]
+FROM [Squads] AS [s]
+INNER JOIN [Gears] AS [g] ON [s].[Id] = [g].[SquadId]
+LEFT JOIN [Weapons] AS [w] ON [g].[FullName] = [w].[OwnerFullName]
+ORDER BY [s].[Id], [g].[Nickname], [g].[SquadId]
 """);
     }
 

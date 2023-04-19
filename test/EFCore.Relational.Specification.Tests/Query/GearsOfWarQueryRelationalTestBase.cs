@@ -149,9 +149,6 @@ public abstract class GearsOfWarQueryRelationalTestBase<TFixture> : GearsOfWarQu
             (await Assert.ThrowsAsync<InvalidOperationException>(
                 () => base.Correlated_collection_with_distinct_3_levels(async))).Message);
 
-    public override Task Include_after_SelectMany_throws(bool async)
-        => Assert.ThrowsAsync<NullReferenceException>(() => base.Include_after_SelectMany_throws(async));
-
     public override Task String_concat_on_various_types(bool async)
         => Assert.ThrowsAsync<EqualException>(() => base.String_concat_on_various_types(async));
 

@@ -12273,9 +12273,9 @@ ORDER BY [t].[Nickname], [t].[SquadId], [t0].[Name]
 """);
     }
 
-    public override async Task Include_after_Select_throws(bool async)
+    public override async Task Include_after_Select(bool async)
     {
-        await base.Include_after_Select_throws(async);
+        await base.Include_after_Select(async);
 
         AssertSql(
 """
@@ -12383,23 +12383,23 @@ FROM [LocustHordes] AS [l]
 """);
     }
 
-    public override async Task Include_after_SelectMany_throws(bool async)
+    public override async Task Include_after_SelectMany(bool async)
     {
-        await base.Include_after_SelectMany_throws(async);
+        await base.Include_after_SelectMany(async);
 
         AssertSql(
 """
-SELECT [t].[Nickname], [t].[SquadId], [t].[AssignedCityName], [t].[CityOfBirthName], [t].[FullName], [t].[HasSoulPatch], [t].[LeaderNickname], [t].[LeaderSquadId], [t].[Rank], [t].[Discriminator], [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name]
-FROM [LocustHordes] AS [l]
-LEFT JOIN [Cities] AS [c] ON [l].[CapitalName] = [c].[Name]
+SELECT [t].[Nickname], [t].[SquadId], [t].[AssignedCityName], [t].[CityOfBirthName], [t].[FullName], [t].[HasSoulPatch], [t].[LeaderNickname], [t].[LeaderSquadId], [t].[Rank], [t].[Discriminator], [s].[Id], [w].[Id], [w].[AmmunitionType], [w].[IsAutomatic], [w].[Name], [w].[OwnerFullName], [w].[SynergyWithId]
+FROM [Squads] AS [s]
 INNER JOIN (
     SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[Rank], N'Gear' AS [Discriminator]
     FROM [Gears] AS [g]
     UNION ALL
     SELECT [o].[Nickname], [o].[SquadId], [o].[AssignedCityName], [o].[CityOfBirthName], [o].[FullName], [o].[HasSoulPatch], [o].[LeaderNickname], [o].[LeaderSquadId], [o].[Rank], N'Officer' AS [Discriminator]
     FROM [Officers] AS [o]
-) AS [t] ON [c].[Name] = [t].[CityOfBirthName]
-INNER JOIN [Squads] AS [s] ON [t].[SquadId] = [s].[Id]
+) AS [t] ON [s].[Id] = [t].[SquadId]
+LEFT JOIN [Weapons] AS [w] ON [t].[FullName] = [w].[OwnerFullName]
+ORDER BY [s].[Id], [t].[Nickname], [t].[SquadId]
 """);
     }
 

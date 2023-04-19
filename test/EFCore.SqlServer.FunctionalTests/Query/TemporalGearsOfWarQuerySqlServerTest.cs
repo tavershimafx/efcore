@@ -3067,9 +3067,9 @@ LEFT JOIN [Tags] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [t] ON [
 """);
     }
 
-    public override async Task Include_after_Select_throws(bool async)
+    public override async Task Include_after_Select(bool async)
     {
-        await base.Include_after_Select_throws(async);
+        await base.Include_after_Select(async);
 
         AssertSql(
 """
@@ -6853,7 +6853,7 @@ WHERE [g].[Rank] & 2 = 2
 """
 SELECT [f].[Id], [f].[CapitalName], [f].[Discriminator], [f].[Name], [f].[PeriodEnd], [f].[PeriodStart], [f].[ServerAddress], [f].[CommanderName], [f].[Eradicated]
 FROM [Factions] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [f]
-WHERE [f].[ServerAddress] = CAST(N'127.0.0.1' AS nvarchar(45))
+WHERE [f].[ServerAddress] <> CAST(N'127.0.0.1' AS nvarchar(45)) OR [f].[ServerAddress] IS NULL
 """);
     }
 
@@ -7514,7 +7514,7 @@ WHERE 'Unknown' = [c].[Location]
 """
 SELECT [l].[Name], [l].[Discriminator], [l].[LocustHordeId], [l].[PeriodEnd], [l].[PeriodStart], [l].[ThreatLevel], [l].[ThreatLevelByte], [l].[ThreatLevelNullableByte], [l].[DefeatedByNickname], [l].[DefeatedBySquadId], [l].[HighCommandId]
 FROM [LocustLeaders] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [l]
-WHERE CAST([l].[ThreatLevel] AS bigint) >= CAST(5 AS bigint) + CAST([l].[ThreatLevel] AS bigint)
+WHERE CAST([l].[ThreatLevel] AS bigint) <= CAST(5 AS bigint) + CAST([l].[ThreatLevel] AS bigint)
 """);
     }
 
@@ -7893,7 +7893,7 @@ ORDER BY [f].[Name]
 """
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name], [s].[PeriodEnd], [s].[PeriodStart]
 FROM [Squads] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [s]
-WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 1
+WHERE CAST(DATALENGTH([s].[Banner]) AS int) = 2
 """);
     }
 
@@ -8492,17 +8492,17 @@ WHERE COALESCE([w].[SynergyWithId], [w].[Id]) = 1
 """);
     }
 
-    public override async Task Include_after_SelectMany_throws(bool async)
+    public override async Task Include_after_SelectMany(bool async)
     {
-        await base.Include_after_SelectMany_throws(async);
+        await base.Include_after_SelectMany(async);
 
         AssertSql(
 """
-SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[PeriodEnd], [g].[PeriodStart], [g].[Rank], [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name], [s].[PeriodEnd], [s].[PeriodStart]
-FROM [Factions] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [f]
-LEFT JOIN [Cities] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [c] ON [f].[CapitalName] = [c].[Name]
-INNER JOIN [Gears] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [g] ON [c].[Name] = [g].[CityOfBirthName]
-INNER JOIN [Squads] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [s] ON [g].[SquadId] = [s].[Id]
+SELECT [g].[Nickname], [g].[SquadId], [g].[AssignedCityName], [g].[CityOfBirthName], [g].[Discriminator], [g].[FullName], [g].[HasSoulPatch], [g].[LeaderNickname], [g].[LeaderSquadId], [g].[PeriodEnd], [g].[PeriodStart], [g].[Rank], [s].[Id], [w].[Id], [w].[AmmunitionType], [w].[IsAutomatic], [w].[Name], [w].[OwnerFullName], [w].[PeriodEnd], [w].[PeriodStart], [w].[SynergyWithId]
+FROM [Squads] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [s]
+INNER JOIN [Gears] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [g] ON [s].[Id] = [g].[SquadId]
+LEFT JOIN [Weapons] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [w] ON [g].[FullName] = [w].[OwnerFullName]
+ORDER BY [s].[Id], [g].[Nickname], [g].[SquadId]
 """);
     }
 
@@ -9223,7 +9223,7 @@ END = CAST(1 AS bit)
 
         AssertSql(
 """
-@__p_0='1'
+@__p_0='2'
 
 SELECT [s].[Id], [s].[Banner], [s].[Banner5], [s].[InternalNumber], [s].[Name], [s].[PeriodEnd], [s].[PeriodStart]
 FROM [Squads] FOR SYSTEM_TIME AS OF '2010-01-01T00:00:00.0000000' AS [s]

@@ -999,7 +999,7 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
                               into
                               grouping
                           from subQuery3 in grouping.DefaultIfEmpty()
-                          orderby subQuery3 != null ? (int?)subQuery3.Id : null
+                          orderby subQuery3 != null ? (int?)subQuery3.Id : null descending
                           select subQuery3 != null ? (int?)subQuery3.Id : null
                       ).FirstOrDefault()
                   select e1.Id);
@@ -3020,11 +3020,11 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
                                 : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2)
                             == null
                                 ? null
-                                : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3)
+                                : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Required_FK3)
                         == null
                             ? null
-                            : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3.Name)
-                    == "L4 01"));
+                            : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Required_FK3.Name)
+                    == "L4 10"));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -3037,10 +3037,10 @@ public abstract class ComplexNavigationsQueryTestBase<TFixture> : QueryTestBase<
                         ? null
                         : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2 == null
                             ? null
-                            : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3 == null
+                            : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Required_FK3 == null
                                 ? null
-                                : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Optional_FK3.Name)
-                    == "L1 04"));
+                                : l1.OneToOne_Optional_FK1.OneToOne_Optional_FK2.OneToOne_Required_FK3.Name)
+                    == "L4 10"));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

@@ -178,7 +178,7 @@ WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'\%B%' ESCAPE N'\'
 """
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
-WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'a\_%' ESCAPE N'\'
+WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'\_B%' ESCAPE N'\'
 """,
             //
 """
@@ -231,7 +231,7 @@ WHERE @__prm1_0 = N'' OR ([f].[FirstName] IS NOT NULL AND LEFT([f].[FirstName], 
 """,
             //
 """
-@__prm2_0='a_' (Size = 4000)
+@__prm2_0='_B' (Size = 4000)
 
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
@@ -371,13 +371,13 @@ WHERE ([f0].[LastName] <> N'' OR [f0].[LastName] IS NULL) AND [f].[FirstName] IS
 """
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
-WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%\%B' ESCAPE N'\'
+WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%\%r' ESCAPE N'\'
 """,
             //
 """
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
-WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%a\_' ESCAPE N'\'
+WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%\_r\_' ESCAPE N'\'
 """,
             //
 """
@@ -394,7 +394,7 @@ FROM [FunkyCustomers] AS [f]
 """
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
-WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%\_Ba\_' ESCAPE N'\'
+WHERE [f].[FirstName] IS NOT NULL AND [f].[FirstName] LIKE N'%\_\_r\_' ESCAPE N'\'
 """,
             //
 """
@@ -422,15 +422,15 @@ WHERE 0 = 1
 
         AssertSql(
 """
-@__prm1_0='%B' (Size = 4000)
+@__prm1_0='%r' (Size = 4000)
 
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
 WHERE @__prm1_0 = N'' OR ([f].[FirstName] IS NOT NULL AND RIGHT([f].[FirstName], LEN(@__prm1_0)) = @__prm1_0)
 """,
-            //
+//
 """
-@__prm2_0='a_' (Size = 4000)
+@__prm2_0='_r_' (Size = 4000)
 
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
@@ -450,9 +450,9 @@ SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]
 WHERE @__prm4_0 = N'' OR ([f].[FirstName] IS NOT NULL AND RIGHT([f].[FirstName], LEN(@__prm4_0)) = @__prm4_0)
 """,
-            //
+//
 """
-@__prm5_0='_Ba_' (Size = 4000)
+@__prm5_0='__r_' (Size = 4000)
 
 SELECT [f].[FirstName]
 FROM [FunkyCustomers] AS [f]

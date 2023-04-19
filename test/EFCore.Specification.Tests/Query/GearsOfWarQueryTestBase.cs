@@ -521,7 +521,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
 
         await AssertQuery(
             async,
-            ss => ss.Set<Weapon>().Where(w => (w.AmmunitionType & ammunitionType) > 0));
+            ss => ss.Set<Weapon>().Where(w => (w.AmmunitionType & ammunitionType) > 0),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -558,7 +559,8 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
         // Expression
         await AssertQuery(
             async,
-            ss => ss.Set<Gear>().Where(g => g.Rank.HasFlag(MilitaryRank.Corporal | MilitaryRank.Captain)));
+            ss => ss.Set<Gear>().Where(g => g.Rank.HasFlag(MilitaryRank.Corporal | MilitaryRank.Captain)),
+            assertEmptyResult: true);
 
         // Casting
         await AssertQuery(
@@ -5709,13 +5711,17 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Include_after_Select_throws(bool async)
-        => AssertQuery(async, ss => ss.Set<Faction>().Select(f => f).Include(h => h.Capital));
+    public virtual Task Include_after_Select(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<Faction>().Select(f => f).Include(h => h.Capital));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
-    public virtual Task Include_after_SelectMany_throws(bool async)
-        => AssertQuery(async, ss => ss.Set<Faction>().SelectMany(f => f.Capital.BornGears).Include(g => g.Squad));
+    public virtual Task Include_after_SelectMany(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<Squad>().SelectMany(s => s.Members).Include(m => m.Weapons));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -6487,7 +6493,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
             ss => ss.Set<LocustLeader>()
                 .SelectMany(
                     l => ss.Set<Gear>()
-                        .Where(g => !ss.Set<LocustLeader>().Select(x => x.ThreatLevelByte).Contains(l.ThreatLevelByte))));
+                        .Where(g => !ss.Set<LocustLeader>().Where(x => x.ThreatLevelByte != 5).Select(x => x.ThreatLevelByte).Contains(l.ThreatLevelByte))));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -6509,7 +6515,7 @@ public abstract class GearsOfWarQueryTestBase<TFixture> : QueryTestBase<TFixture
                 .SelectMany(
                     l => ss.Set<Gear>()
                         .Where(
-                            g => !ss.Set<LocustLeader>().Select(x => x.ThreatLevelNullableByte).Contains(l.ThreatLevelNullableByte))));
+                            g => !ss.Set<LocustLeader>().Where(x => x.ThreatLevelNullableByte != 5).Select(x => x.ThreatLevelNullableByte).Contains(l.ThreatLevelNullableByte))));
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

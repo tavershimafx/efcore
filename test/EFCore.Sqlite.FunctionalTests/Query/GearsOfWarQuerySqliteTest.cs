@@ -2733,9 +2733,9 @@ WHERE "g"."SquadId" < 2 AND ("c"."Name" = 'Ephyra' OR "c"."Name" IS NULL)
 """);
     }
 
-    public override async Task Include_after_Select_throws(bool async)
+    public override async Task Include_after_Select(bool async)
     {
-        await base.Include_after_Select_throws(async);
+        await base.Include_after_Select(async);
 
         AssertSql(
 """
@@ -8924,17 +8924,17 @@ LIMIT 1
         AssertSql();
     }
 
-    public override async Task Include_after_SelectMany_throws(bool async)
+    public override async Task Include_after_SelectMany(bool async)
     {
-        await base.Include_after_SelectMany_throws(async);
+        await base.Include_after_SelectMany(async);
 
         AssertSql(
 """
-SELECT "g"."Nickname", "g"."SquadId", "g"."AssignedCityName", "g"."CityOfBirthName", "g"."Discriminator", "g"."FullName", "g"."HasSoulPatch", "g"."LeaderNickname", "g"."LeaderSquadId", "g"."Rank", "s"."Id", "s"."Banner", "s"."Banner5", "s"."InternalNumber", "s"."Name"
-FROM "Factions" AS "f"
-LEFT JOIN "Cities" AS "c" ON "f"."CapitalName" = "c"."Name"
-INNER JOIN "Gears" AS "g" ON "c"."Name" = "g"."CityOfBirthName"
-INNER JOIN "Squads" AS "s" ON "g"."SquadId" = "s"."Id"
+SELECT "g"."Nickname", "g"."SquadId", "g"."AssignedCityName", "g"."CityOfBirthName", "g"."Discriminator", "g"."FullName", "g"."HasSoulPatch", "g"."LeaderNickname", "g"."LeaderSquadId", "g"."Rank", "s"."Id", "w"."Id", "w"."AmmunitionType", "w"."IsAutomatic", "w"."Name", "w"."OwnerFullName", "w"."SynergyWithId"
+FROM "Squads" AS "s"
+INNER JOIN "Gears" AS "g" ON "s"."Id" = "g"."SquadId"
+LEFT JOIN "Weapons" AS "w" ON "g"."FullName" = "w"."OwnerFullName"
+ORDER BY "s"."Id", "g"."Nickname", "g"."SquadId"
 """);
     }
 

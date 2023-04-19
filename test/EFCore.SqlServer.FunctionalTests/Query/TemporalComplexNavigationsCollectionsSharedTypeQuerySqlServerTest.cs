@@ -1048,7 +1048,7 @@ ORDER BY [l].[Id], [t2].[c], [t2].[Id], [t2].[Id0]
 
         AssertSql(
 """
-@__p_0='10'
+@__p_0='8'
 @__p_1='5'
 
 SELECT [t].[Id], [t].[Date], [t].[Name], [t].[PeriodEnd], [t].[PeriodStart], [t1].[Id], [t1].[OneToOne_Required_PK_Date], [t1].[Level1_Optional_Id], [t1].[Level1_Required_Id], [t1].[Level2_Name], [t1].[OneToMany_Optional_Inverse2Id], [t1].[OneToMany_Required_Inverse2Id], [t1].[OneToOne_Optional_PK_Inverse2Id], [t1].[PeriodEnd], [t1].[PeriodStart], [t1].[Id0], [t1].[Level2_Optional_Id], [t1].[Level2_Required_Id], [t1].[Level3_Name], [t1].[OneToMany_Optional_Inverse3Id], [t1].[OneToMany_Required_Inverse3Id], [t1].[OneToOne_Optional_PK_Inverse3Id], [t1].[PeriodEnd0], [t1].[PeriodStart0]

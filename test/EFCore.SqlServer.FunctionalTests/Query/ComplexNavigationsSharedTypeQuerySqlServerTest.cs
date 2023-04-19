@@ -801,9 +801,11 @@ LEFT JOIN (
     FROM [Level1] AS [l0]
     WHERE [l0].[OneToOne_Required_PK_Date] IS NOT NULL AND [l0].[Level1_Required_Id] IS NOT NULL AND [l0].[OneToMany_Required_Inverse2Id] IS NOT NULL
 ) AS [t] ON [l].[Id] = [t].[Level1_Optional_Id]
-WHERE [l].[Id] = CASE
+WHERE [l].[Id] <> CASE
     WHEN [t].[OneToOne_Required_PK_Date] IS NOT NULL AND [t].[Level1_Required_Id] IS NOT NULL AND [t].[OneToMany_Required_Inverse2Id] IS NOT NULL THEN [t].[Id]
-END
+END OR CASE
+    WHEN [t].[OneToOne_Required_PK_Date] IS NOT NULL AND [t].[Level1_Required_Id] IS NOT NULL AND [t].[OneToMany_Required_Inverse2Id] IS NOT NULL THEN [t].[Id]
+END IS NULL
 """);
     }
 
@@ -1871,7 +1873,7 @@ WHERE EXISTS (
     ) AS [t0]
     WHERE CASE
         WHEN [t0].[Level2_Required_Id] IS NOT NULL AND [t0].[OneToMany_Required_Inverse3Id] IS NOT NULL THEN [t0].[Id]
-    END = 1)
+    END = 10)
 """);
     }
 
@@ -1967,7 +1969,7 @@ WHERE EXISTS (
         WHEN [t].[OneToOne_Required_PK_Date] IS NOT NULL AND [t].[Level1_Required_Id] IS NOT NULL AND [t].[OneToMany_Required_Inverse2Id] IS NOT NULL THEN [t].[Id]
     END = [l1].[OneToMany_Optional_Inverse3Id] OR (CASE
         WHEN [t].[OneToOne_Required_PK_Date] IS NOT NULL AND [t].[Level1_Required_Id] IS NOT NULL AND [t].[OneToMany_Required_Inverse2Id] IS NOT NULL THEN [t].[Id]
-    END IS NULL AND [l1].[OneToMany_Optional_Inverse3Id] IS NULL)) AND CAST(LEN([l1].[Level3_Name]) AS int) = 1)
+    END IS NULL AND [l1].[OneToMany_Optional_Inverse3Id] IS NULL)) AND CAST(LEN([l1].[Level3_Name]) AS int) = 5)
 """);
     }
 

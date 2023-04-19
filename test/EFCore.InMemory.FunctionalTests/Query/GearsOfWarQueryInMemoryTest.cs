@@ -71,9 +71,6 @@ public class GearsOfWarQueryInMemoryTest : GearsOfWarQueryTestBase<GearsOfWarQue
             (await Assert.ThrowsAsync<InvalidOperationException>(
                 () => base.Projecting_some_properties_as_well_as_correlated_collection_followed_by_Distinct(async))).Message);
 
-    public override Task Include_after_SelectMany_throws(bool async)
-        => Assert.ThrowsAsync<NullReferenceException>(() => base.Include_after_SelectMany_throws(async));
-
     public override async Task Include_on_GroupJoin_SelectMany_DefaultIfEmpty_with_coalesce_result4(bool async)
         => Assert.Equal(
             "4",

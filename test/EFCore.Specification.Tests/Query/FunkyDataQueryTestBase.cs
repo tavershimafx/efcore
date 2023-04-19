@@ -32,7 +32,8 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.Contains(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
@@ -52,13 +53,14 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.Contains("")).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.Contains("")) == true)
-                .Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.Contains("")) == true).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.Contains(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -79,7 +81,8 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.Contains(prm3)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm4 = "";
         await AssertQuery(
@@ -103,13 +106,15 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.Contains(prm7)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm8 = (string)null;
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.Contains(prm8)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -152,12 +157,13 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
         await AssertQuery(
             async,
-            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith("a_")).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith("_B")).Select(c => c.FirstName));
 
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
@@ -177,13 +183,14 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.StartsWith("")).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.StartsWith("")) == true)
-                .Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.StartsWith("")) == true).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.StartsWith(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -195,7 +202,7 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith(prm1)).Select(c => c.FirstName));
 
-        var prm2 = "a_";
+        var prm2 = "_B";
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith(prm2)).Select(c => c.FirstName));
@@ -204,7 +211,8 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.StartsWith(prm3)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm4 = "";
         await AssertQuery(
@@ -228,13 +236,15 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.StartsWith(prm7)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm8 = (string)null;
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.StartsWith(prm8)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
@@ -309,16 +319,17 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
     {
         await AssertQuery(
             async,
-            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("%B")).Select(c => c.FirstName));
+           ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("%r")).Select(c => c.FirstName));
 
         await AssertQuery(
             async,
-            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("a_")).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("_r_")).Select(c => c.FirstName));
 
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
@@ -327,7 +338,7 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
         await AssertQuery(
             async,
-            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("_Ba_")).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith("__r_")).Select(c => c.FirstName));
 
         await AssertQuery(
             async,
@@ -338,24 +349,26 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.EndsWith("")).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.EndsWith("")) == true).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.MaybeScalar(x => x.EndsWith("")) == true).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.EndsWith(null)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
     public virtual async Task String_ends_with_on_argument_with_wildcard_parameter(bool async)
     {
-        var prm1 = "%B";
+        var prm1 = "%r";
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(prm1)).Select(c => c.FirstName));
 
-        var prm2 = "a_";
+        var prm2 = "_r_";
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(prm2)).Select(c => c.FirstName));
@@ -364,7 +377,8 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(prm3)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm4 = "";
         await AssertQuery(
@@ -372,7 +386,7 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(prm4)).Select(c => c.FirstName),
             ss => ss.Set<FunkyCustomer>().Select(c => c.FirstName));
 
-        var prm5 = "_Ba_";
+        var prm5 = "__r_";
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => c.FirstName.EndsWith(prm5)).Select(c => c.FirstName));
@@ -387,13 +401,15 @@ public abstract class FunkyDataQueryTestBase<TFixture> : QueryTestBase<TFixture>
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.EndsWith(prm7)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
 
         var prm8 = (string)null;
         await AssertQuery(
             async,
             ss => ss.Set<FunkyCustomer>().Where(c => !c.FirstName.EndsWith(prm8)).Select(c => c.FirstName),
-            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName));
+            ss => ss.Set<FunkyCustomer>().Where(c => false).Select(c => c.FirstName),
+            assertEmptyResult: true);
     }
 
     [ConditionalTheory]

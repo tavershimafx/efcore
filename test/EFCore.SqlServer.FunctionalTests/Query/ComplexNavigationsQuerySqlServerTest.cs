@@ -1164,7 +1164,7 @@ INNER JOIN [LevelOne] AS [l0] ON [l].[Id] = (
     SELECT TOP(1) [l2].[Id]
     FROM [LevelTwo] AS [l1]
     LEFT JOIN [LevelThree] AS [l2] ON [l1].[Id] = [l2].[Level2_Optional_Id]
-    ORDER BY [l2].[Id])
+    ORDER BY [l2].[Id] DESC)
 """);
     }
 
@@ -3638,8 +3638,8 @@ SELECT [l].[Id], [l].[Date], [l].[Name], [l].[OneToMany_Optional_Self_Inverse1Id
 FROM [LevelOne] AS [l]
 LEFT JOIN [LevelTwo] AS [l0] ON [l].[Id] = [l0].[Level1_Optional_Id]
 LEFT JOIN [LevelThree] AS [l1] ON [l0].[Id] = [l1].[Level2_Optional_Id]
-LEFT JOIN [LevelFour] AS [l2] ON [l1].[Id] = [l2].[Level3_Optional_Id]
-WHERE [l2].[Name] = N'L4 01'
+LEFT JOIN [LevelFour] AS [l2] ON [l1].[Id] = [l2].[Level3_Required_Id]
+WHERE [l2].[Name] = N'L4 10'
 """);
     }
 
@@ -3653,12 +3653,12 @@ SELECT [l].[Id], [l].[Date], [l].[Name], [l].[OneToMany_Optional_Self_Inverse1Id
 FROM [LevelOne] AS [l]
 LEFT JOIN [LevelTwo] AS [l0] ON [l].[Id] = [l0].[Level1_Optional_Id]
 LEFT JOIN [LevelThree] AS [l1] ON [l0].[Id] = [l1].[Level2_Optional_Id]
-LEFT JOIN [LevelFour] AS [l2] ON [l1].[Id] = [l2].[Level3_Optional_Id]
+LEFT JOIN [LevelFour] AS [l2] ON [l1].[Id] = [l2].[Level3_Required_Id]
 WHERE CASE
     WHEN [l0].[Id] IS NULL THEN NULL
     WHEN [l1].[Id] IS NULL THEN NULL
     ELSE [l2].[Name]
-END = N'L1 04'
+END = N'L4 10'
 """);
     }
 
