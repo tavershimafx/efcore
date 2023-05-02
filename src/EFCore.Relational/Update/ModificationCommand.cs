@@ -1,8 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Buffers;
 using System.Collections;
 using System.Data;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 using Microsoft.EntityFrameworkCore.Internal;
@@ -330,7 +333,77 @@ public class ModificationCommand : IModificationCommand, INonTrackedModification
                 object? singlePropertyValue = default;
                 if (updateInfo.Property != null)
                 {
-                    singlePropertyValue = GenerateValueForSinglePropertyUpdate(updateInfo.Property, updateInfo.PropertyValue);
+                    var options = new JsonWriterOptions { Indented = true };
+                    var propertyProviderClrType = (updateInfo.Property.GetTypeMapping().Converter?.ProviderClrType ?? updateInfo.Property.ClrType).UnwrapNullableType();
+
+                    using var stream = new MemoryStream();
+                    using var jsonWriter = new Utf8JsonWriter(stream, options);
+
+                    if (updateInfo.PropertyValue == null)
+                    {
+                        jsonWriter.WriteNullValue();
+                    }
+                    else
+                    {
+                        if (propertyProviderClrType == typeof(bool))
+                        {
+                            jsonWriter.WriteBooleanValue((bool)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(byte))
+                        {
+                            jsonWriter.WriteNumberValue((byte)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(short))
+                        {
+                            jsonWriter.WriteNumberValue((short)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(int))
+                        {
+                            jsonWriter.WriteNumberValue((int)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(long))
+                        {
+                            jsonWriter.WriteNumberValue((long)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(float))
+                        {
+                            jsonWriter.WriteNumberValue((float)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(double))
+                        {
+                            jsonWriter.WriteNumberValue((double)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(decimal))
+                        {
+                            jsonWriter.WriteNumberValue((decimal)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(DateTime))
+                        {
+                            jsonWriter.WriteStringValue((DateTime)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(DateTimeOffset))
+                        {
+                            jsonWriter.WriteStringValue((DateTimeOffset)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(Guid))
+                        {
+                            jsonWriter.WriteStringValue((Guid)updateInfo.PropertyValue);
+                        }
+                        else if (propertyProviderClrType == typeof(string))
+                        {
+                            jsonWriter.WriteStringValue((string)updateInfo.PropertyValue);
+                        }
+                        else
+                        {
+                            throw new InvalidOperationException("Invalid type: " + propertyProviderClrType.Name);
+                        }
+                    }
+
+                    jsonWriter.Flush();
+
+                    singlePropertyValue = Encoding.UTF8.GetString(stream.ToArray());
+
+                    //singlePropertyValue = GenerateValueForSinglePropertyUpdate(updateInfo.Property, updateInfo.PropertyValue);
                     jsonPathString = jsonPathString + "." + updateInfo.Property.GetJsonPropertyName();
                 }
                 else
