@@ -309,8 +309,10 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
                     {
                         if (!_jsonQueryCache!.TryGetValue(jsonQueryExpression, out var jsonProjectionBinding))
                         {
-                            jsonProjectionBinding = AddClientProjection(jsonQueryExpression, typeof(ValueBuffer));
-                            _jsonQueryCache[jsonQueryExpression] = jsonProjectionBinding;
+                            jsonProjectionBinding = AddJsonClientProjection(jsonQueryExpression, typeof(ValueBuffer));
+
+                            // TODO: just remove the JSON cache altogether
+                            //_jsonQueryCache[jsonQueryExpression] = jsonProjectionBinding;
                         }
 
                         return entityShaperExpression.Update(jsonProjectionBinding);
@@ -653,6 +655,13 @@ public class RelationalProjectionBindingExpressionVisitor : ExpressionVisitor
         }
 
         return new ProjectionBindingExpression(_selectExpression, existingIndex, type);
+    }
+
+    private ProjectionBindingExpression AddJsonClientProjection(JsonQueryExpression jsonQueryExpression, Type type)
+    {
+        _clientProjections!.Add(jsonQueryExpression);
+
+        return new ProjectionBindingExpression(_selectExpression, _clientProjections.Count - 1, type);
     }
 
 #pragma warning disable IDE0052 // Remove unread private members

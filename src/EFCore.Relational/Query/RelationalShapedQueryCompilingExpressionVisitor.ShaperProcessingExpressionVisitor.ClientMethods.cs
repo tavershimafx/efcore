@@ -4,7 +4,9 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
+using Microsoft.EntityFrameworkCore.Storage.Json;
 
 namespace Microsoft.EntityFrameworkCore.Query;
 
@@ -69,6 +71,18 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
         private static readonly MethodInfo ExtractJsonPropertyMethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(ExtractJsonProperty))!;
+
+        private static readonly MethodInfo MaterializeJsonEntity2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntity2))!;
+
+        private static readonly MethodInfo MaterializeJsonEntityCollection2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntityCollection2))!;
+
+        private static readonly MethodInfo IncludeJsonEntityReference2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityReference2))!;
+
+        private static readonly MethodInfo IncludeJsonEntityCollection2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityCollection2))!;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static TValue ThrowReadValueException<TValue>(
@@ -867,6 +881,159 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
 
             dataReaderContext.HasNext = false;
+        }
+
+        private static TEntity? MaterializeJsonEntity2<TEntity>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            bool nullable,
+            Func<QueryContext, object[], JsonReaderData, TEntity> shaper)
+            where TEntity : class
+        {
+            if (jsonReaderData == null)
+            {
+                return nullable
+                    ? default
+                    : throw new InvalidOperationException(
+                    RelationalStrings.JsonRequiredEntityWithNullJson(typeof(TEntity).Name));
+            }
+
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            if (manager.CurrentReader.TokenType == JsonTokenType.StartObject)
+            {
+                manager.CaptureState();
+                var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
+
+                return result;
+            }
+
+            throw new InvalidOperationException("Invalid token type: " + manager.CurrentReader.TokenType.ToString());
+        }
+
+        private static TResult? MaterializeJsonEntityCollection2<TEntity, TResult>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            INavigationBase navigation,
+            Func<QueryContext, object[], JsonReaderData, TEntity> innerShaper)
+            where TEntity : class
+            where TResult : ICollection<TEntity>
+        {
+            if (jsonReaderData == null)
+            {
+                return default;
+            }
+
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            var tokenType = manager.CurrentReader.TokenType;
+            if (tokenType == JsonTokenType.StartArray)
+            {
+                var collectionAccessor = navigation.GetCollectionAccessor();
+                var result = (TResult)collectionAccessor!.Create();
+
+                var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+                Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+                tokenType = manager.MoveNext();
+
+                var i = 0;
+                while (tokenType != JsonTokenType.EndArray)
+                {
+                    newKeyPropertyValues[^1] = ++i;
+
+                    if (tokenType == JsonTokenType.StartObject)
+                    {
+                        manager.CaptureState();
+                        var entity = innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+                        result.Add(entity);
+                        manager = new Utf8JsonReaderManager(manager.Data);
+
+                        if (manager.CurrentReader.TokenType != JsonTokenType.EndObject)
+                        {
+                            throw new InvalidOperationException("expecting end object, got: " + tokenType.ToString());
+                        }
+
+                        tokenType = manager.MoveNext();
+                    }
+                }
+
+                manager.CaptureState();
+
+                return result;
+            }
+
+            throw new InvalidOperationException("Expecting StartArray token, got: " + tokenType.ToString());
+        }
+
+        private static void IncludeJsonEntityReference2<TIncludingEntity, TIncludedEntity>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            TIncludingEntity entity,
+            Func<QueryContext, object[], JsonReaderData, TIncludedEntity> innerShaper,
+            Action<TIncludingEntity, TIncludedEntity> fixup)
+            where TIncludingEntity : class
+            where TIncludedEntity : class
+        {
+            if (jsonReaderData == null)
+            {
+                return;
+            }
+
+            var included = innerShaper(queryContext, keyPropertyValues, jsonReaderData);
+            fixup(entity, included);
+        }
+
+        private static void IncludeJsonEntityCollection2<TIncludingEntity, TIncludedCollectionElement>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            TIncludingEntity entity,
+            Func<QueryContext, object[], JsonReaderData, TIncludedCollectionElement> innerShaper,
+            Action<TIncludingEntity, TIncludedCollectionElement> fixup)
+            where TIncludingEntity : class
+            where TIncludedCollectionElement : class
+        {
+            if (jsonReaderData == null)
+            {
+                return;
+            }
+
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            var tokenType = manager.CurrentReader.TokenType;
+            if (tokenType == JsonTokenType.StartArray)
+            {
+                var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+                Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+                tokenType = manager.MoveNext();
+
+                var i = 0;
+                while (tokenType != JsonTokenType.EndArray)
+                {
+                    newKeyPropertyValues[^1] = ++i;
+
+                    if (tokenType == JsonTokenType.StartObject)
+                    {
+                        manager.CaptureState();
+                        var resultElement = innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+                        fixup(entity, resultElement);
+                        manager = new Utf8JsonReaderManager(manager.Data);
+
+                        if (manager.CurrentReader.TokenType != JsonTokenType.EndObject)
+                        {
+                            throw new InvalidOperationException("expecting end object, got: " + tokenType.ToString());
+                        }
+
+                        tokenType = manager.MoveNext();
+                    }
+                }
+
+                manager.CaptureState();
+            }
+
+            throw new InvalidOperationException("Expecting StartArray token, got: " + tokenType.ToString());
         }
 
         private static void IncludeJsonEntityReference<TIncludingEntity, TIncludedEntity>(
