@@ -6,6 +6,8 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data;
 using System.Globalization;
+using System.Net;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Diagnostics.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
@@ -13,8 +15,12 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Identity.Client;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
+using Newtonsoft.Json.Bson;
 using Newtonsoft.Json.Linq;
+using static Microsoft.EntityFrameworkCore.Query.QueryBugsTest;
 
 // ReSharper disable InconsistentNaming
 // ReSharper disable ClassNeverInstantiated.Local
@@ -10735,6 +10741,1314 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public class MyRoot
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public List<MyBranchCollection> Collection { get; set; }
+        public MyBranchReference Reference { get; set; }
+    }
+
+    public class MyBranchCollection
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int ParentId { get; set; }
+    }
+
+
+    public class MyBranchReference
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public int ParentId { get; set; }
+    }
+
+
+    [ConditionalFact]
+    public void Taki_maly_test()
+    {
+        using (var ctx = new MyContext())
+        {
+            ctx.Database.EnsureDeleted();
+            ctx.Database.EnsureCreated();
+
+            var c11 = new MyBranchCollection { Name = "c11" };
+            var c12 = new MyBranchCollection { Name = "c12" };
+            var c13 = new MyBranchCollection { Name = "c13" };
+            var c21 = new MyBranchCollection { Name = "c21" };
+            var c22 = new MyBranchCollection { Name = "c22" };
+            var r1 = new MyBranchReference { Name = "r1" };
+            var r2 = new MyBranchReference { Name = "r2" };
+
+            var e1 = new MyRoot { Name = "e1", Reference = r1, Collection = new List<MyBranchCollection> { c11, c12, c13 } };
+            var e2 = new MyRoot { Name = "e2", Reference = r2, Collection = new List<MyBranchCollection> { c21, c22, } };
+
+            ctx.Roots.AddRange(e1, e2);
+            ctx.SaveChanges();
+        }
+
+        using (var ctx = new MyContext())
+        {
+            var query = ctx.Roots
+                .AsNoTracking()
+                //.Include(x => x.Reference).Include(x => x.Collection)
+                //.Select(x => new { c1 = x.Collection, c2 = x.Collection, r1 = x.Reference, r2 = x.Reference, x })
+                .Select(x => new { r1 = x.Reference, r2 = x.Reference, })
+                .ToList();
+
+            Console.WriteLine(query);
+        }
+    }
+
+    public class MyContext : DbContext
+    {
+        public DbSet<MyRoot> Roots { get; set; }
+        public DbSet<MyBranchCollection> CollectionBranches { get; set; }
+        public DbSet<MyBranchReference> ReferenceBranches { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyRoot>().HasOne(x => x.Reference).WithOne().HasForeignKey<MyBranchReference>(x => x.ParentId);
+            modelBuilder.Entity<MyRoot>().HasMany(x => x.Collection).WithOne().HasForeignKey(x => x.ParentId);
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    [ConditionalFact]
+    public void no_nie_wiem()
+    {
+        using (var ctx = new KupaSikiContext())
+        {
+            ctx.Database.EnsureDeleted();
+            ctx.Database.EnsureCreated();
+
+            var query = ctx.Set<Dupa>().ToList();
+        }    
+    }
+
+    public class KupaSikiContext : DbContext
+    {
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<Dupa>().OwnsOne(x => x.Owned, xx => xx.ToJson());
+
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=ReproKupaSikiContext;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+    public class Dupa
+    {
+        //public Dupa(string name)
+        //{
+        //    Name = name;
+        //}
+
+        public int Id { get; set; }
+
+        public string Name { get; set; }
+
+        public Kupa Owned { get; set; }
+    }
+
+    public class Kupa
+    {
+        //public Kupa(int siki)
+        //{
+        //    Siki = siki;
+        //}
+
+        public int Siki { get; set; }
+        public string Kupson { get; set; }
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#nullable enable
+
+
+
+
+
+    public class JsonReaderData
+    {
+        private readonly Stream? _stream;
+        private byte[] _buffer;
+        private int _positionInBuffer;
+        private int _bytesAvailable;
+
+        public JsonReaderData(byte[] buffer)
+        {
+            _buffer = buffer;
+            _bytesAvailable = buffer.Length;
+        }
+
+        public JsonReaderData(Stream stream)
+        {
+            _stream = stream;
+            _buffer = new byte[1];
+            ReadBytes(0);
+        }
+
+        public JsonReaderState ReaderState { get; set; }
+
+        public void CaptureState(ref Utf8JsonReaderManager manager)
+        {
+            _positionInBuffer += (int)manager.CurrentReader.BytesConsumed;
+            ReaderState = manager.CurrentReader.CurrentState;
+        }
+
+        public void ReadBytes(int bytesConsumed)
+        {
+            Debug.Assert(_stream != null);
+
+            var buffer = _buffer;
+            var totalConsumed = bytesConsumed + _positionInBuffer;
+            if (_bytesAvailable != 0 && totalConsumed < buffer.Length)
+            {
+                var leftover = buffer.AsSpan(totalConsumed);
+
+                if (leftover.Length == buffer.Length)
+                {
+                    Array.Resize(ref buffer, buffer.Length * 2);
+                }
+
+                leftover.CopyTo(buffer);
+                _bytesAvailable = _stream.Read(buffer.AsSpan(leftover.Length)) + leftover.Length;
+            }
+            else
+            {
+                _bytesAvailable = _stream.Read(buffer);
+            }
+
+            _buffer = buffer;
+            _positionInBuffer = 0;
+        }
+
+        public Utf8JsonReader CreateReader() =>
+            new(_buffer.AsSpan(_positionInBuffer), isFinalBlock: _bytesAvailable != _buffer.Length, ReaderState);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    [ConditionalFact]
+    public void Kupson_sikson()
+    {
+        using var context = new BlogsContext();
+
+        var json = """
+            {
+              "SomeInts": [0,1,2],
+              "Views": 6187,
+              "TopGeographies": [
+                {
+                  "Browsers": ["Firefox", "Netscape"],
+                  "Count": 966,
+                  "Location": "POINT (109.793 43.2431)",
+                  "GeoJsonLocation": {
+                    "type": "Point",
+                    "coordinates": [133.793,47.2431]
+                  },
+                  "Latitude": 134.793,
+                  "Longitude": 35.2431
+                }
+              ],
+              "TopSearches": [
+                {
+                  "Count": 9647,
+                  "Term": "Search #1"
+                }
+              ],
+              "Updates": [
+                {
+                  "PostedFrom": "127.0.0.1",
+                  "UpdatedBy": "Admin",
+                  "UpdatedOn": "1998-04-16",
+                  "Commits": [
+                    {
+                      "Comment": "Commit #1",
+                      "CommittedOn": "2023-04-30"
+                    }
+                  ]
+                },
+                {
+                  "PostedFrom": "127.0.0.1",
+                  "UpdatedBy": "Admin",
+                  "UpdatedOn": "2015-02-11",
+                  "Commits": [
+                    {
+                      "Comment": "Commit #1",
+                      "CommittedOn": "2023-04-30"
+                    },
+                    {
+                      "Comment": "Commit #2",
+                      "CommittedOn": "2023-04-30"
+                    }
+                  ]
+                },
+                {
+                  "PostedFrom": "127.0.0.1",
+                  "UpdatedBy": "Admin",
+                  "UpdatedOn": "2007-02-10",
+                  "Commits": [
+                    {
+                      "Comment": "Commit #1",
+                      "CommittedOn": "2023-04-30"
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        // Stream/dynamic
+
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var materializer = CreateJsonMaterializer<PostMetadata>(
+            context.Model.FindEntityType("Microsoft.EntityFrameworkCore.Query.QueryBugsTest+PostMetadata")!);
+        var entity = materializer(new JsonReaderData(stream));
+
+        // Buffer/dynamic
+
+        // var materializer = CreateJsonMaterializer<PostMetadata>(
+        //     context.Model.FindEntityType("PrototypeJsonMaterializer.PostMetadata")!);
+        // var entity = materializer(new JsonReaderData(Encoding.UTF8.GetBytes(json)));
+
+        // Stream/static
+
+        // using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        // var entity = MaterializePostMetadata(new JsonReaderData(stream));
+
+        // Buffer/static
+
+        // var entity = MaterializePostMetadata(new JsonReaderData(Encoding.UTF8.GetBytes(json)));
+
+        Console.WriteLine($"{entity.GetType()}:");
+        Console.WriteLine($"  Views: {entity.Views}");
+        Console.WriteLine($"  SomeInts: {string.Join(", ", entity.SomeInts)}");
+        Console.WriteLine($"  TopGeographies:");
+        for (var i = 0; i < entity.TopGeographies.Count; i++)
+        {
+            Console.WriteLine($"    Geography {i}:");
+            var geography = entity.TopGeographies[i];
+            Console.WriteLine($"      Count: {geography.Count}");
+            Console.WriteLine($"      Location: {geography.Location}");
+            //Console.WriteLine($"      GeoLocation: {geography.GeoJsonLocation}");
+            Console.WriteLine($"      Browsers: {string.Join(", ", geography.Browsers)}");
+        }
+
+        Console.WriteLine($"  TopSearches:");
+        for (var i = 0; i < entity.TopSearches.Count; i++)
+        {
+            Console.WriteLine($"    Search {i}:");
+            var searchTerm = entity.TopSearches[i];
+            Console.WriteLine($"      Term: {searchTerm.Term}");
+            Console.WriteLine($"      Count: {searchTerm.Count}");
+        }
+
+        Console.WriteLine($"  Updates:");
+        for (var i = 0; i < entity.Updates.Count; i++)
+        {
+            Console.WriteLine($"    Update {i}:");
+            var update = entity.Updates[i];
+            Console.WriteLine($"      PostedFrom: {update.PostedFrom}");
+            Console.WriteLine($"      UpdatedBy: {update.UpdatedBy}");
+            Console.WriteLine($"      UpdatedOn: {update.UpdatedOn}");
+            Console.WriteLine($"      Commits:");
+            for (var j = 0; j < update.Commits.Count(); j++)
+            {
+                Console.WriteLine($"        Commit {j}:");
+                var commit = update.Commits[j];
+                Console.WriteLine($"          CommittedOn: {commit.CommittedOn}");
+                Console.WriteLine($"          Comment: {commit.Comment}");
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+    private static readonly MethodInfo TryReadTokenMethod = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.TryReadToken))!;
+    private static readonly MethodInfo AdvanceToFirstElementMethod = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.AdvanceToFirstElement))!;
+    private static readonly FieldInfo CurrentReaderField = typeof(Utf8JsonReaderManager).GetField(nameof(Utf8JsonReaderManager.CurrentReader))!;
+
+    private static readonly Dictionary<Type, MethodInfo> PrimitiveMethods
+        = new()
+        {
+            { typeof(int), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetInt32))! },
+            { typeof(string), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetString))! },
+            { typeof(double), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetDouble))! },
+        };
+
+    private static readonly Dictionary<IEntityType, Delegate> JsonToEntityMaterializers = new();
+
+    public static Func<JsonReaderData, TEntity> CreateJsonMaterializer<TEntity>(IEntityType entityType)
+        => (Func<JsonReaderData, TEntity>)GetOrCreateMaterializer(entityType);
+
+    private static Delegate GetOrCreateMaterializer(IEntityType entityType)
+    {
+        if (JsonToEntityMaterializers.TryGetValue(entityType, out var materializer))
+        {
+            return materializer;
+        }
+
+        var dataParameter = Expression.Parameter(typeof(JsonReaderData), "data");
+        var clrType = entityType.ClrType;
+        var entityVariable = Expression.Variable(clrType, "entity");
+        var tokenNameVariable = Expression.Variable(typeof(string), "tokenName");
+        var readDoneLabel = Expression.Label("readDone");
+        var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager), "manager");
+
+        var propertyCases = new List<SwitchCase>();
+
+        foreach (var property in entityType.GetProperties().Where(p => !p.IsShadowProperty()))
+        {
+            var typeMapping = property.GetTypeMapping();
+            if (typeMapping.ElementTypeMapping != null)
+            {
+                var jsonValueReader = typeMapping.ElementTypeMapping.GetJsonValueReader();
+
+                var readerExpression = Expression.Block(
+                    Expression.Call(managerVariable, AdvanceToFirstElementMethod),
+                    jsonValueReader == null
+                        ? Expression.Call(
+                            Expression.Field(managerVariable, CurrentReaderField),
+                            PrimitiveMethods[typeMapping.ElementTypeMapping.ClrType])
+                        : Expression.Call(
+                            Expression.Constant(jsonValueReader),
+                            jsonValueReader.GetType().GetMethod("FromJson")!,
+                            managerVariable));
+
+                propertyCases.Add(
+                    Expression.SwitchCase(
+                        Expression.Block(
+                            Expression.Call(
+                                Expression.MakeMemberAccess(entityVariable, clrType.GetProperty(property.Name)!),
+                                property.ClrType.GetMethod("Add")!,
+                                readerExpression),
+                            Expression.Empty()),
+                        Expression.Constant(property.GetJsonPropertyName())));
+            }
+            else
+            {
+                var jsonValueReader = typeMapping.GetJsonValueReader();
+                propertyCases.Add(
+                    Expression.SwitchCase(
+                        Expression.Block(
+                            Expression.Assign(
+                                Expression.MakeMemberAccess(entityVariable, clrType.GetProperty(property.Name)!),
+                                jsonValueReader == null
+                                    ? Expression.Call(
+                                        Expression.Field(managerVariable, CurrentReaderField),
+                                        PrimitiveMethods[typeMapping.ClrType])
+                                    : Expression.Call(
+                                        Expression.Constant(jsonValueReader),
+                                        jsonValueReader.GetType().GetMethod("FromJson")!,
+                                        managerVariable)),
+                            Expression.Empty()),
+                        Expression.Constant(property.GetJsonPropertyName())));
+            }
+        }
+
+        foreach (var navigation in entityType.GetNavigations().Where(n => !n.IsOnDependent))
+        {
+            propertyCases.Add(
+                Expression.SwitchCase(
+                    Expression.Block(
+                        Expression.Call(
+                            dataParameter,
+                            typeof(JsonReaderData).GetMethod(nameof(JsonReaderData.CaptureState))!,
+                            managerVariable),
+                        Expression.Call(
+                            Expression.MakeMemberAccess(entityVariable, clrType.GetProperty(navigation.Name)!),
+                            navigation.ClrType.GetMethod("Add")!,
+                            Expression.Invoke(Expression.Constant(
+                                GetOrCreateMaterializer(navigation.TargetEntityType),
+                                typeof(Func<,>).MakeGenericType(typeof(JsonReaderData), navigation.TargetEntityType.ClrType)),
+                                dataParameter)),
+                        Expression.Assign(managerVariable,
+                            Expression.New(
+                                typeof(Utf8JsonReaderManager).GetConstructor(new[] { typeof(JsonReaderData) })!,
+                                dataParameter)),
+                        Expression.Empty()),
+                    Expression.Constant(navigation.Name)));
+        }
+
+
+        var materializerExpression = Expression.Lambda(
+            typeof(Func<,>).MakeGenericType(typeof(JsonReaderData), clrType),
+            Expression.Block(
+                new[] { entityVariable, tokenNameVariable, managerVariable },
+                Expression.Assign(entityVariable, Expression.New(clrType.GetConstructor(Type.EmptyTypes)!)),
+                Expression.Assign(managerVariable,
+                    Expression.New(
+                        typeof(Utf8JsonReaderManager).GetConstructor(new[] { typeof(JsonReaderData) })!,
+                        dataParameter)),
+                Expression.Assign(tokenNameVariable, Expression.Constant(null, typeof(string))),
+                Expression.Loop(
+                    Expression.IfThenElse(
+                        Expression.Call(managerVariable, TryReadTokenMethod, tokenNameVariable),
+                        Expression.Block(Expression.Switch(tokenNameVariable, null, null, propertyCases)),
+                        Expression.Break(readDoneLabel)),
+                    readDoneLabel),
+                Expression.Call(
+                    dataParameter,
+                    typeof(JsonReaderData).GetMethod(nameof(JsonReaderData.CaptureState))!,
+                    managerVariable),
+                entityVariable),
+            dataParameter);
+
+
+        materializer = materializerExpression.Compile();
+        JsonToEntityMaterializers[entityType] = materializer;
+
+        return materializer;
+    }
+
+    // Static materializer with manager: 
+
+    public static PostMetadata MaterializePostMetadata(JsonReaderData data)
+    {
+        var manager = new Utf8JsonReaderManager(data);
+        var entity = new PostMetadata();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "Views":
+                    entity.Views = manager.CurrentReader.GetInt32();
+                    break;
+                case "SomeInts":
+                    manager.AdvanceToFirstElement();
+                    entity.SomeInts.Add(manager.CurrentReader.GetInt32());
+                    break;
+                case "TopGeographies":
+                    data.CaptureState(ref manager);
+                    entity.TopGeographies.Add(MaterializeVisits(data));
+                    manager = new Utf8JsonReaderManager(data);
+                    break;
+                case "TopSearches":
+                    data.CaptureState(ref manager);
+                    entity.TopSearches.Add(MaterializeSearchTerm(data));
+                    manager = new Utf8JsonReaderManager(data);
+                    break;
+                case "Updates":
+                    data.CaptureState(ref manager);
+                    entity.Updates.Add(MaterializePostUpdate(data));
+                    manager = new Utf8JsonReaderManager(data);
+                    break;
+            }
+        }
+
+        return entity;
+    }
+
+    public static Visits MaterializeVisits(JsonReaderData data)
+    {
+        var manager = new Utf8JsonReaderManager(data);
+        var entity = new Visits();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "Browsers":
+                    manager.AdvanceToFirstElement();
+                    entity.Browsers.Add(manager.CurrentReader.GetString()!);
+                    break;
+                case "Location":
+                    entity.Location = LocationJsonValueReader.FromJson(ref manager);
+                    break;
+                //case "GeoJsonLocation":
+                //    entity.GeoJsonLocation = GeoJsonLocationJsonValueReader2.FromJson(ref manager);
+                //    break;
+                case "Count":
+                    entity.Count = manager.CurrentReader.GetInt32();
+                    break;
+            }
+        }
+
+        data.CaptureState(ref manager);
+        return entity;
+    }
+
+    public static SearchTerm MaterializeSearchTerm(JsonReaderData data)
+    {
+        var manager = new Utf8JsonReaderManager(data);
+        var entity = new SearchTerm();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "Term":
+                    entity.Term = manager.CurrentReader.GetString()!;
+                    break;
+                case "Count":
+                    entity.Count = manager.CurrentReader.GetInt32();
+                    break;
+            }
+        }
+
+        data.CaptureState(ref manager);
+        return entity;
+    }
+
+    public static PostUpdate MaterializePostUpdate(JsonReaderData data)
+    {
+        var manager = new Utf8JsonReaderManager(data);
+        var entity = new PostUpdate();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "PostedFrom":
+                    entity.PostedFrom = PostedFromJsonValueReader.FromJson(ref manager)!;
+                    break;
+                case "UpdatedBy":
+                    entity.UpdatedBy = manager.CurrentReader.GetString();
+                    break;
+                case "UpdatedOn":
+                    entity.UpdatedOn = UpdatedOnJsonValueReader.FromJson(ref manager)!;
+                    break;
+                case "Commits":
+                    data.CaptureState(ref manager);
+                    entity.Commits.Add(MaterializeCommit(data));
+                    manager = new Utf8JsonReaderManager(data);
+                    break;
+            }
+        }
+
+        data.CaptureState(ref manager);
+
+        return entity;
+    }
+
+    public static Commit MaterializeCommit(JsonReaderData data)
+    {
+        var manager = new Utf8JsonReaderManager(data);
+        var entity = new Commit();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "Comment":
+                    entity.Comment = manager.CurrentReader.GetString()!;
+                    break;
+                case "CommittedOn":
+                    entity.CommittedOn = CommittedOnJsonValueReader.FromJson(ref manager);
+                    break;
+            }
+        }
+
+        data.CaptureState(ref manager);
+
+        return entity;
+    }
+
+    private static readonly DateOnlyJsonValueReader CommittedOnJsonValueReader = new();
+    private static readonly IpAddressJsonValueReader PostedFromJsonValueReader = new();
+    private static readonly DateOnlyJsonValueReader UpdatedOnJsonValueReader = new();
+    private static readonly PointJsonValueReader LocationJsonValueReader = new();
+    //private static readonly GeoJsonPointJsonValueReader4 GeoJsonLocationJsonValueReader2 = new();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public class BlogsContext : DbContext
+    {
+        public DbSet<Blog> Blogs => Set<Blog>();
+        public DbSet<Website> Websites => Set<Website>();
+        public DbSet<Tag> Tags => Set<Tag>();
+        public DbSet<Post> Posts => Set<Post>();
+        public DbSet<Author> Authors => Set<Author>();
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseSqlServer(
+                @"Server=(localdb)\mssqllocaldb;Database=JsonTest",
+                sqlServerOptionsBuilder => sqlServerOptionsBuilder.UseNetTopologySuite());
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<FeaturedPost>();
+
+            modelBuilder.Entity<Website>()
+                .HasOne(e => e.Blog)
+                .WithOne(e => e.Site)
+                .HasPrincipalKey<Website>(e => e.Uri)
+                .HasForeignKey<Blog>(e => e.SiteUri);
+
+            modelBuilder.Entity<Post>()
+                .HasMany(e => e.Tags)
+                .WithMany(e => e.Posts)
+                .UsingEntity<PostTag>();
+
+            modelBuilder.Entity<Author>().OwnsOne(
+                author => author.Contact, ownedNavigationBuilder =>
+                {
+                    ownedNavigationBuilder.ToJson();
+                    ownedNavigationBuilder.OwnsOne(contactDetails => contactDetails.Address);
+                });
+
+            modelBuilder.Entity<Post>().OwnsOne(
+                post => post.Metadata, ownedNavigationBuilder =>
+                {
+                    ownedNavigationBuilder.ToJson();
+                    ownedNavigationBuilder.OwnsMany(metadata => metadata.TopSearches);
+                    ownedNavigationBuilder.OwnsMany(metadata => metadata.TopGeographies);
+                    ownedNavigationBuilder.OwnsMany(
+                        metadata => metadata.Updates,
+                        ownedOwnedNavigationBuilder => ownedOwnedNavigationBuilder.OwnsMany(update => update.Commits));
+                });
+        }
+
+        // public void Seed()
+        // {
+        //     var tagEntityFramework = new Tag("TagEF", "Entity Framework");
+        //     var tagDotNet = new Tag("TagNet", ".NET");
+        //     var tagDotNetMaui = new Tag("TagMaui", ".NET MAUI");
+        //     var tagAspDotNet = new Tag("TagAsp", "ASP.NET");
+        //     var tagAspDotNetCore = new Tag("TagAspC", "ASP.NET Core");
+        //     var tagDotNetCore = new Tag("TagC", ".NET Core");
+        //     var tagHacking = new Tag("TagHx", "Hacking");
+        //     var tagLinux = new Tag("TagLin", "Linux");
+        //     var tagSqlite = new Tag("TagLite", "SQLite");
+        //     var tagVisualStudio = new Tag("TagVS", "Visual Studio");
+        //     var tagGraphQl = new Tag("TagQL", "GraphQL");
+        //     var tagCosmosDb = new Tag("TagCos", "CosmosDB");
+        //     var tagBlazor = new Tag("TagBl", "Blazor");
+        //
+        //     var maddy = new Author("Maddy Montaquila")
+        //     {
+        //         Contact = new() { Address = new("1 Main St", "Camberwick Green", "CW1 5ZH", "UK"), Phone = "01632 12345" }
+        //     };
+        //     var jeremy = new Author("Jeremy Likness")
+        //     {
+        //         Contact = new() { Address = new("2 Main St", "Chigley", "CW1 5ZH", "UK"), Phone = "01632 12346" }
+        //     };
+        //     var dan = new Author("Daniel Roth")
+        //     {
+        //         Contact = new() { Address = new("3 Main St", "Camberwick Green", "CW1 5ZH", "UK"), Phone = "01632 12347" }
+        //     };
+        //     var arthur = new Author("Arthur Vickers")
+        //     {
+        //         Contact = new() { Address = new("15a Main St", "Chigley", "CW1 5ZH", "UK"), Phone = "01632 12348" }
+        //     };
+        //     var brice = new Author("Brice Lambson")
+        //     {
+        //         Contact = new() { Address = new("4 Main St", "Chigley", "CW1 5ZH", "UK"), Phone = "01632 12349" }
+        //     };
+        //
+        //     var blogs = new List<Blog>
+        //     {
+        //         new(".NET Blog")
+        //         {
+        //             Posts =
+        //             {
+        //                 new Post(
+        //                     "Productivity comes to .NET MAUI in Visual Studio 2022",
+        //                     "Visual Studio 2022 17.3 is now available and...",
+        //                     new DateOnly(2022, 8, 9)) { Tags = { tagDotNetMaui, tagDotNet }, Author = maddy, Metadata = BuildPostMetadata() },
+        //                 new Post(
+        //                     "Announcing .NET 7 Preview 7", ".NET 7 Preview 7 is now available with improvements to System.LINQ, Unix...",
+        //                     new DateOnly(2022, 8, 9)) { Tags = { tagDotNet }, Author = jeremy, Metadata = BuildPostMetadata() },
+        //                 new Post(
+        //                     "ASP.NET Core updates in .NET 7 Preview 7", ".NET 7 Preview 7 is now available! Check out what's new in...",
+        //                     new DateOnly(2022, 8, 9))
+        //                 {
+        //                     Tags = { tagDotNet, tagAspDotNet, tagAspDotNetCore }, Author = dan, Metadata = BuildPostMetadata()
+        //                 },
+        //                 new FeaturedPost(
+        //                     "Announcing Entity Framework 7 Preview 7: Interceptors!",
+        //                     "Announcing EF7 Preview 7 with new and improved interceptors, and...",
+        //                     new DateOnly(2022, 8, 9),
+        //                     "Loads of runnable code!")
+        //                 {
+        //                     Tags = { tagEntityFramework, tagDotNet, tagDotNetCore }, Author = arthur, Metadata = BuildPostMetadata()
+        //                 }
+        //             },
+        //             Site = new(new("https://devblogs.microsoft.com/dotnet/"), "dotnet@example.com")
+        //         },
+        //         new("1unicorn2")
+        //         {
+        //             Posts =
+        //             {
+        //                 new Post(
+        //                     "Hacking my Sixth Form College network in 1991",
+        //                     "Back in 1991 I was a student at Franklin Sixth Form College...",
+        //                     new DateOnly(2020, 4, 10)) { Tags = { tagHacking }, Author = arthur, Metadata = BuildPostMetadata() },
+        //                 new FeaturedPost(
+        //                     "All your versions are belong to us",
+        //                     "Totally made up conversations about choosing Entity Framework version numbers...",
+        //                     new DateOnly(2020, 3, 26),
+        //                     "Way funny!") { Tags = { tagEntityFramework }, Author = arthur, Metadata = BuildPostMetadata() },
+        //                 new Post(
+        //                     "Moving to Linux", "A few weeks ago, I decided to move from Windows to Linux as...",
+        //                     new DateOnly(2020, 3, 7)) { Tags = { tagLinux }, Author = arthur, Metadata = BuildPostMetadata(), Archived = true },
+        //                 new Post(
+        //                     "Welcome to One Unicorn 2.0!", "I created my first blog back in 2011..",
+        //                     new DateOnly(2020, 2, 29)) { Tags = { tagEntityFramework }, Author = arthur, Metadata = BuildPostMetadata() }
+        //             },
+        //             Site = new(new("https://blog.oneunicorn.com/"), "unicorn@example.com")
+        //         },
+        //         new("Brice's Blog")
+        //         {
+        //             Posts =
+        //             {
+        //                 new FeaturedPost(
+        //                     "SQLite in Visual Studio 2022", "A couple of years ago, I was thinking of ways...",
+        //                     new DateOnly(2022, 7, 26), "Love for VS!")
+        //                 {
+        //                     Tags = { tagSqlite, tagVisualStudio }, Author = brice, Metadata = BuildPostMetadata()
+        //                 },
+        //                 new Post(
+        //                     "On .NET - Entity Framework Migrations Explained",
+        //                     "This week, @JamesMontemagno invited me onto the On .NET show...",
+        //                     new DateOnly(2022, 5, 4))
+        //                 {
+        //                     Tags = { tagEntityFramework, tagDotNet }, Author = brice, Metadata = BuildPostMetadata()
+        //                 },
+        //                 new Post(
+        //                     "Dear DBA: A silly idea", "We have fun on the Entity Framework team...",
+        //                     new DateOnly(2022, 3, 31)) { Tags = { tagEntityFramework }, Author = brice, Metadata = BuildPostMetadata(), Archived = true },
+        //                 new Post(
+        //                     "Microsoft.Data.Sqlite 6", "It’s that time of year again. Microsoft.Data.Sqlite version...",
+        //                     new DateOnly(2021, 11, 8)) { Tags = { tagSqlite, tagDotNet }, Author = brice, Metadata = BuildPostMetadata() }
+        //             },
+        //             Site = new(new("https://www.bricelam.net/"), "brice@example.com")
+        //         },
+        //         new("Developer for Life")
+        //         {
+        //             Posts =
+        //             {
+        //                 new Post(
+        //                     "GraphQL for .NET Developers", "A comprehensive overview of GraphQL as...",
+        //                     new DateOnly(2021, 7, 1))
+        //                 {
+        //                     Tags = { tagDotNet, tagGraphQl, tagAspDotNetCore }, Author = jeremy, Metadata = BuildPostMetadata()
+        //                 },
+        //                 new FeaturedPost(
+        //                     "Azure Cosmos DB With EF Core on Blazor Server",
+        //                     "Learn how to build Azure Cosmos DB apps using Entity Framework Core...",
+        //                     new DateOnly(2021, 5, 16),
+        //                     "Blazor FTW!")
+        //                 {
+        //                     Tags =
+        //                     {
+        //                         tagDotNet,
+        //                         tagEntityFramework,
+        //                         tagAspDotNetCore,
+        //                         tagCosmosDb,
+        //                         tagBlazor
+        //                     },
+        //                     Author = jeremy,
+        //                     Metadata = BuildPostMetadata()
+        //                 },
+        //                 new Post(
+        //                     "Multi-tenancy with EF Core in Blazor Server Apps",
+        //                     "Learn several ways to implement multi-tenant databases in Blazor Server apps...",
+        //                     new DateOnly(2021, 4, 29))
+        //                 {
+        //                     Tags = { tagDotNet, tagEntityFramework, tagAspDotNetCore, tagBlazor },
+        //                     Author = jeremy,
+        //                     Metadata = BuildPostMetadata()
+        //                 },
+        //                 new Post(
+        //                     "An Easier Blazor Debounce", "Where I propose a simple method to debounce input without...",
+        //                     new DateOnly(2021, 4, 12))
+        //                 {
+        //                     Tags = { tagDotNet, tagAspDotNetCore, tagBlazor }, Author = jeremy, Metadata = BuildPostMetadata()
+        //                 }
+        //             },
+        //             Site = new(new("https://blog.jeremylikness.com/"), "jeremy@example.com")
+        //         }
+        //     };
+        //
+        //     AddRange(blogs);
+        //     SaveChanges();
+        //
+        //     PostMetadata BuildPostMetadata()
+        //     {
+        //         var random = new Random(Guid.NewGuid().GetHashCode());
+        //
+        //         var metadata = new PostMetadata { Views = random.Next(10000) };
+        //
+        //         for (var i = 0; i < random.Next(5); i++)
+        //         {
+        //             var update = new PostUpdate
+        //             {
+        //                 PostedFrom = IPAddress.Loopback,
+        //                 UpdatedOn = DateOnly.FromDateTime(DateTime.UtcNow - TimeSpan.FromDays(random.Next(1, 10000))),
+        //                 UpdatedBy = "Admin"
+        //             };
+        //
+        //             for (var j = 0; j < random.Next(3); j++)
+        //             {
+        //                 update.Commits.Add(new() { CommittedOn = DateOnly.FromDateTime(DateTime.Today), Comment = $"Commit #{j + 1}" });
+        //             }
+        //
+        //             metadata.Updates.Add(update);
+        //             metadata.SomeInts.Add(i);
+        //         }
+        //
+        //         for (var i = 0; i < random.Next(5); i++)
+        //         {
+        //             metadata.TopSearches.Add(
+        //                 new SearchTerm { Term = $"Search #{i + 1}", Count = 10000 - random.Next(i * 1000, i * 1000 + 900) });
+        //         }
+        //
+        //         for (var i = 0; i < random.Next(5); i++)
+        //         {
+        //             metadata.TopGeographies.Add(
+        //                 new()
+        //                 {
+        //                     // Issue https://github.com/dotnet/efcore/issues/28811 (Support spatial types in JSON columns)
+        //                     // new Point(115.7930 + 20 - random.Next(40), 37.2431 + 10 - random.Next(20)) { SRID = 4326 },
+        //                     Latitude = 115.7930 + 20 - random.Next(40),
+        //                     Longitude = 37.2431 + 10 - random.Next(20),
+        //                     Count = 1000 - random.Next(i * 100, i * 100 + 90),
+        //                     Browsers = new() { "Firefox", "Netscape" }
+        //                 });
+        //         }
+        //
+        //         return metadata;
+        //     }
+        // }
+    }
+
+    public class Blog
+    {
+        public Blog(string name)
+        {
+            Name = name;
+        }
+
+        public int Id { get; private set; }
+        public string Name { get; set; }
+        public virtual Uri SiteUri { get; set; } = null!;
+        public virtual Website Site { get; set; } = null!;
+        public virtual List<Post> Posts { get; } = new();
+    }
+
+    public class Website
+    {
+        public Website(Uri uri, string email)
+        {
+            Uri = uri;
+            Email = email;
+        }
+
+        public Guid Id { get; private set; }
+        public Uri Uri { get; init; }
+        public string Email { get; init; }
+        public virtual Blog Blog { get; set; } = null!;
+    }
+
+    public class Post
+    {
+        public Post(string title, string content, DateOnly publishedOn)
+        {
+            Title = title;
+            Content = content;
+            PublishedOn = publishedOn;
+        }
+
+        public int Id { get; private set; }
+        public string Title { get; set; }
+        public string Content { get; set; }
+        public DateOnly PublishedOn { get; set; }
+        public bool Archived { get; set; }
+        public int BlogId { get; set; }
+        public virtual Blog Blog { get; set; } = null!;
+        public virtual List<Tag> Tags { get; } = new();
+        public virtual Author? Author { get; set; }
+        public PostMetadata? Metadata { get; set; }
+    }
+
+    public class FeaturedPost : Post
+    {
+        public FeaturedPost(string title, string content, DateOnly publishedOn, string promoText)
+            : base(title, content, publishedOn)
+        {
+            PromoText = promoText;
+        }
+
+        public string PromoText { get; set; }
+    }
+
+    public class Tag
+    {
+        public Tag(string id, string text)
+        {
+            Id = id;
+            Text = text;
+        }
+
+        public string Id { get; private set; }
+        public string Text { get; set; }
+        public virtual List<Post> Posts { get; } = new();
+    }
+
+    public class PostTag
+    {
+        public int PostId { get; private set; }
+        public string TagId { get; private set; } = null!;
+    }
+
+    public class Author
+    {
+        public Author(string name)
+        {
+            Name = name;
+        }
+
+        public int Id { get; private set; }
+        public string Name { get; set; }
+        public ContactDetails Contact { get; set; } = null!;
+        public virtual List<Post> Posts { get; } = new();
+    }
+
+    public class ContactDetails
+    {
+        public Address Address { get; set; } = null!;
+        public string? Phone { get; set; }
+    }
+
+    public class Address
+    {
+        public Address(string street, string city, string postcode, string country)
+        {
+            Street = street;
+            City = city;
+            Postcode = postcode;
+            Country = country;
+        }
+
+        public string Street { get; set; }
+        public string City { get; set; }
+        public string Postcode { get; set; }
+        public string Country { get; set; }
+    }
+
+    public class PostMetadata
+    {
+        public int Views { get; set; }
+        public List<SearchTerm> TopSearches { get; } = new();
+        public List<Visits> TopGeographies { get; } = new();
+        public List<PostUpdate> Updates { get; } = new();
+        public List<int> SomeInts { get; set; } = new();
+    }
+
+    public class SearchTerm
+    {
+        public string Term { get; set; } = null!;
+        public int Count { get; set; }
+    }
+
+    public class Visits
+    {
+        public Geometry Location { get; set; } = null!;
+        //public Point GeoJsonLocation { get; set; } = null!;
+        public int Count { get; set; }
+        public List<string> Browsers { get; set; } = new();
+    }
+
+    public class PostUpdate
+    {
+        public IPAddress PostedFrom { get; set; } = null!;
+        public string? UpdatedBy { get; set; }
+        public DateOnly UpdatedOn { get; set; }
+        public List<Commit> Commits { get; } = new();
+    }
+
+    public class Commit
+    {
+        public DateOnly CommittedOn { get; set; }
+        public string Comment { get; set; } = null!;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    //public sealed class GeoJsonPointJsonValueReader4 : IJsonValueReader<Point>
+    //{
+    //    public Point FromJson(ref Utf8JsonReaderManager manager)
+    //    {
+    //        var builder = new StringBuilder("{");
+    //        var depth = 1;
+    //        while (depth > 0)
+    //        {
+    //            manager.MoveNext();
+
+    //            switch (manager.CurrentReader.TokenType)
+    //            {
+    //                case JsonTokenType.EndObject:
+    //                    depth--;
+    //                    builder.Append('}');
+    //                    break;
+    //                case JsonTokenType.PropertyName:
+    //                    builder.Append(@$"""{manager.CurrentReader.GetString()}"":");
+    //                    break;
+    //                case JsonTokenType.StartObject:
+    //                    depth++;
+    //                    builder.Append('{');
+    //                    break;
+    //                case JsonTokenType.String:
+    //                    builder.Append(@$"""{manager.CurrentReader.GetString()}"",");
+
+    //                    break;
+    //                case JsonTokenType.Number:
+    //                    builder.Append(@$"{manager.CurrentReader.GetDecimal()},");
+    //                    break;
+    //                case JsonTokenType.True:
+    //                    builder.Append("true,");
+    //                    break;
+    //                case JsonTokenType.False:
+    //                    builder.Append("false,");
+    //                    break;
+    //                case JsonTokenType.Null:
+    //                    builder.Append("null,");
+    //                    break;
+    //                case JsonTokenType.StartArray:
+    //                    builder.Append('[');
+    //                    break;
+    //                case JsonTokenType.EndArray:
+    //                    builder.Append(']');
+    //                    break;
+    //            }
+    //        }
+
+    //        var serializer = GeoJsonSerializer.Create();
+    //        using (var stringReader = new StringReader(builder.ToString()))
+    //        using (var jsonReader = new JsonTextReader(stringReader))
+    //        {
+    //            return (Point)serializer.Deserialize<Geometry>(jsonReader);
+    //        }
+    //    }
+    //}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public ref struct Utf8JsonReaderManager
+    {
+        public readonly JsonReaderData Data;
+        public Utf8JsonReader CurrentReader;
+
+        public Utf8JsonReaderManager(JsonReaderData data)
+        {
+            Data = data;
+            CurrentReader = data.CreateReader();
+        }
+
+        public void MoveNext()
+        {
+            while (!CurrentReader.Read())
+            {
+                Data.ReadBytes((int)CurrentReader.BytesConsumed);
+                Data.ReaderState = CurrentReader.CurrentState;
+                CurrentReader = Data.CreateReader();
+            }
+        }
+
+        public bool TryReadToken(ref string? tokenName)
+        {
+            while (true)
+            {
+                MoveNext();
+
+                switch (CurrentReader.TokenType)
+                {
+                    case JsonTokenType.EndObject:
+                        return false;
+                    case JsonTokenType.PropertyName:
+                        tokenName = CurrentReader.GetString();
+                        break;
+                    case JsonTokenType.StartObject:
+                    case JsonTokenType.String:
+                    case JsonTokenType.Number:
+                    case JsonTokenType.True:
+                    case JsonTokenType.False:
+                    case JsonTokenType.Null:
+                        return true;
+                }
+            }
+        }
+
+        public void AdvanceToFirstElement()
+        {
+            if (CurrentReader.TokenType == JsonTokenType.PropertyName)
+            {
+                string? _ = null;
+                TryReadToken(ref _);
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#nullable disable
+
+
     protected override string StoreName
         => "QueryBugsTest";
 
@@ -10781,3 +12095,74 @@ WHERE [e].[TimeSpan] = @__parameter_0
     protected void AssertSql(params string[] expected)
         => TestSqlLoggerFactory.AssertBaseline(expected);
 }
+
+
+#nullable enable
+
+public static class TempExtensions
+{
+    public static object? GetJsonValueReader(this CoreTypeMapping typeMapping)
+    {
+        return typeMapping.ClrType.Name switch
+        {
+            nameof(IPAddress) => new IpAddressJsonValueReader(),
+            nameof(DateOnly) => new DateOnlyJsonValueReader(),
+            nameof(Geometry) => new PointJsonValueReader(),
+            //nameof(Point) => new GeoJsonPointJsonValueReader3(),
+            _ => null
+        };
+    }
+}
+
+
+public interface IJsonValueReader<out TValue>
+{
+    TValue FromJson(ref Utf8JsonReaderManager manager);
+}
+
+public sealed class IpAddressJsonValueReader : IJsonValueReader<IPAddress?>
+{
+    public IPAddress FromJson(ref Utf8JsonReaderManager manager)
+        => IPAddress.Parse(manager.CurrentReader.GetString()!);
+}
+
+public sealed class DateOnlyJsonValueReader : IJsonValueReader<DateOnly>
+{
+    public DateOnly FromJson(ref Utf8JsonReaderManager manager)
+        => DateOnly.Parse(manager.CurrentReader.GetString()!);
+}
+
+public sealed class PointJsonValueReader : IJsonValueReader<Point>
+{
+    public Point FromJson(ref Utf8JsonReaderManager manager)
+        => (Point)new WKTReader().Read(manager.CurrentReader.GetString()!);
+}
+
+public sealed class GeoJsonPointJsonValueReader3 : IJsonValueReader<Point>
+{
+    public Point FromJson(ref Utf8JsonReaderManager manager)
+    {
+        string? type = null;
+        var coordinates = new List<double>();
+        string? tokenName = null;
+        while (manager.TryReadToken(ref tokenName))
+        {
+            switch (tokenName!)
+            {
+                case "coordinates":
+                    manager.AdvanceToFirstElement();
+                    coordinates.Add(manager.CurrentReader.GetDouble());
+                    break;
+                case "type":
+                    type = manager.CurrentReader.GetString();
+                    break;
+            }
+        }
+
+        Debug.Assert(type == "Point");
+        return new Point(coordinates[0], coordinates[1]) { SRID = 4326 };
+    }
+}
+
+
+#nullable disable
