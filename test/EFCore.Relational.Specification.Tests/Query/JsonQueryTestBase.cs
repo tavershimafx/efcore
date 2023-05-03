@@ -18,7 +18,7 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
     public virtual Task Basic_json_projection_owner_entity(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<JsonEntityBasic>(),
+            ss => ss.Set<JsonEntityBasic>(),//.AsNoTracking(),
             entryCount: 40);
 
     [ConditionalTheory]

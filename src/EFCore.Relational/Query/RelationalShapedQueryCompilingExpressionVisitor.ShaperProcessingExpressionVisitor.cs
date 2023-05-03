@@ -1,11 +1,15 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore.Internal;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
@@ -121,8 +125,14 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
             _jsonValueBufferParameterMapping = new();
 
+        private readonly Dictionary<ParameterExpression, ParameterExpression>
+            _jsonValueBufferParameterMapping2 = new();
+
         private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
             _jsonMaterializationContextParameterMapping = new();
+
+        private readonly Dictionary<ParameterExpression, ParameterExpression>
+            _jsonMaterializationContextParameterMapping2 = new();
 
         /// <summary>
         ///     Cache for the JsonElement values we have generated - storing variables that the JsonElements are assigned to
@@ -432,16 +442,28 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 }
 
                 if (newExpression.Arguments[0] is ParameterExpression valueBufferParameter
-                    && _jsonValueBufferParameterMapping.ContainsKey(valueBufferParameter))
+                    && _jsonValueBufferParameterMapping2.ContainsKey(valueBufferParameter))
                 {
-                    _jsonMaterializationContextParameterMapping[parameterExpression] =
-                        _jsonValueBufferParameterMapping[valueBufferParameter];
+                    _jsonMaterializationContextParameterMapping2[parameterExpression] =
+                        _jsonValueBufferParameterMapping2[valueBufferParameter];
 
                     var updatedExpression = newExpression.Update(
                         new[] { Expression.Constant(ValueBuffer.Empty), newExpression.Arguments[1] });
 
                     return Expression.Assign(binaryExpression.Left, updatedExpression);
                 }
+
+                //if (newExpression.Arguments[0] is ParameterExpression valueBufferParameter
+                //    && _jsonValueBufferParameterMapping.ContainsKey(valueBufferParameter))
+                //{
+                //    _jsonMaterializationContextParameterMapping[parameterExpression] =
+                //        _jsonValueBufferParameterMapping[valueBufferParameter];
+
+                //    var updatedExpression = newExpression.Update(
+                //        new[] { Expression.Constant(ValueBuffer.Empty), newExpression.Arguments[1] });
+
+                //    return Expression.Assign(binaryExpression.Left, updatedExpression);
+                //}
             }
 
             if (binaryExpression.NodeType == ExpressionType.Assign
@@ -466,25 +488,38 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     {
                         if (GetProjectionIndex(projectionBindingExpression) is JsonProjectionInfo jsonProjectionInfo)
                         {
-                            // json entity at the root
-                            var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                            //// json entity at the root
+                            //var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                            //    jsonProjectionInfo,
+                            //    entityShaperExpression.EntityType);
+
+                            //var shaperResult = CreateJsonShapers(
+                            //    entityShaperExpression.EntityType,
+                            //    entityShaperExpression.IsNullable,
+                            //    collection: false,
+                            //    jsonElementParameter,
+                            //    keyValuesParameter,
+                            //    parentEntityExpression: null,
+                            //    navigation: null);
+
+                            var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess2(
                                 jsonProjectionInfo,
                                 entityShaperExpression.EntityType);
 
-                            var shaperResult = CreateJsonShapers(
+                            var shaperResult2 = CreateJsonShapers2(
                                 entityShaperExpression.EntityType,
                                 entityShaperExpression.IsNullable,
                                 collection: false,
-                                jsonElementParameter,
+                                jsonReaderDataVariable,
                                 keyValuesParameter,
                                 parentEntityExpression: null,
                                 navigation: null);
 
-                            var visitedShaperResult = Visit(shaperResult);
+                            //var visitedShaperResult = Visit(shaperResult);
+                            var visitedShaperResult = Visit(shaperResult2);
                             var visitedShaperResultParameter = Expression.Parameter(visitedShaperResult.Type);
                             _variables.Add(visitedShaperResultParameter);
                             _jsonEntityExpressions.Add(Expression.Assign(visitedShaperResultParameter, visitedShaperResult));
-
 
                             accessor = CompensateForCollectionMaterialization(
                                 visitedShaperResultParameter,
@@ -553,20 +588,34 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         is JsonProjectionInfo jsonProjectionInfo:
                 {
                     // json entity collection at the root
-                    var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                    //var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                    //    jsonProjectionInfo,
+                    //    navigation.TargetEntityType);
+
+                    //var shaperResult = CreateJsonShapers(
+                    //    navigation.TargetEntityType,
+                    //    nullable: true,
+                    //    collection: true,
+                    //    jsonElementParameter,
+                    //    keyValuesParameter,
+                    //    parentEntityExpression: null,
+                    //    navigation);
+
+                    var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess2(
                         jsonProjectionInfo,
                         navigation.TargetEntityType);
 
-                    var shaperResult = CreateJsonShapers(
+                    var shaperResult2 = CreateJsonShapers2(
                         navigation.TargetEntityType,
                         nullable: true,
                         collection: true,
-                        jsonElementParameter,
+                        jsonReaderDataVariable,
                         keyValuesParameter,
                         parentEntityExpression: null,
-                        navigation);
+                        navigation: navigation);
 
-                    var visitedShaperResult = Visit(shaperResult);
+                    //var visitedShaperResult = Visit(shaperResult);
+                    var visitedShaperResult = Visit(shaperResult2);
 
                     var jsonCollectionParameter = Expression.Parameter(collectionResultExpression.Type);
 
@@ -829,20 +878,34 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         if (projectionBindingExpression != null
                             && GetProjectionIndex(projectionBindingExpression) is JsonProjectionInfo jsonProjectionInfo)
                         {
-                            var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                            //var (jsonElementParameter, keyValuesParameter) = JsonShapingPreProcess(
+                            //    jsonProjectionInfo,
+                            //    includeExpression.Navigation.TargetEntityType);
+
+                            //var shaperResult = CreateJsonShapers(
+                            //    includeExpression.Navigation.TargetEntityType,
+                            //    nullable: true,
+                            //    collection: includeExpression.NavigationExpression is CollectionResultExpression,
+                            //    jsonElementParameter,
+                            //    keyValuesParameter,
+                            //    parentEntityExpression: entity,
+                            //    navigation: (INavigation)includeExpression.Navigation);
+
+                            var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess2(
                                 jsonProjectionInfo,
                                 includeExpression.Navigation.TargetEntityType);
 
-                            var shaperResult = CreateJsonShapers(
+                            var shaperResult2 = CreateJsonShapers2(
                                 includeExpression.Navigation.TargetEntityType,
                                 nullable: true,
                                 collection: includeExpression.NavigationExpression is CollectionResultExpression,
-                                jsonElementParameter,
+                                jsonReaderDataVariable,
                                 keyValuesParameter,
                                 parentEntityExpression: entity,
                                 navigation: (INavigation)includeExpression.Navigation);
 
-                            var visitedShaperResult = Visit(shaperResult);
+                            //var visitedShaperResult = Visit(shaperResult);
+                            var visitedShaperResult = Visit(shaperResult2);
 
                             _includeExpressions.Add(visitedShaperResult);
 
@@ -1086,17 +1149,29 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 var property = methodCallExpression.Arguments[2].GetConstantValue<IProperty?>();
                 var mappingParameter = (ParameterExpression)((MethodCallExpression)methodCallExpression.Arguments[0]).Object!;
 
-                if (_jsonMaterializationContextParameterMapping.ContainsKey(mappingParameter))
+                if (_jsonMaterializationContextParameterMapping2.ContainsKey(mappingParameter))
                 {
-                    var (jsonElementParameter, keyPropertyValuesParameter) = _jsonMaterializationContextParameterMapping[mappingParameter];
+                    var keyPropertyValuesParameter = _jsonMaterializationContextParameterMapping2[mappingParameter];
 
                     return property!.IsPrimaryKey()
                         ? Expression.MakeIndex(
                             keyPropertyValuesParameter,
                             ObjectArrayIndexerPropertyInfo,
                             new[] { Expression.Constant(index) })
-                        : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
+                        : throw new InvalidOperationException("this should never happen");
                 }
+
+                //if (_jsonMaterializationContextParameterMapping.ContainsKey(mappingParameter))
+                //{
+                //    var (jsonElementParameter, keyPropertyValuesParameter) = _jsonMaterializationContextParameterMapping[mappingParameter];
+
+                //    return property!.IsPrimaryKey()
+                //        ? Expression.MakeIndex(
+                //            keyPropertyValuesParameter,
+                //            ObjectArrayIndexerPropertyInfo,
+                //            new[] { Expression.Constant(index) })
+                //        : CreateExtractJsonPropertyExpression(jsonElementParameter, property);
+                //}
 
                 int projectionIndex;
                 if (property == null)
@@ -1136,6 +1211,458 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             return base.VisitMethodCall(methodCallExpression);
         }
 
+
+        //        public partial class RelationalShapedQueryCompilingExpressionVisitor
+        //{
+        //    private sealed partial class ShaperProcessingExpressionVisitor : ExpressionVisitor
+
+        private static readonly MethodInfo InverseCollectionFixupMethod
+            = typeof(ShaperProcessingExpressionVisitor).GetMethods(BindingFlags.NonPublic | BindingFlags.Static).Single(x => x.Name == nameof(InverseCollectionFixup))!;
+
+        //private void InverseCollectionFixup<TCollectionElement, TEntity>(
+        //    ICollection<TCollectionElement> collection,
+        //    TEntity entity,
+        //    Action<TCollectionElement, TEntity> elementFixup)
+        //{
+        //    foreach (var collectionElement in collection)
+        //    {
+        //        elementFixup(collectionElement, entity);
+        //    }
+        //}
+
+        private Expression CreateJsonShapers2(
+            IEntityType entityType,
+            bool nullable,
+            bool collection,
+            ParameterExpression jsonReaderDataParameter,
+            ParameterExpression keyValuesParameter,
+            Expression? parentEntityExpression,
+            INavigation? navigation)
+        {
+            var jsonReaderDataShaperLambdaParameter = Expression.Parameter(typeof(JsonReaderData));
+            var keyValuesShaperLambdaParameter = Expression.Parameter(typeof(object[]));
+            var shaperBlockVariables = new List<ParameterExpression>();
+            var shaperBlockExpressions = new List<Expression>();
+
+            var valueBufferParameter = Expression.Parameter(typeof(ValueBuffer));
+
+            _jsonValueBufferParameterMapping2[valueBufferParameter] = keyValuesShaperLambdaParameter;
+
+            var entityShaperExpression = new RelationalEntityShaperExpression(
+                entityType,
+                valueBufferParameter,
+                nullable);
+
+            var entityShaperMaterializer = (BlockExpression)_parentVisitor.InjectEntityMaterializers(entityShaperExpression);
+            var instanceVariable = entityShaperMaterializer.Variables[^1];
+
+            // TODO: need to find instance 
+
+            var innerShapersMap = new Dictionary<string, Expression>();
+            var innerFixupMap = new Dictionary<string, LambdaExpression>();
+            foreach (var ownedNavigation in entityType.GetNavigations().Where(
+                n => n.TargetEntityType.IsMappedToJson() && n.ForeignKey.IsOwnership && n == n.ForeignKey.PrincipalToDependent))
+            {
+                // we need to build entity shapers and fixup separately
+                // we don't know the order in which data comes, so we need to read through everything
+                // before we can do fixup safely
+
+                var innerShaper = CreateJsonShapers2(
+                    ownedNavigation.TargetEntityType,
+                    nullable || !ownedNavigation.ForeignKey.IsRequired,
+                    ownedNavigation.IsCollection,
+                    jsonReaderDataShaperLambdaParameter,
+                    keyValuesShaperLambdaParameter,
+                    parentEntityExpression: null,
+                    navigation: ownedNavigation);
+
+                // TODO: do we already have validation that all those names are unique?
+                var navigationJsonPropertyName = ownedNavigation.TargetEntityType.GetJsonPropertyName()!;
+
+                innerShapersMap[navigationJsonPropertyName] = innerShaper;
+
+                if (ownedNavigation.IsCollection)
+                {
+                    var shaperEntityParameter = Expression.Parameter(ownedNavigation.DeclaringEntityType.ClrType);
+                    var shaperCollectionParameter = Expression.Parameter(ownedNavigation.ClrType);
+                    var expressions = new List<Expression>();
+
+                    if (!ownedNavigation.IsShadowProperty())
+                    {
+                        expressions.Add(
+                            shaperEntityParameter.MakeMemberAccess(ownedNavigation.GetMemberInfo(forMaterialization: true, forSet: true)).Assign(shaperCollectionParameter));
+                    }
+
+                    if (ownedNavigation.Inverse is INavigation inverseNavigation
+                        && !inverseNavigation.IsShadowProperty())
+                    {
+                        //for (var i = 0; i < prm.Count; i++)
+                        //{
+                        //    prm[i].Parent = instance
+                        //}
+
+                        var innerFixupCollectionElementParameter = Expression.Parameter(inverseNavigation.DeclaringEntityType.ClrType);
+                        var innerFixupParentParameter = Expression.Parameter(inverseNavigation.TargetEntityType.ClrType);
+
+                        var elementFixup = Expression.Lambda(
+                            Expression.Block(
+                                typeof(void), 
+                                AssignReferenceNavigation(
+                                    innerFixupCollectionElementParameter,
+                                    innerFixupParentParameter,
+                                    inverseNavigation)),
+                                    innerFixupCollectionElementParameter,
+                                    innerFixupParentParameter);
+
+                        expressions.Add(
+                            Expression.Call(
+                                InverseCollectionFixupMethod.MakeGenericMethod(
+                                    inverseNavigation.DeclaringEntityType.ClrType,
+                                    inverseNavigation.TargetEntityType.ClrType),
+                                shaperCollectionParameter,
+                                shaperEntityParameter,
+                                elementFixup));
+
+                        //var initAssign = Expression.Assign(loopVar, initValue);
+                        //var breakLabel = Expression.Label("forLoopBreak");
+
+                        //var loop = Expression.Block(new[] { loopVar },
+                        //    initAssign,
+                        //    Expression.Loop(
+                        //        Expression.IfThenElse(
+
+
+
+                        //            condition,
+                        //            Expression.Block(
+                        //                loopContent,
+                        //                increment
+                        //            ),
+                        //            Expression.Break(breakLabel)
+                        //        ),
+                        //    breakLabel)
+                        //);
+                    }
+
+                    var fixup = Expression.Lambda(
+                        Expression.Block(typeof(void), expressions),
+                        shaperEntityParameter,
+                        shaperCollectionParameter);
+
+                    innerFixupMap[navigationJsonPropertyName] = fixup;
+                }
+                else
+                {
+                    var fixup = GenerateReferenceFixupForJson(
+                        ownedNavigation.DeclaringEntityType.ClrType,
+                        ownedNavigation.TargetEntityType.ClrType,
+                        ownedNavigation,
+                        ownedNavigation.Inverse);
+
+                    innerFixupMap[navigationJsonPropertyName] = fixup;
+                }
+            }
+
+            //var entityShaperExpression = new RelationalEntityShaperExpression(
+            //    entityType,
+            //    valueBufferParameter,
+            //    nullable);
+
+            //var entityShaperMaterializer = (BlockExpression)_parentVisitor.InjectEntityMaterializers(entityShaperExpression);
+
+            var rewrittenEntityShaperMaterializer = new JsonEntityMaterializerRewriter2(
+                entityShaperExpression.EntityType,
+                jsonReaderDataShaperLambdaParameter,
+                innerShapersMap, innerFixupMap).Rewrite(entityShaperMaterializer);
+
+            var entityShaperMaterializerVariable = Expression.Variable(entityShaperMaterializer.Type);
+            shaperBlockVariables.Add(entityShaperMaterializerVariable);
+            shaperBlockExpressions.Add(Expression.Assign(entityShaperMaterializerVariable, rewrittenEntityShaperMaterializer));
+
+            var shaperBlock = Expression.Block(
+                shaperBlockVariables,
+                shaperBlockExpressions);
+
+            var shaperLambda = Expression.Lambda(
+                shaperBlock,
+                QueryCompilationContext.QueryContextParameter,
+                keyValuesShaperLambdaParameter,
+                jsonReaderDataShaperLambdaParameter);
+
+
+
+
+
+
+
+
+            if (parentEntityExpression != null)
+            {
+                // this happens only on top level when we project owner entity in this case we can do fixup as part of generating materializer
+                // (since we are guaranteed that the parent already exists) - for nested JSON materialization we need to do fixup at the end
+                // because we are streaming the data and don't know if we get the parent json object before the child
+                // (in case parent ctor takes some parameters and they are read as last thing in the JSON)
+                Check.DebugAssert(navigation != null, "Navigation shouldn't be null when including.");
+
+                var fixup = GenerateFixup(
+                    navigation.DeclaringEntityType.ClrType,
+                    navigation.TargetEntityType.ClrType,
+                    navigation,
+                    navigation.Inverse);
+
+                // inheritance scenario - navigation defined on derived
+                var includingEntityExpression = parentEntityExpression.Type != navigation.DeclaringEntityType.ClrType
+                    ? Expression.Convert(parentEntityExpression, navigation.DeclaringEntityType.ClrType)
+                    : parentEntityExpression;
+
+                if (navigation.IsCollection)
+                {
+                    var includeJsonEntityCollectionMethodCall =
+                        Expression.Call(
+                            IncludeJsonEntityCollection2MethodInfo.MakeGenericMethod(
+                                navigation.DeclaringEntityType.ClrType,
+                                navigation.TargetEntityType.ClrType),
+                            QueryCompilationContext.QueryContextParameter,
+                            keyValuesParameter,
+                            jsonReaderDataParameter,
+                            includingEntityExpression,
+                            shaperLambda,
+                            fixup);
+
+                    return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+                        ? includeJsonEntityCollectionMethodCall
+                        : Expression.IfThen(
+                            Expression.TypeIs(
+                                parentEntityExpression,
+                                navigation.DeclaringEntityType.ClrType),
+                            includeJsonEntityCollectionMethodCall);
+                }
+
+                var includeJsonEntityReference2MethodCall =
+                    Expression.Call(
+                        IncludeJsonEntityReference2MethodInfo.MakeGenericMethod(
+                            navigation.DeclaringEntityType.ClrType,
+                            navigation.TargetEntityType.ClrType),
+                        QueryCompilationContext.QueryContextParameter,
+                        keyValuesParameter,
+                        jsonReaderDataParameter,
+                        includingEntityExpression,
+                        shaperLambda,
+                fixup);
+
+                return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+                    ? includeJsonEntityReference2MethodCall
+                    : Expression.IfThen(
+                        Expression.TypeIs(
+                            parentEntityExpression,
+                            navigation.DeclaringEntityType.ClrType),
+                        includeJsonEntityReference2MethodCall);
+            }
+
+            if (navigation != null && navigation.IsCollection)
+            {
+                var materializeJsonEntityCollectionMethodCall =
+                    Expression.Call(
+                        MaterializeJsonEntityCollection2MethodInfo.MakeGenericMethod(
+                            navigation.TargetEntityType.ClrType,
+                            //navigation.DeclaringEntityType.ClrType,
+                            navigation.ClrType),// TargetEntityType.ClrType),
+                        QueryCompilationContext.QueryContextParameter,
+                        keyValuesParameter,
+                        jsonReaderDataParameter,
+                        Expression.Constant(navigation),
+                        shaperLambda);
+
+                return materializeJsonEntityCollectionMethodCall;
+
+                //return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+                //    ? materializeJsonEntityCollectionMethodCall
+                //    : Expression.IfThen(
+                //        Expression.TypeIs(
+                //            parentEntityExpression,
+                //            navigation.DeclaringEntityType.ClrType),
+                //        materializeJsonEntityCollectionMethodCall);
+            }
+
+            //var includeJsonEntityReference2MethodCall =
+            //    Expression.Call(
+            //        IncludeJsonEntityReference2MethodInfo.MakeGenericMethod(
+            //            navigation.DeclaringEntityType.ClrType,
+            //            navigation.TargetEntityType.ClrType),
+            //        QueryCompilationContext.QueryContextParameter,
+            //        keyValuesParameter,
+            //        jsonReaderDataParameter,
+            //        includingEntityExpression,
+            //        shaperLambda,
+            //fixup);
+
+            //return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+            //    ? includeJsonEntityReference2MethodCall
+            //    : Expression.IfThen(
+            //        Expression.TypeIs(
+            //            parentEntityExpression,
+            //            navigation.DeclaringEntityType.ClrType),
+            //        includeJsonEntityReference2MethodCall);
+
+
+
+
+
+
+
+
+
+
+
+
+            //if (parentEntityExpression != null)
+            //{
+            //    Check.DebugAssert(navigation != null, "Navigation shouldn't be null when including.");
+
+            //    var fixup = GenerateFixup(
+            //        navigation.DeclaringEntityType.ClrType,
+            //        navigation.TargetEntityType.ClrType,
+            //        navigation,
+            //        navigation.Inverse);
+
+            //    // inheritance scenario - navigation defined on derived
+            //    var includingEntityExpression = parentEntityExpression.Type != navigation.DeclaringEntityType.ClrType
+            //        ? Expression.Convert(parentEntityExpression, navigation.DeclaringEntityType.ClrType)
+            //        : parentEntityExpression;
+
+            //    if (navigation.IsCollection)
+            //    {
+            //        var includeJsonEntityCollectionMethodCall =
+            //            Expression.Call(
+            //                IncludeJsonEntityCollection2MethodInfo.MakeGenericMethod(
+            //                    navigation.DeclaringEntityType.ClrType,
+            //                    navigation.TargetEntityType.ClrType),
+            //                QueryCompilationContext.QueryContextParameter,
+            //                keyValuesParameter,
+            //                jsonReaderDataParameter,
+            //                includingEntityExpression,
+            //                shaperLambda,
+            //                fixup);
+
+            //        return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+            //            ? includeJsonEntityCollectionMethodCall
+            //            : Expression.IfThen(
+            //                Expression.TypeIs(
+            //                    parentEntityExpression,
+            //                    navigation.DeclaringEntityType.ClrType),
+            //                includeJsonEntityCollectionMethodCall);
+            //    }
+
+            //    var includeJsonEntityReference2MethodCall =
+            //        Expression.Call(
+            //            IncludeJsonEntityReference2MethodInfo.MakeGenericMethod(
+            //                navigation.DeclaringEntityType.ClrType,
+            //                navigation.TargetEntityType.ClrType),
+            //            QueryCompilationContext.QueryContextParameter,
+            //            keyValuesParameter,
+            //            jsonReaderDataParameter,
+            //            includingEntityExpression,
+            //            shaperLambda,
+            //    fixup);
+
+            //    return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+            //        ? includeJsonEntityReference2MethodCall
+            //        : Expression.IfThen(
+            //            Expression.TypeIs(
+            //                parentEntityExpression,
+            //                navigation.DeclaringEntityType.ClrType),
+            //            includeJsonEntityReference2MethodCall);
+            //}
+
+
+            //if (collection)
+            //{
+            //    Check.DebugAssert(navigation != null, "navigation shouldn't be null when materializing collection.");
+
+            //    var materializeJsonEntityCollection = Expression.Call(
+            //        MaterializeJsonEntityCollection2MethodInfo.MakeGenericMethod(
+            //            entityType.ClrType,
+            //            navigation.ClrType),
+            //        QueryCompilationContext.QueryContextParameter,
+            //        jsonElementParameter,
+            //        keyValuesParameter,
+            //        Expression.Constant(navigation),
+            //        shaperLambda);
+
+            //    return materializeJsonEntityCollection;
+            //}
+
+            var materializedRootJsonEntity = Expression.Call(
+                MaterializeJsonEntity2MethodInfo.MakeGenericMethod(entityType.ClrType),
+                QueryCompilationContext.QueryContextParameter,
+                keyValuesParameter,
+                jsonReaderDataParameter,
+                Expression.Constant(nullable),
+                shaperLambda);
+
+            return materializedRootJsonEntity;
+
+
+
+            //if (parentEntityExpression != null)
+            //{
+            //    Check.DebugAssert(navigation != null, "Navigation shouldn't be null when including.");
+            //    var fixup = GenerateFixup(
+            //        navigation.DeclaringEntityType.ClrType,
+            //        navigation.TargetEntityType.ClrType,
+            //        navigation,
+            //        navigation.Inverse);
+
+            //    // inheritance scenario - navigation defined on derived
+            //    var includingEntityExpression = parentEntityExpression.Type != navigation.DeclaringEntityType.ClrType
+            //        ? Expression.Convert(parentEntityExpression, navigation.DeclaringEntityType.ClrType)
+            //        : parentEntityExpression;
+
+            //    if (navigation.IsCollection)
+            //    {
+            //        var includeJsonEntityCollectionMethodCall =
+            //            Expression.Call(
+            //                IncludeJsonEntityCollectionMethodInfo.MakeGenericMethod(
+            //                    navigation.DeclaringEntityType.ClrType,
+            //                    navigation.TargetEntityType.ClrType),
+            //                QueryCompilationContext.QueryContextParameter,
+            //                jsonReaderDataParameter,
+            //                keyValuesParameter,
+            //                includingEntityExpression,
+            //                shaperLambda,
+            //        fixup);
+
+            //        return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+            //            ? includeJsonEntityCollectionMethodCall
+            //            : Expression.IfThen(
+            //                Expression.TypeIs(
+            //                    parentEntityExpression,
+            //                    navigation.DeclaringEntityType.ClrType),
+            //                includeJsonEntityCollectionMethodCall);
+            //    }
+
+            //    var includeJsonEntityReference2MethodCall =
+            //        Expression.Call(
+            //            IncludeJsonEntityReference2MethodInfo.MakeGenericMethod(
+            //                navigation.DeclaringEntityType.ClrType,
+            //                navigation.TargetEntityType.ClrType),
+            //            QueryCompilationContext.QueryContextParameter,
+            //            jsonReaderDataParameter,
+            //            keyValuesParameter,
+            //            includingEntityExpression,
+            //            shaperLambda,
+            //    fixup);
+
+            //    return navigation.DeclaringEntityType.ClrType.IsAssignableFrom(parentEntityExpression.Type)
+            //        ? includeJsonEntityReference2MethodCall
+            //        : Expression.IfThen(
+            //            Expression.TypeIs(
+            //                parentEntityExpression,
+            //                navigation.DeclaringEntityType.ClrType),
+            //            includeJsonEntityReference2MethodCall);
+            //}
+        }
+
         private Expression CreateJsonShapers(
             IEntityType entityType,
             bool nullable,
@@ -1160,6 +1687,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 nullable);
 
             var entityShaperMaterializer = (BlockExpression)_parentVisitor.InjectEntityMaterializers(entityShaperExpression);
+
+            //var rewritten = new JsonEntityMaterializerRewriter2().Rewrite(entityShaperMaterializer, entityShaperExpression.EntityType);
+
+
             var entityShaperMaterializerVariable = Expression.Variable(entityShaperMaterializer.Type);
             shaperBlockVariables.Add(entityShaperMaterializerVariable);
             shaperBlockExpressions.Add(Expression.Assign(entityShaperMaterializerVariable, entityShaperMaterializer));
@@ -1305,6 +1836,681 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
             return materializedRootJsonEntity;
         }
+
+        private class JsonEntityMaterializerRewriter2 : ExpressionVisitor
+        {
+            private static readonly Dictionary<Type, MethodInfo> GetXMethods = new()
+            {
+                { typeof(bool), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetBoolean))! },
+                { typeof(byte), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetByte))! },
+                { typeof(DateTime), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetDateTime))! },
+                { typeof(DateTimeOffset), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetDateTimeOffset))! },
+                { typeof(decimal), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetDecimal))! },
+                { typeof(double), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetDouble))! },
+                { typeof(float), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetSingle))! },
+                { typeof(Guid), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetGuid))! },
+                { typeof(short), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetInt16))! },
+                { typeof(int), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetInt32))! },
+                { typeof(long), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetInt64))! },
+                { typeof(string), typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.GetString))! },
+            };
+
+            public static bool ValueTextEquals(ref Utf8JsonReaderManager manager, JsonEncodedText json)
+                => manager.CurrentReader.ValueTextEquals(json.EncodedUtf8Bytes);
+
+            private readonly IEntityType? _entityType;
+            private readonly ParameterExpression _jsonReaderDataParameter;
+            private readonly IDictionary<string, Expression> _innerShapersMap;
+            private readonly IDictionary<string, LambdaExpression> _innerFixupMap;
+            private bool _found = false;
+
+            // TODO: move it to common place somewhere
+            private static readonly ConstructorInfo JsonReaderManagerConstructor
+                = typeof(Utf8JsonReaderManager).GetConstructor(new Type[] { typeof(JsonReaderData) })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerMoveNextMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.MoveNext), new Type[] { })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerCaptureStateMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.CaptureState), new Type[] { })!;
+
+            //private static readonly PropertyInfo Utf8JsonReaderManagerCurrentReaderProperty
+            //    = typeof(Utf8JsonReaderManager).GetProperty(nameof(Utf8JsonReaderManager.CurrentReader))!;
+
+            private static readonly FieldInfo Utf8JsonReaderManagerCurrentReaderField
+                = typeof(Utf8JsonReaderManager).GetField(nameof(Utf8JsonReaderManager.CurrentReader))!;
+
+
+
+
+            private static readonly MethodInfo Utf8JsonReaderValueTextEqualsMethod
+                = typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.ValueTextEquals), new Type[] { typeof(ReadOnlySpan<byte>) })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerValueTextEqualsMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.ValueTextEquals), new Type[] { typeof(ReadOnlySpan<byte>) })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerSkipMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.Skip), new Type[] { })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerTokenTypeMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.TokenType), new Type[] { })!;
+
+
+
+
+
+
+
+
+            // keep track which variable corresponds to which navigation - we need that info for fixup
+            // which happens at the end (after we read everything to guarantee that we can instantiate the entity 
+            private readonly Dictionary<string, ParameterExpression> _navigationVariableMap = new();
+
+            public JsonEntityMaterializerRewriter2(
+                IEntityType entityType,
+                ParameterExpression jsonReaderDataParameter,
+                IDictionary<string, Expression> innerShapersMap,
+                IDictionary<string, LambdaExpression> innerFixupMap)
+            {
+                _entityType = entityType;
+                _jsonReaderDataParameter = jsonReaderDataParameter;
+                _innerShapersMap = innerShapersMap;
+                _innerFixupMap = innerFixupMap;
+            }
+
+            public BlockExpression Rewrite(BlockExpression jsonEntityShaperMaterializer)
+            {
+                _found = false;
+
+                var result = (BlockExpression)VisitBlock(jsonEntityShaperMaterializer);
+
+                if (!_found)
+                {
+                    throw new InvalidOperationException("Didn't find the materializer to rewrite - pattern matching's busted!");
+                }
+
+                return result;
+            }
+
+            protected override Expression VisitSwitch(SwitchExpression switchExpression)
+            {
+                if (switchExpression.SwitchValue.Type == typeof(IEntityType)
+                    && switchExpression.Cases.Count == 1
+                    && switchExpression.Cases[0] is SwitchCase onlyCase
+                    && onlyCase.TestValues.Count == 1
+                    && onlyCase.TestValues[0] is ConstantExpression onlyValue
+                    && onlyValue.Value == _entityType
+                    && onlyCase.Body is BlockExpression body)
+                {
+                    if (body.Expressions.Count > 0
+                        //sometimes we have shadow value buffer, sometimes not
+                        && body.Expressions[^1] is BlockExpression jsonEntityTypeInitializerBlock)
+                    {
+                        if (jsonEntityTypeInitializerBlock.Variables.Count == 1
+                            && jsonEntityTypeInitializerBlock.Variables[0] is ParameterExpression jsonEntityTypeVariable
+                            && jsonEntityTypeInitializerBlock.Expressions[0] is BinaryExpression jsonEntityTypeConstructionAssignment
+                            && jsonEntityTypeConstructionAssignment.NodeType == ExpressionType.Assign
+                            && jsonEntityTypeConstructionAssignment.Left == jsonEntityTypeVariable
+                            && jsonEntityTypeConstructionAssignment.Right is NewExpression jsonEntityTypeConstruction)
+                        {
+                            var propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();//.Select(x => ((BinaryExpression)x).Right).ToList();
+
+                            var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
+                            var tokenTypeVariable = Expression.Variable(typeof(JsonTokenType), "tokenType");
+                            //var depthVariable = Expression.Variable(typeof(int), "depth");
+
+                            var finalBlockVariables = new List<ParameterExpression>
+                            {
+                                jsonEntityTypeVariable,
+                                managerVariable,
+                                tokenTypeVariable,
+                                //depthVariable
+                            };
+
+                            var finalBlockExpressions = new List<Expression>
+                            {
+                                Expression.Assign(
+                                    managerVariable,
+                                    Expression.New(
+                                        JsonReaderManagerConstructor,
+                                        _jsonReaderDataParameter)),
+
+                                Expression.Assign(
+                                    tokenTypeVariable,
+                                    Expression.Call(managerVariable, Utf8JsonReaderManagerTokenTypeMethod)),
+                                    //Expression.Constant(JsonTokenType.None)),
+
+                                //Expression.Assign(
+                                //    tokenTypeVariable,
+                                //    Expression.Constant(JsonTokenType.None)),
+                            };
+
+                            if (jsonEntityTypeConstruction.Arguments.Any())
+                            {
+                                //propertyAssignments.AddRange(jsonEntityTypeConstruction.Arguments);
+
+                                // ctor has arguments - need to cache all the values 
+                            }
+                            else
+                            {
+
+                                var breakLabel = Expression.Label("done");
+
+                                //var loopTest = Expression.NotEqual(
+                                //    Expression.Call(managerVariable, Utf8JsonReaderManagerTokenTypeMethod),
+                                //    Expression.Constant(JsonTokenType.EndObject));
+
+                                //var loopTest = Expression.OrElse(
+                                //    Expression.GreaterThan(
+                                //        depthVariable,
+                                //        Expression.Constant(0)),
+                                //    Expression.NotEqual(
+                                //        tokenTypeVariable,
+                                //        Expression.Constant(JsonTokenType.EndObject)));
+
+                                var testExpressions = new List<Expression>();
+                                var readExpressions = new List<Expression>();
+
+
+
+
+
+
+
+
+
+                                // look into ctor - if it takes any arguments we need to include them in the loop
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                var ctorAssignmentMap = new Dictionary<Expression, ParameterExpression>();
+                                var propertyAssignmentMap = new Dictionary<Expression, ParameterExpression>();
+                                var navigationAssignmentMap = new Dictionary<Expression, ParameterExpression>();
+
+                                foreach (var propertyAssignment in propertyAssignments)
+                                {
+                                    if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
+                                    {
+                                        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+
+                                        // right should be read the proper value of token instead
+                                        //var newCase = Expression.SwitchCase(
+                                        //    Expression.Block(
+                                        //        Expression.Assign(propertyAssignment.Left, propertyAssignment.Right),
+                                        //        Expression.Empty()),
+                                        //   Expression.Constant(property.GetJsonPropertyName()));
+
+                                        testExpressions.Add(
+                                            Expression.Call(
+                                                managerVariable,
+                                                Utf8JsonReaderManagerValueTextEqualsMethod,
+                                                Expression.Property(
+                                                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                                                    "EncodedUtf8Bytes")));
+
+                                        //testExpressions.Add(
+                                        //    Expression.Call(
+                                        //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //        Utf8JsonReaderValueTextEqualsMethod,
+                                        //        Expression.Property(
+                                        //            Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                                        //            "EncodedUtf8Bytes")));
+
+                                        var propertyVariable = Expression.Variable(property.ClrType);
+                                        finalBlockVariables.Add(propertyVariable);
+
+                                        var moveNext = Expression.Call(
+                                            managerVariable,
+                                            Utf8JsonReaderManagerMoveNextMethod);
+
+                                        //// TODO: re-use?
+                                        //var moveNext2 = Expression.Call(
+                                        //    managerVariable,
+                                        //    Utf8JsonReaderManagerMoveNextMethod);
+
+                                        if (property.GetTypeMapping().Converter is ValueConverter valueConverter)
+                                        {
+                                            var propertyProviderClrType = valueConverter.ProviderClrType;
+                                            if (property.ClrType.IsNullableType() && !valueConverter.ConvertsNulls)
+                                            {
+                                                var tempVariable = Expression.Variable(propertyProviderClrType.MakeNullable());
+
+                                                var jsonManagerValueRead = Expression.Call(
+                                                    Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                    GetXMethods[propertyProviderClrType]);
+
+                                                var tempAssignment = Expression.Assign(
+                                                    tempVariable,
+                                                    tempVariable.Type != jsonManagerValueRead.Type
+                                                        ? Expression.Convert(
+                                                            jsonManagerValueRead,
+                                                            tempVariable.Type)
+                                                        : jsonManagerValueRead);
+
+                                                //var tempAssignment = Expression.Assign(
+                                                //    tempVariable,
+                                                //    Expression.Call(
+                                                //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                //        GetXMethods[propertyProviderClrType]));
+
+
+
+                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                                    tempVariable.Type.IsNullableValueType()
+                                                        ? Expression.Property(tempVariable, nameof(Nullable<int>.Value))
+                                                        : tempVariable,
+                                                    valueConverter.ConvertFromProviderExpression.Body);
+
+                                                // TODO: improve this - see what we do in normal reader generating code
+                                                var assignment = Expression.Assign(
+                                                    propertyVariable,
+                                                    Expression.Condition(
+                                                        Expression.NotEqual(tempVariable, Expression.Constant(null, tempVariable.Type)),
+                                                        propertyVariable.Type != readPropertyValue.Type
+                                                            ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                            : readPropertyValue,
+                                                        Expression.Constant(null, propertyVariable.Type)));
+
+                                                    //propertyVariable.Type != readPropertyValue.Type
+                                                    //    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                    //    : readPropertyValue); ;
+
+                                                readExpressions.Add(
+                                                    Expression.Block(
+                                                        new List<ParameterExpression> { tempVariable },
+                                                        new List<Expression>
+                                                        {
+                                                            moveNext,
+                                                            tempAssignment,
+                                                            assignment,
+                                                            //moveNext2,
+                                                            Expression.Empty()
+                                                        }));
+                                            }
+                                            else
+                                            {
+                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                                    Expression.Call(
+                                                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                        GetXMethods[propertyProviderClrType]),
+                                                    valueConverter.ConvertFromProviderExpression.Body);
+
+                                                // TODO: improve this - see what we do in normal reader generating code
+                                                var assignment = Expression.Assign(
+                                                    propertyVariable,
+                                                    propertyVariable.Type != readPropertyValue.Type
+                                                        ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                        : readPropertyValue);
+
+                                                readExpressions.Add(
+                                                    Expression.Block(
+                                                        moveNext,
+                                                        assignment,
+                                                        //moveNext2,
+                                                        Expression.Empty()));
+                                            }
+                                        }
+                                        else
+                                        {
+                                            var assignment = Expression.Assign(
+                                                propertyVariable,
+                                                propertyVariable.Type != property.ClrType.UnwrapNullableType()
+                                                    ? Expression.Convert(
+                                                        Expression.Call(
+                                                            Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                            GetXMethods[property.ClrType.UnwrapNullableType()]),
+                                                        propertyVariable.Type)
+                                                    : Expression.Call(
+                                                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                        GetXMethods[property.ClrType.UnwrapNullableType()]));
+
+                                            readExpressions.Add(
+                                                Expression.Block(
+                                                    moveNext,
+                                                    assignment,
+                                                    //moveNext2,
+                                                    Expression.Empty()));
+                                        }
+
+                                        propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
+                                    }
+                                }
+
+                                foreach (var innerShaperMapElement in _innerShapersMap)
+                                {
+                                    testExpressions.Add(
+                                        Expression.Call(
+                                            managerVariable,
+                                            Utf8JsonReaderManagerValueTextEqualsMethod,
+                                            Expression.Property(
+                                                Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
+                                                "EncodedUtf8Bytes")));
+
+                                    //testExpressions.Add(
+                                    //    Expression.Call(
+                                    //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                    //        Utf8JsonReaderValueTextEqualsMethod,
+                                    //        Expression.Property(
+                                    //            Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
+                                    //            "EncodedUtf8Bytes")));
+
+                                    var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
+                                    finalBlockVariables.Add(propertyVariable);
+
+                                    _navigationVariableMap[innerShaperMapElement.Key] = propertyVariable;
+
+                                    var moveNext = Expression.Call(
+                                        managerVariable,
+                                        Utf8JsonReaderManagerMoveNextMethod);
+
+                                    var captureState = Expression.Call(
+                                        managerVariable,
+                                        Utf8JsonReaderManagerCaptureStateMethod);
+
+                                    var assignment = Expression.Assign(
+                                        propertyVariable,
+                                        innerShaperMapElement.Value);
+
+                                    var managerRecreation = Expression.Assign(
+                                        managerVariable,
+                                        Expression.New(JsonReaderManagerConstructor, _jsonReaderDataParameter));
+
+                                    readExpressions.Add(
+                                        Expression.Block(
+                                            moveNext,
+                                            captureState,
+                                            assignment,
+                                            managerRecreation,
+                                            Expression.Empty()));
+
+
+                                    //navigationAssignmentMap[innerShaperMapElement.Key] = propertyVariable;
+
+
+
+                                    //var newCase = Expression.SwitchCase(
+                                    //    Expression.Block(
+                                    //        innerShaperMapElement.Value,
+                                    //        Expression.Empty()),
+                                    //    Expression.Constant(innerShaperMapElement.Key));
+                                    //cases.Add(newCase);
+                                }
+
+                                var testsCount = testExpressions.Count;
+                                var testExpression = Expression.IfThen(
+                                    testExpressions[testsCount - 1],
+                                    readExpressions[testsCount - 1]);
+
+                                for (var i = testsCount - 2; i >= 0; i--)
+                                {
+                                    testExpression = Expression.IfThenElse(
+                                        testExpressions[i],
+                                        readExpressions[i],
+                                        testExpression);
+                                }
+
+                                var cases = new List<SwitchCase>();
+
+                                var propertySwitchCase = Expression.SwitchCase(
+                                    testExpression,
+                                    Expression.Constant(JsonTokenType.PropertyName));
+
+                                cases.Add(propertySwitchCase);
+
+                                //foreach (var propertyAssignment in propertyAssignments)
+                                //{
+                                //    // make sure it's try read value
+                                //    if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
+                                //    {
+                                //        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+
+                                //        // right should be read the proper value of token instead
+                                //        var newCase = Expression.SwitchCase(
+                                //            Expression.Block(
+                                //                Expression.Assign(propertyAssignment.Left, propertyAssignment.Right),
+                                //                Expression.Empty()),
+                                //           Expression.Constant(property.GetJsonPropertyName()));
+                                //        cases.Add(newCase);
+                                //    }
+                                //}
+
+                                //cases.Add(
+                                //    Expression.SwitchCase(
+                                //        Expression.Block(
+                                //            Expression.Assign(depthVariable, Expression.Increment(depthVariable)),
+                                //            Expression.Empty()),
+                                //        Expression.Constant(JsonTokenType.StartObject),
+                                //        Expression.Constant(JsonTokenType.StartArray)));
+
+                                //cases.Add(
+                                //    Expression.SwitchCase(
+                                //        Expression.Block(
+                                //            Expression.Assign(depthVariable, Expression.Decrement(depthVariable)),
+                                //            Expression.Empty()),
+                                //        Expression.Constant(JsonTokenType.StartObject),
+                                //        Expression.Constant(JsonTokenType.StartArray)));
+
+
+
+                                var loopTest = Expression.NotEqual(
+                                    tokenTypeVariable,
+                                    Expression.Constant(JsonTokenType.EndObject));
+
+                                var loopBody = Expression.Block(
+                                    Expression.Assign(
+                                        tokenTypeVariable,
+                                        Expression.Call(
+                                            managerVariable,
+                                            Utf8JsonReaderManagerMoveNextMethod)),
+                                    Expression.IfThenElse(
+                                        loopTest,
+                                        Expression.Switch(
+                                            tokenTypeVariable,
+                                            Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
+                                            cases.ToArray()),
+                                        Expression.Break(breakLabel)));
+
+
+
+
+
+                                //var loopBody = Expression.IfThenElse(
+                                //    loopTest,
+                                //    Expression.Block(
+                                //        Expression.Assign(
+                                //            tokenTypeVariable,
+                                //            Expression.Call(
+                                //                managerVariable,
+                                //                Utf8JsonReaderManagerMoveNextMethod)),
+                                //        Expression.Switch(
+                                //            tokenTypeVariable,
+                                //            Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
+                                //            cases.ToArray())),
+                                //    Expression.Break(breakLabel));
+
+                                var loop = Expression.Loop(loopBody, breakLabel);
+                                finalBlockExpressions.Add(loop);
+
+                                var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
+                                finalBlockExpressions.Add(finalCaptureState);
+
+                                var entityCtor = jsonEntityTypeInitializerBlock.Expressions[0];
+                                finalBlockExpressions.Add(entityCtor);
+
+                                // also for ctor
+
+                                foreach (var propertyAssignmentMapElement in propertyAssignmentMap)
+                                {
+                                    finalBlockExpressions.Add(
+                                        Expression.Assign(propertyAssignmentMapElement.Key, propertyAssignmentMapElement.Value));
+                                }
+
+                                foreach (var fixup in _innerFixupMap)
+                                {
+                                    finalBlockExpressions.Add(
+                                        Expression.Invoke(
+                                            fixup.Value,
+                                            jsonEntityTypeVariable,
+                                            _navigationVariableMap[fixup.Key]));
+                                }
+
+                                _found = true;
+
+                                finalBlockExpressions.Add(jsonEntityTypeVariable);
+
+
+                                return Expression.Block(
+                                    finalBlockVariables,
+                                    finalBlockExpressions);
+                            }
+                        }
+                    }
+                }
+
+                return base.VisitSwitch(switchExpression);
+            }
+        }
+
+
+        //private class JsonEntityMaterializerRewriter : ExpressionVisitor
+        //{
+        //    private IEntityType? _entityType;
+        //    private bool _found = false;
+
+        //    public BlockExpression Rewrite(BlockExpression jsonEntityShaperMaterializer, IEntityType entityType)
+        //    {
+        //        _entityType = entityType;
+        //        _found = false;
+
+        //        var result = (BlockExpression)VisitBlock(jsonEntityShaperMaterializer);
+
+        //        if (!_found)
+        //        {
+        //            throw new InvalidOperationException("Didn't find the materializer to rewrite - pattern matching's busted!");
+        //        }
+
+        //        return result;
+        //    }
+
+        //    protected override Expression VisitSwitch(SwitchExpression switchExpression)
+        //    {
+        //        if (switchExpression.SwitchValue.Type == typeof(IEntityType)
+        //            && switchExpression.Cases.Count == 1
+        //            && switchExpression.Cases[0] is SwitchCase onlyCase
+        //            && onlyCase.TestValues.Count == 1
+        //            && onlyCase.TestValues[0] is ConstantExpression onlyValue
+        //            && onlyValue.Value == _entityType
+        //            && onlyCase.Body is BlockExpression body)
+        //        {
+        //            if (body.Expressions.Count == 2
+        //                && body.Expressions[1] is BlockExpression jsonEntityTypeInitializerBlock)
+        //            {
+        //                if (jsonEntityTypeInitializerBlock.Variables.Count == 1
+        //                    && jsonEntityTypeInitializerBlock.Variables[0] is ParameterExpression jsonEntityTypeVariable
+        //                    && jsonEntityTypeInitializerBlock.Expressions[0] is BinaryExpression jsonEntityTypeConstructionAssignment
+        //                    && jsonEntityTypeConstructionAssignment.NodeType == ExpressionType.Assign
+        //                    && jsonEntityTypeConstructionAssignment.Left == jsonEntityTypeVariable
+        //                    && jsonEntityTypeConstructionAssignment.Right is NewExpression jsonEntityTypeConstruction)
+        //                {
+        //                    var propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();//.Select(x => ((BinaryExpression)x).Right).ToList();
+
+
+        //                    var newVariables = new List<ParameterExpression>
+        //                    {
+        //                        jsonEntityTypeInitializerBlock.Variables[0]
+        //                    };
+
+        //                    var tokenNameVariable = Expression.Variable(typeof(string), "tokenName");
+        //                    newVariables.Add(tokenNameVariable);
+
+
+
+
+        //                    if (jsonEntityTypeConstruction.Arguments.Any())
+        //                    {
+        //                        //propertyAssignments.AddRange(jsonEntityTypeConstruction.Arguments);
+
+        //                        // ctor has arguments - need to cache all the values 
+        //                    }
+        //                    else
+        //                    {
+
+        //                        var breakLabel = Expression.Label("done");
+
+
+        //                        var loopTest = Expression.Equal(
+        //                            Expression.Constant("manager.TryReadToken(tokenName)"),
+        //                            Expression.Constant("true"));
+
+        //                        var cases = new List<SwitchCase>();
+        //                        foreach (var propertyAssignment in propertyAssignments)
+        //                        {
+        //                            // make sure it's try read value
+        //                            if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
+        //                            {
+        //                                var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+
+        //                                // right should be read the proper value of token instead
+        //                                var newCase = Expression.SwitchCase(
+        //                                    Expression.Block(
+        //                                        Expression.Assign(propertyAssignment.Left, propertyAssignment.Right),
+        //                                        Expression.Empty()),
+        //                                   Expression.Constant(property.GetJsonPropertyName()));
+        //                                cases.Add(newCase);
+        //                            }
+        //                        }
+
+
+
+
+
+
+
+        //                        var loopBody = Expression.Switch(tokenNameVariable, cases.ToArray());
+
+        //                        var kiupson = Expression.IfThenElse(loopTest, loopBody, Expression.Break(breakLabel));
+
+
+
+
+
+
+
+
+        //                        // just rewrite property assignements into a loop
+        //                    }
+
+        //                    _found = true;
+        //                }
+
+
+
+
+
+
+
+
+
+
+
+        //            }
+        //        }
+
+        //        return base.VisitSwitch(switchExpression);
+        //    }
+        //}
 
         private (ParameterExpression, ParameterExpression) JsonShapingPreProcess(
             JsonProjectionInfo jsonProjectionInfo,
@@ -1577,6 +2783,127 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
         }
 
+        private static readonly PropertyInfo UTF8Property
+            = typeof(Encoding).GetProperty(nameof(Encoding.UTF8))!;
+
+        private static readonly MethodInfo EncodingGetBytesMethod
+            = typeof(Encoding).GetMethod(nameof(Encoding.GetBytes), new[] { typeof(string) })!;
+
+        private static readonly ConstructorInfo MemoryStreamConstructor
+            = typeof(MemoryStream).GetConstructor(new[] { typeof(byte[]) })!;
+
+        private static readonly ConstructorInfo JsonReaderDataConstructor
+            = typeof(JsonReaderData).GetConstructor(new Type[] { typeof(Stream) })!;
+
+        private static readonly ConstructorInfo JsonReaderManagerConstructor
+            = typeof(Utf8JsonReaderManager).GetConstructor(new Type[] { typeof(JsonReaderData) })!;
+
+        private static readonly MethodInfo Utf8JsonReaderManagerMoveNextMethod
+            = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.MoveNext), new Type[] { })!;
+
+        private static readonly MethodInfo Utf8JsonReaderManagerCaptureStateMethod
+            = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.CaptureState), new Type[] { })!;
+
+        private (ParameterExpression, ParameterExpression) JsonShapingPreProcess2(
+            JsonProjectionInfo jsonProjectionInfo,
+            IEntityType entityType)
+        {
+            var jsonColumnName = entityType.GetContainerColumnName()!;
+            var jsonColumnTypeMapping = (entityType.GetViewOrTableMappings().SingleOrDefault()?.Table
+                    ?? entityType.GetDefaultMappings().Single().Table)
+                .FindColumn(jsonColumnName)!.StoreTypeMapping;
+
+            var jsonStreamVariable = Expression.Variable(typeof(Stream));
+            var jsonReaderDataVariable = Expression.Variable(typeof(JsonReaderData));
+            var jsonReaderManagerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
+
+            var jsonStreamAssignment = Expression.Assign(
+                jsonStreamVariable,
+                CreateGetValueExpression(
+                    _dataReaderParameter,
+                    jsonProjectionInfo.JsonColumnIndex,
+                    nullable: true,
+                    jsonColumnTypeMapping,
+                    typeof(MemoryStream),
+                    property: null));
+
+            var jsonReaderDataAssignment = Expression.Assign(
+                jsonReaderDataVariable,
+                Expression.New(JsonReaderDataConstructor, jsonStreamVariable));
+
+            var jsonReaderManagerAssignment = Expression.Assign(
+                jsonReaderManagerVariable,
+                Expression.New(JsonReaderManagerConstructor, jsonReaderDataVariable));
+
+            var jumpStartMoveNext = Expression.Call(
+                jsonReaderManagerVariable,
+                Utf8JsonReaderManagerMoveNextMethod);
+
+            var captureState = Expression.Call(
+                jsonReaderManagerVariable,
+                Utf8JsonReaderManagerCaptureStateMethod);
+
+            _variables.Add(jsonStreamVariable);
+            _variables.Add(jsonReaderDataVariable);
+            _variables.Add(jsonReaderManagerVariable);
+            _expressions.Add(jsonStreamAssignment);
+            _expressions.Add(jsonReaderDataAssignment);
+            _expressions.Add(jsonReaderManagerAssignment);
+            _expressions.Add(jumpStartMoveNext);
+            _expressions.Add(captureState);
+
+            //var currentKeyValuesVariable = Expression.Variable(typeof(object[]));
+
+            var keyValues = new Expression[jsonProjectionInfo.KeyAccessInfo.Count];
+            for (var i = 0; i < jsonProjectionInfo.KeyAccessInfo.Count; i++)
+            {
+                if (jsonProjectionInfo.KeyAccessInfo[i].ConstantKeyValue is int constant)
+                {
+                    // if key access was a constant (and we have the actual value) add it directly to key values array
+                    // adding 1 to the value as we start keys from 1 and the array starts at 0
+                    keyValues[i] = Expression.Convert(
+                        Expression.Constant(constant + 1),
+                        typeof(object));
+                }
+                else if (jsonProjectionInfo.KeyAccessInfo[i].KeyProperty is IProperty keyProperty)
+                {
+                    // if key value has IProperty, it must be a PK of the owner
+                    var projection = _selectExpression.Projection[jsonProjectionInfo.KeyAccessInfo[i].KeyProjectionIndex!.Value];
+                    keyValues[i] = Expression.Convert(
+                        CreateGetValueExpression(
+                            _dataReaderParameter,
+                            jsonProjectionInfo.KeyAccessInfo[i].KeyProjectionIndex!.Value,
+                            IsNullableProjection(projection),
+                            projection.Expression.TypeMapping!,
+                            keyProperty.ClrType,
+                            keyProperty),
+                        typeof(object));
+                }
+                //else
+                //{
+                //    // otherwise it must be non-constant array access and we stored it's projection index
+                //    // extract the value from the projection (or the cache if we used it before)
+                //    var collectionElementAccessParameter = ExtractAndCacheNonConstantJsonArrayElementAccessValue(
+                //        jsonProjectionInfo.KeyAccessInfo[i].KeyProjectionIndex!.Value);
+
+                //    keyValues[i] = Expression.Convert(
+                //        Expression.Add(collectionElementAccessParameter, Expression.Constant(1, typeof(int?))),
+                //        typeof(object));
+                //}
+            }
+
+            // create key values for initial entity
+            var currentKeyValuesVariable = Expression.Parameter(typeof(object[]));
+            var keyValuesAssignment = Expression.Assign(
+                currentKeyValuesVariable,
+                Expression.NewArrayInit(typeof(object), keyValues));
+
+            _variables.Add(currentKeyValuesVariable);
+            _expressions.Add(keyValuesAssignment);
+
+            return (jsonReaderDataVariable, currentKeyValuesVariable);
+        }
+
         private static LambdaExpression GenerateFixup(
             Type entityType,
             Type relatedEntityType,
@@ -1605,6 +2932,82 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
 
             return Expression.Lambda(Expression.Block(typeof(void), expressions), entityParameter, relatedEntityParameter);
+        }
+
+        private static LambdaExpression GenerateReferenceFixupForJson(
+            Type entityType,
+            Type relatedEntityType,
+            INavigationBase navigation,
+            INavigationBase? inverseNavigation)
+        {
+            var entityParameter = Expression.Parameter(entityType);
+            var relatedEntityParameter = Expression.Parameter(relatedEntityType);
+            var expressions = new List<Expression>();
+
+            if (navigation.IsCollection)
+            {
+                throw new InvalidOperationException("cleaup this!");
+                //if (!navigation.IsShadowProperty())
+                //{
+                //    expressions.Add(
+                //        entityParameter.MakeMemberAccess(
+                //            navigation.GetMemberInfo(
+                //                forMaterialization: true,
+                //                forSet: true))
+                //        .Assign(relatedEntityParameter));
+                //}
+
+                //if (inverseNavigation != null
+                //    && !inverseNavigation.IsShadowProperty())
+                //{
+                //    // TODO: foreach, add everything
+                //}
+            }
+            else
+            {
+                if (!navigation.IsShadowProperty())
+                {
+                    expressions.Add(
+                        AssignReferenceNavigation(
+                            entityParameter,
+                            relatedEntityParameter,
+                            navigation));
+                }
+
+                if (inverseNavigation != null
+                    && !inverseNavigation.IsShadowProperty())
+                {
+                    expressions.Add(
+                        AssignReferenceNavigation(
+                            relatedEntityParameter,
+                            entityParameter,
+                            inverseNavigation));
+                }
+            }
+
+            return Expression.Lambda(Expression.Block(typeof(void), expressions), entityParameter, relatedEntityParameter);
+        }
+
+        private static Expression AddToCollectionNavigationForJson(
+            ParameterExpression entity,
+            ParameterExpression relatedEntity,
+            INavigationBase navigation)
+            => Expression.Call(
+                Expression.Constant(navigation.GetCollectionAccessor()),
+                CollectionAccessorAddMethodInfo,
+                entity,
+                relatedEntity,
+                Expression.Constant(true));
+
+        private static void InverseCollectionFixup<TCollectionElement, TEntity>(
+            ICollection<TCollectionElement> collection,
+            TEntity entity,
+            Action<TCollectionElement, TEntity> elementFixup)
+        {
+            foreach (var collectionElement in collection)
+            {
+                elementFixup(collectionElement, entity);
+            }
         }
 
         private static Expression AssignReferenceNavigation(

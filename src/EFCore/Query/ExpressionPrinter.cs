@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 
 namespace Microsoft.EntityFrameworkCore.Query;
@@ -332,6 +333,10 @@ public class ExpressionPrinter : ExpressionVisitor
                 VisitInvocation((InvocationExpression)expression);
                 break;
 
+            case ExpressionType.Loop:
+                VisitLoop((LoopExpression)expression);
+                break;
+
             case ExpressionType.Extension:
                 VisitExtension(expression);
                 break;
@@ -401,7 +406,11 @@ public class ExpressionPrinter : ExpressionVisitor
             foreach (var expression in expressions)
             {
                 Visit(expression);
-                AppendLine(";");
+
+                if (expression is not BlockExpression and not LoopExpression and not SwitchExpression)
+                {
+                    AppendLine(";");
+                }
             }
 
             if (blockExpression.Expressions.Count > 0)
@@ -411,8 +420,15 @@ public class ExpressionPrinter : ExpressionVisitor
                     Append("return ");
                 }
 
-                Visit(blockExpression.Result);
-                AppendLine(";");
+                if (blockExpression.Result is not DefaultExpression)
+                {
+                    Visit(blockExpression.Result);
+
+                    if (blockExpression.Result is not (BlockExpression or LoopExpression or SwitchExpression))
+                    {
+                        AppendLine(";");
+                    }
+                }
             }
         }
 
@@ -492,16 +508,42 @@ public class ExpressionPrinter : ExpressionVisitor
         }
     }
 
+    ///// <inheritdoc />
+    //protected override Expression VisitGoto(GotoExpression gotoExpression)
+    //{
+    //    AppendLine("return (" + gotoExpression.Target.Type.ShortDisplayName() + ")" + gotoExpression.Target + " {");
+    //    using (_stringBuilder.Indent())
+    //    {
+    //        Visit(gotoExpression.Value);
+    //    }
+
+    //    _stringBuilder.Append("}");
+
+    //    return gotoExpression;
+    //}
+
+
     /// <inheritdoc />
     protected override Expression VisitGoto(GotoExpression gotoExpression)
     {
-        AppendLine("return (" + gotoExpression.Target.Type.ShortDisplayName() + ")" + gotoExpression.Target + " {");
-        using (_stringBuilder.Indent())
+        Append("Goto(" + gotoExpression.Kind.ToString().ToLower() + " ");
+
+        if (gotoExpression.Kind == GotoExpressionKind.Break)
         {
-            Visit(gotoExpression.Value);
+            Append(gotoExpression.Target.Name!);
+        }
+        else
+        {
+            AppendLine("(" + gotoExpression.Target.Type.ShortDisplayName() + ")" + gotoExpression.Target + " {");
+            using (_stringBuilder.Indent())
+            {
+                Visit(gotoExpression.Value);
+            }
+
+            _stringBuilder.Append("}");
         }
 
-        _stringBuilder.Append("}");
+        AppendLine(")");
 
         return gotoExpression;
     }
@@ -530,6 +572,8 @@ public class ExpressionPrinter : ExpressionVisitor
             {
                 _parametersInScope.Add(parameter, parameterName);
             }
+
+            _stringBuilder.Append(parameter.Type.ShortDisplayName() + " ");
 
             Visit(parameter);
 
@@ -1041,6 +1085,22 @@ public class ExpressionPrinter : ExpressionVisitor
         _stringBuilder.Append(")");
 
         return invocationExpression;
+    }
+
+    /// <inheritdoc/>
+    protected override Expression VisitLoop(LoopExpression loopExpression)
+    {
+        _stringBuilder.AppendLine($"Loop(Break: {loopExpression.BreakLabel?.Name} Continue: {loopExpression.ContinueLabel?.Name})");
+        _stringBuilder.AppendLine("{");
+
+        using (_stringBuilder.Indent())
+        {
+            Visit(loopExpression.Body);
+        }
+
+        _stringBuilder.AppendLine("}");
+
+        return loopExpression;
     }
 
     /// <inheritdoc />
