@@ -70,6 +70,22 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private static readonly MethodInfo ExtractJsonPropertyMethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(ExtractJsonProperty))!;
 
+
+
+        private static readonly MethodInfo MaterializeJsonEntity2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntity2))!;
+
+        private static readonly MethodInfo IncludeJsonEntityReference2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityReference2))!;
+
+        private static readonly MethodInfo IncludeJsonEntityCollection2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityCollection2))!;
+
+
+
+
+
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static TValue ThrowReadValueException<TValue>(
             Exception exception,
@@ -869,6 +885,210 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
 
             dataReaderContext.HasNext = false;
+        }
+
+        public ref struct Utf8JsonReaderManager
+        {
+            public readonly JsonReaderData Data;
+            public Utf8JsonReader CurrentReader;
+
+            public Utf8JsonReaderManager(JsonReaderData data)
+            {
+                Data = data;
+                CurrentReader = data.CreateReader();
+            }
+
+            public void MoveNext()
+            {
+                while (!CurrentReader.Read())
+                {
+                    Data.ReadBytes((int)CurrentReader.BytesConsumed);
+                    Data.ReaderState = CurrentReader.CurrentState;
+                    CurrentReader = Data.CreateReader();
+                }
+            }
+
+            public bool TryReadToken(ref string? tokenName)
+            {
+                while (true)
+                {
+                    MoveNext();
+
+                    switch (CurrentReader.TokenType)
+                    {
+                        case JsonTokenType.EndObject:
+                            return false;
+                        case JsonTokenType.PropertyName:
+                            tokenName = CurrentReader.GetString();
+                            break;
+                        case JsonTokenType.StartObject:
+                        case JsonTokenType.String:
+                        case JsonTokenType.Number:
+                        case JsonTokenType.True:
+                        case JsonTokenType.False:
+                        case JsonTokenType.Null:
+                            return true;
+                    }
+                }
+            }
+
+            public void AdvanceToFirstElement()
+            {
+                if (CurrentReader.TokenType == JsonTokenType.PropertyName)
+                {
+                    string? _ = null;
+                    TryReadToken(ref _);
+                }
+            }
+        }
+
+
+        public class JsonReaderData
+        {
+            private readonly Stream? _stream;
+            private byte[] _buffer;
+            private int _positionInBuffer;
+            private int _bytesAvailable;
+
+            public JsonReaderData(byte[] buffer)
+            {
+                _buffer = buffer;
+                _bytesAvailable = buffer.Length;
+            }
+
+            public JsonReaderData(Stream stream)
+            {
+                _stream = stream;
+                _buffer = new byte[1];
+                ReadBytes(0);
+            }
+
+            public JsonReaderState ReaderState { get; set; }
+
+            public void CaptureState(ref Utf8JsonReaderManager manager)
+            {
+                _positionInBuffer += (int)manager.CurrentReader.BytesConsumed;
+                ReaderState = manager.CurrentReader.CurrentState;
+            }
+
+            public void ReadBytes(int bytesConsumed)
+            {
+                Debug.Assert(_stream != null);
+
+                var buffer = _buffer;
+                var totalConsumed = bytesConsumed + _positionInBuffer;
+                if (_bytesAvailable != 0 && totalConsumed < buffer.Length)
+                {
+                    var leftover = buffer.AsSpan(totalConsumed);
+
+                    if (leftover.Length == buffer.Length)
+                    {
+                        Array.Resize(ref buffer, buffer.Length * 2);
+                    }
+
+                    leftover.CopyTo(buffer);
+                    _bytesAvailable = _stream.Read(buffer.AsSpan(leftover.Length)) + leftover.Length;
+                }
+                else
+                {
+                    _bytesAvailable = _stream.Read(buffer);
+                }
+
+                _buffer = buffer;
+                _positionInBuffer = 0;
+            }
+
+            public Utf8JsonReader CreateReader() =>
+                new(_buffer.AsSpan(_positionInBuffer), isFinalBlock: _bytesAvailable != _buffer.Length, ReaderState);
+        }
+
+
+
+
+
+
+
+
+        private static TEntity? MaterializeJsonEntity2<TEntity>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            bool nullable,
+            Func<QueryContext, object[], JsonReaderData, TEntity> shaper)
+            where TEntity : class
+        {
+            // TODO: check for nulls
+
+            var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
+
+            return result;
+
+            //if (nullable)
+            //{
+            //    return default;
+            //}
+
+            //throw new InvalidOperationException(
+            //    RelationalStrings.JsonRequiredEntityWithNullJson(typeof(TEntity).Name));
+        }
+
+        private static void IncludeJsonEntityReference2<TIncludingEntity, TIncludedEntity>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            TIncludingEntity entity,
+            Func<QueryContext, object[], JsonReaderData, TIncludedEntity> innerShaper,
+            Action<TIncludingEntity, TIncludedEntity> fixup)
+            where TIncludingEntity : class
+            where TIncludedEntity : class
+        {
+            var included = innerShaper(queryContext, keyPropertyValues, jsonReaderData);
+            fixup(entity, included);
+        }
+
+        private static void IncludeJsonEntityCollection2<TIncludingEntity, TIncludedCollectionElement>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            TIncludingEntity entity,
+            Func<QueryContext, object[], JsonReaderData, TIncludedCollectionElement> innerShaper,
+            Action<TIncludingEntity, TIncludedCollectionElement> fixup)
+            where TIncludingEntity : class
+            where TIncludedCollectionElement : class
+        {
+            var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+            Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+            var i = 0;
+
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            manager.MoveNext();
+
+            while (manager.CurrentReader.TokenType != JsonTokenType.EndArray)
+            {
+                newKeyPropertyValues[^1] = ++i;
+
+                jsonReaderData.CaptureState(ref manager);
+                var resultElement = innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+
+                fixup(entity, resultElement);
+            }
+
+            //if (jsonElement.HasValue && jsonElement.Value.ValueKind != JsonValueKind.Null)
+            //{
+            //    var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+            //    Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+            //    var i = 0;
+            //    foreach (var jsonArrayElement in jsonElement.Value.EnumerateArray())
+            //    {
+            //        newKeyPropertyValues[^1] = ++i;
+
+            //        var resultElement = innerShaper(queryContext, newKeyPropertyValues, jsonArrayElement);
+
+            //        fixup(entity, resultElement);
+            //    }
+            //}
         }
 
         private static void IncludeJsonEntityReference<TIncludingEntity, TIncludedEntity>(

@@ -11174,8 +11174,8 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
 
         materializer = materializerExpression.Compile();
-
         JsonToEntityMaterializers[entityType] = materializer;
+
         return materializer;
     }
 
