@@ -1720,6 +1720,12 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             private static readonly MethodInfo Utf8JsonReaderValueTextEqualsMethod
                 = typeof(Utf8JsonReader).GetMethod(nameof(Utf8JsonReader.ValueTextEquals), new Type[] { typeof(ReadOnlySpan<byte>) })!;
 
+            private static readonly MethodInfo Utf8JsonReaderManagerValueTextEqualsMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.ValueTextEquals), new Type[] { typeof(ReadOnlySpan<byte>) })!;
+
+            private static readonly MethodInfo Utf8JsonReaderManagerSkipMethod
+                = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.Skip), new Type[] { })!;
+
             public JsonEntityMaterializerRewriter2(
                 IEntityType entityType,
                 ParameterExpression jsonReaderDataParameter,
@@ -1857,11 +1863,19 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                                         testExpressions.Add(
                                             Expression.Call(
-                                                Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                Utf8JsonReaderValueTextEqualsMethod,
+                                                managerVariable,
+                                                Utf8JsonReaderManagerValueTextEqualsMethod,
                                                 Expression.Property(
                                                     Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
                                                     "EncodedUtf8Bytes")));
+
+                                        //testExpressions.Add(
+                                        //    Expression.Call(
+                                        //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //        Utf8JsonReaderValueTextEqualsMethod,
+                                        //        Expression.Property(
+                                        //            Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                                        //            "EncodedUtf8Bytes")));
 
                                         var propertyVariable = Expression.Variable(property.ClrType);
                                         finalBlockVariables.Add(propertyVariable);
@@ -1873,26 +1887,68 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                         if (property.GetTypeMapping().Converter is ValueConverter valueConverter)
                                         {
                                             var propertyProviderClrType = valueConverter.ProviderClrType;
+                                            if (property.ClrType.IsNullableType() && !valueConverter.ConvertsNulls)
+                                            {
+                                                var tempVariable = Expression.Variable(propertyProviderClrType.MakeNullable());
 
-                                            var readPropertyValue = ReplacingExpressionVisitor.Replace(
-                                                valueConverter.ConvertFromProviderExpression.Parameters[0],
-                                                Expression.Call(
-                                                    Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                    GetXMethods[propertyProviderClrType]),
-                                                valueConverter.ConvertFromProviderExpression.Body);
+                                                var tempAssignment = Expression.Assign(
+                                                    tempVariable,
+                                                    Expression.Call(
+                                                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                        GetXMethods[propertyProviderClrType]));
 
-                                            // TODO: improve this - see what we do in normal reader generating code
-                                            var assignment = Expression.Assign(
-                                                propertyVariable,
-                                                propertyVariable.Type != readPropertyValue.Type
-                                                    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
-                                                    : readPropertyValue);
+                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                                    tempVariable,
+                                                    valueConverter.ConvertFromProviderExpression.Body);
 
-                                            readExpressions.Add(
-                                                Expression.Block(
-                                                    moveNext,
-                                                    assignment,
-                                                    Expression.Empty()));
+                                                // TODO: improve this - see what we do in normal reader generating code
+                                                var assignment = Expression.Assign(
+                                                    propertyVariable,
+                                                    Expression.Condition(
+                                                        Expression.NotEqual(tempVariable, Expression.Constant(null, tempVariable.Type)),
+                                                        propertyVariable.Type != readPropertyValue.Type
+                                                            ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                            : readPropertyValue,
+                                                        Expression.Constant(null, propertyVariable.Type)));
+
+                                                    //propertyVariable.Type != readPropertyValue.Type
+                                                    //    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                    //    : readPropertyValue); ;
+
+                                                readExpressions.Add(
+                                                    Expression.Block(
+                                                        new List<ParameterExpression> { tempVariable },
+                                                        new List<Expression>
+                                                        {
+                                                            moveNext,
+                                                            tempAssignment,
+                                                            assignment,
+                                                            Expression.Empty()
+                                                        }));
+                                            }
+                                            else
+                                            {
+                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                                    Expression.Call(
+                                                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                                        GetXMethods[propertyProviderClrType]),
+                                                    valueConverter.ConvertFromProviderExpression.Body);
+
+                                                // TODO: improve this - see what we do in normal reader generating code
+                                                var assignment = Expression.Assign(
+                                                    propertyVariable,
+                                                    propertyVariable.Type != readPropertyValue.Type
+                                                        ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                                        : readPropertyValue);
+
+                                                readExpressions.Add(
+                                                    Expression.Block(
+                                                        moveNext,
+                                                        assignment,
+                                                        Expression.Empty()));
+                                            }
                                         }
                                         else
                                         {
@@ -1917,11 +1973,19 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 {
                                     testExpressions.Add(
                                         Expression.Call(
-                                            Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                            Utf8JsonReaderValueTextEqualsMethod,
+                                            managerVariable,
+                                            Utf8JsonReaderManagerValueTextEqualsMethod,
                                             Expression.Property(
                                                 Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
                                                 "EncodedUtf8Bytes")));
+
+                                    //testExpressions.Add(
+                                    //    Expression.Call(
+                                    //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                    //        Utf8JsonReaderValueTextEqualsMethod,
+                                    //        Expression.Property(
+                                    //            Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
+                                    //            "EncodedUtf8Bytes")));
 
                                     var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
                                     finalBlockVariables.Add(propertyVariable);
@@ -1940,7 +2004,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                                     readExpressions.Add(
                                         Expression.Block(
-                                            moveNext,
+                                            //moveNext,
                                             captureState,
                                             assignment,
                                             Expression.Empty()));
@@ -1995,31 +2059,38 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 //    }
                                 //}
 
+                                //cases.Add(
+                                //    Expression.SwitchCase(
+                                //        Expression.Block(
+                                //            Expression.Assign(depthVariable, Expression.Increment(depthVariable)),
+                                //            Expression.Empty()),
+                                //        Expression.Constant(JsonTokenType.StartObject),
+                                //        Expression.Constant(JsonTokenType.StartArray)));
+
+                                //cases.Add(
+                                //    Expression.SwitchCase(
+                                //        Expression.Block(
+                                //            Expression.Assign(depthVariable, Expression.Decrement(depthVariable)),
+                                //            Expression.Empty()),
+                                //        Expression.Constant(JsonTokenType.StartObject),
+                                //        Expression.Constant(JsonTokenType.StartArray)));
+
+
+
                                 // TODO: add skip case at the end
-
-                                cases.Add(
-                                    Expression.SwitchCase(
-                                        Expression.Block(
-                                            Expression.Assign(depthVariable, Expression.Increment(depthVariable)),
-                                            Expression.Empty()),
-                                        Expression.Constant(JsonTokenType.StartObject),
-                                        Expression.Constant(JsonTokenType.StartArray)));
-
-                                cases.Add(
-                                    Expression.SwitchCase(
-                                        Expression.Block(
-                                            Expression.Assign(depthVariable, Expression.Decrement(depthVariable)),
-                                            Expression.Empty()),
-                                        Expression.Constant(JsonTokenType.StartObject),
-                                        Expression.Constant(JsonTokenType.StartArray)));
 
                                 var loopBody = Expression.IfThenElse(
                                     loopTest,
                                     Expression.Block(
-                                        Expression.Call(
-                                            managerVariable,
-                                            Utf8JsonReaderManagerMoveNextMethod),
-                                    Expression.Switch(tokenTypeVariable, cases.ToArray())),
+                                        Expression.Assign(
+                                            tokenTypeVariable,
+                                            Expression.Call(
+                                                managerVariable,
+                                                Utf8JsonReaderManagerMoveNextMethod)),
+                                    Expression.Switch(
+                                        tokenTypeVariable,
+                                        Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
+                                        cases.ToArray())),
                                     Expression.Break(breakLabel));
 
                                 var loop = Expression.Loop(loopBody, breakLabel);

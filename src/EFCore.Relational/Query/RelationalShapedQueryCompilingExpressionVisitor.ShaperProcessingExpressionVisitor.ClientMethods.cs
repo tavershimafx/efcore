@@ -1089,6 +1089,18 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 return CurrentReader.TokenType;
             }
 
+            public bool ValueTextEquals(ReadOnlySpan<byte> text)
+            {
+                var result = CurrentReader.ValueTextEquals(text);
+
+                return result;
+            }
+
+            public void Skip()
+            {
+                CurrentReader.Skip();
+            }
+
             public void CaptureState() => Data.CaptureState(ref this);
         }
 
@@ -1103,18 +1115,27 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             // TODO: check for nulls
 
             var manager = new Utf8JsonReaderManager(jsonReaderData);
-            manager.MoveNext();
+            var tokentType = manager.MoveNext();
 
-            if (manager.CurrentReader.TokenType != JsonTokenType.StartObject)
+            if (tokentType == JsonTokenType.StartObject)
+            {
+                manager.CaptureState();
+                var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
+
+                return result;
+            }
+
+
+
+            // todo: check nullability
+
+            //manager.MoveNext();
+
+            //if (tokentType != JsonTokenType.StartObject)
             {
                 throw new InvalidOperationException("Invalid token type: " + manager.CurrentReader.TokenType.ToString());
             }
 
-            manager.CaptureState();
-
-            var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
-
-            return result;
 
             //if (nullable)
             //{
@@ -1137,7 +1158,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             where TEntity : class
             where TResult : ICollection<TEntity>
         {
-            //if (jsonElement.HasValue && jsonElement.Value.ValueKind != JsonValueKind.Null)
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            var tokenType = manager.MoveNext();
+
+            if (tokenType == JsonTokenType.StartArray)
             {
                 var collectionAccessor = navigation.GetCollectionAccessor();
                 var result = (TResult)collectionAccessor!.Create();
@@ -1145,21 +1169,61 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
                 Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
 
-                var manager = new Utf8JsonReaderManager(jsonReaderData);
-                manager.MoveNext();
-                var tokenType = manager.MoveNext();
+                //tokenType = manager.MoveNext();
+
                 var i = 0;
                 while (tokenType != JsonTokenType.EndArray)
                 {
                     newKeyPropertyValues[^1] = ++i;
-                    manager.CaptureState();
-                    innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
-                    manager = new Utf8JsonReaderManager(manager.Data);
+
                     tokenType = manager.MoveNext();
+                    if (tokenType == JsonTokenType.StartObject)
+                    {
+                        manager.CaptureState();
+                        var entity = innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+                        result.Add(entity);
+                        manager = new Utf8JsonReaderManager(manager.Data);
+                        tokenType = manager.MoveNext();
+
+                        if (tokenType != JsonTokenType.EndObject)
+                        {
+                            throw new InvalidOperationException("expecting end object, got: " + tokenType.ToString());
+                        }
+
+                    }
                 }
 
                 return result;
             }
+            else
+            {
+                // TODO: check for nullability?
+                throw new InvalidOperationException("Expecting StartArray token, got: " + tokenType.ToString());
+            }
+
+            ////if (jsonElement.HasValue && jsonElement.Value.ValueKind != JsonValueKind.Null)
+            //{
+            //    var collectionAccessor = navigation.GetCollectionAccessor();
+            //    var result = (TResult)collectionAccessor!.Create();
+
+            //    var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+            //    Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+            //    //var manager = new Utf8JsonReaderManager(jsonReaderData);
+            //    //manager.MoveNext();
+            //    //var tokenType = manager.MoveNext();
+            //    var i = 0;
+            //    while (tokenType != JsonTokenType.EndArray)
+            //    {
+            //        newKeyPropertyValues[^1] = ++i;
+            //        manager.CaptureState();
+            //        innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+            //        manager = new Utf8JsonReaderManager(manager.Data);
+            //        tokenType = manager.MoveNext();
+            //    }
+
+            //    return result;
+            //}
         }
 
         private static void IncludeJsonEntityReference2<TIncludingEntity, TIncludedEntity>(
