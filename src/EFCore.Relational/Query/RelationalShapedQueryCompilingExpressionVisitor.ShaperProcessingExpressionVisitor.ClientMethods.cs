@@ -75,6 +75,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private static readonly MethodInfo MaterializeJsonEntity2MethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntity2))!;
 
+        private static readonly MethodInfo MaterializeJsonEntityCollection2MethodInfo
+            = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntityCollection2))!;
+
         private static readonly MethodInfo IncludeJsonEntityReference2MethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityReference2))!;
 
@@ -887,60 +890,121 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             dataReaderContext.HasNext = false;
         }
 
-        public ref struct Utf8JsonReaderManager
-        {
-            public readonly JsonReaderData Data;
-            public Utf8JsonReader CurrentReader;
+        //public ref struct Utf8JsonReaderManager
+        //{
+        //    public readonly JsonReaderData Data;
+        //    public Utf8JsonReader CurrentReader;
 
-            public Utf8JsonReaderManager(JsonReaderData data)
-            {
-                Data = data;
-                CurrentReader = data.CreateReader();
-            }
+        //    public Utf8JsonReaderManager(JsonReaderData data)
+        //    {
+        //        Data = data;
+        //        CurrentReader = data.CreateReader();
+        //    }
 
-            public void MoveNext()
-            {
-                while (!CurrentReader.Read())
-                {
-                    Data.ReadBytes((int)CurrentReader.BytesConsumed);
-                    Data.ReaderState = CurrentReader.CurrentState;
-                    CurrentReader = Data.CreateReader();
-                }
-            }
+        //    public void MoveNext()
+        //    {
+        //        while (!CurrentReader.Read())
+        //        {
+        //            Data.ReadBytes((int)CurrentReader.BytesConsumed);
+        //            Data.ReaderState = CurrentReader.CurrentState;
+        //            CurrentReader = Data.CreateReader();
+        //        }
+        //    }
 
-            public bool TryReadToken(ref string? tokenName)
-            {
-                while (true)
-                {
-                    MoveNext();
+        //    public bool TryReadToken(ref string? tokenName)
+        //    {
+        //        while (true)
+        //        {
+        //            MoveNext();
 
-                    switch (CurrentReader.TokenType)
-                    {
-                        case JsonTokenType.EndObject:
-                            return false;
-                        case JsonTokenType.PropertyName:
-                            tokenName = CurrentReader.GetString();
-                            break;
-                        case JsonTokenType.StartObject:
-                        case JsonTokenType.String:
-                        case JsonTokenType.Number:
-                        case JsonTokenType.True:
-                        case JsonTokenType.False:
-                        case JsonTokenType.Null:
-                            return true;
-                    }
-                }
-            }
+        //            switch (CurrentReader.TokenType)
+        //            {
+        //                case JsonTokenType.EndObject:
+        //                    return false;
+        //                case JsonTokenType.PropertyName:
+        //                    tokenName = CurrentReader.GetString();
+        //                    break;
+        //                case JsonTokenType.StartObject:
+        //                case JsonTokenType.String:
+        //                case JsonTokenType.Number:
+        //                case JsonTokenType.True:
+        //                case JsonTokenType.False:
+        //                case JsonTokenType.Null:
+        //                    return true;
+        //            }
+        //        }
+        //    }
 
-            public void AdvanceToFirstElement()
-            {
-                if (CurrentReader.TokenType == JsonTokenType.PropertyName)
-                {
-                    string? _ = null;
-                    TryReadToken(ref _);
-                }
-            }
-        }
+        //    public void AdvanceToFirstElement()
+        //    {
+        //        if (CurrentReader.TokenType == JsonTokenType.PropertyName)
+        //        {
+        //            string? _ = null;
+        //            TryReadToken(ref _);
+        //        }
+        //    }
+        //}
+
+
+        //public class JsonReaderData
+        //{
+        //    private readonly Stream? _stream;
+        //    private byte[] _buffer;
+        //    private int _positionInBuffer;
+        //    private int _bytesAvailable;
+
+        //    public JsonReaderData(byte[] buffer)
+        //    {
+        //        _buffer = buffer;
+        //        _bytesAvailable = buffer.Length;
+        //    }
+
+        //    public JsonReaderData(Stream stream)
+        //    {
+        //        _stream = stream;
+        //        _buffer = new byte[1];
+        //        ReadBytes(0);
+        //    }
+
+        //    public JsonReaderState ReaderState { get; set; }
+
+        //    public void CaptureState(ref Utf8JsonReaderManager manager)
+        //    {
+        //        _positionInBuffer += (int)manager.CurrentReader.BytesConsumed;
+        //        ReaderState = manager.CurrentReader.CurrentState;
+        //    }
+
+        //    public void ReadBytes(int bytesConsumed)
+        //    {
+        //        Debug.Assert(_stream != null);
+
+        //        var buffer = _buffer;
+        //        var totalConsumed = bytesConsumed + _positionInBuffer;
+        //        if (_bytesAvailable != 0 && totalConsumed < buffer.Length)
+        //        {
+        //            var leftover = buffer.AsSpan(totalConsumed);
+
+        //            if (leftover.Length == buffer.Length)
+        //            {
+        //                Array.Resize(ref buffer, buffer.Length * 2);
+        //            }
+
+        //            leftover.CopyTo(buffer);
+        //            _bytesAvailable = _stream.Read(buffer.AsSpan(leftover.Length)) + leftover.Length;
+        //        }
+        //        else
+        //        {
+        //            _bytesAvailable = _stream.Read(buffer);
+        //        }
+
+        //        _buffer = buffer;
+        //        _positionInBuffer = 0;
+        //    }
+
+        //    public Utf8JsonReader CreateReader() =>
+        //        new(_buffer.AsSpan(_positionInBuffer), isFinalBlock: _bytesAvailable != _buffer.Length, ReaderState);
+        //}
+
 
 
         public class JsonReaderData
@@ -949,6 +1013,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             private byte[] _buffer;
             private int _positionInBuffer;
             private int _bytesAvailable;
+            private JsonReaderState _readerState;
 
             public JsonReaderData(byte[] buffer)
             {
@@ -960,18 +1025,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             {
                 _stream = stream;
                 _buffer = new byte[1];
-                ReadBytes(0);
+                ReadBytes(0, default);
             }
-
-            public JsonReaderState ReaderState { get; set; }
 
             public void CaptureState(ref Utf8JsonReaderManager manager)
             {
                 _positionInBuffer += (int)manager.CurrentReader.BytesConsumed;
-                ReaderState = manager.CurrentReader.CurrentState;
+                _readerState = manager.CurrentReader.CurrentState;
             }
 
-            public void ReadBytes(int bytesConsumed)
+            public Utf8JsonReader ReadBytes(int bytesConsumed, JsonReaderState state)
             {
                 Debug.Assert(_stream != null);
 
@@ -996,18 +1059,38 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                 _buffer = buffer;
                 _positionInBuffer = 0;
+                _readerState = state;
+
+                return CreateReader();
             }
 
             public Utf8JsonReader CreateReader() =>
-                new(_buffer.AsSpan(_positionInBuffer), isFinalBlock: _bytesAvailable != _buffer.Length, ReaderState);
+                new(_buffer.AsSpan(_positionInBuffer), isFinalBlock: _bytesAvailable != _buffer.Length, _readerState);
         }
 
+        public ref struct Utf8JsonReaderManager
+        {
+            public readonly JsonReaderData Data;
+            public Utf8JsonReader CurrentReader;
 
+            public Utf8JsonReaderManager(JsonReaderData data)
+            {
+                Data = data;
+                CurrentReader = data.CreateReader();
+            }
 
+            public JsonTokenType MoveNext()
+            {
+                while (!CurrentReader.Read())
+                {
+                    CurrentReader = Data.ReadBytes((int)CurrentReader.BytesConsumed, CurrentReader.CurrentState);
+                }
 
+                return CurrentReader.TokenType;
+            }
 
-
-
+            public void CaptureState() => Data.CaptureState(ref this);
+        }
 
         private static TEntity? MaterializeJsonEntity2<TEntity>(
             QueryContext queryContext,
@@ -1018,6 +1101,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             where TEntity : class
         {
             // TODO: check for nulls
+
+            var manager = new Utf8JsonReaderManager(jsonReaderData);
+            manager.MoveNext();
+
+            if (manager.CurrentReader.TokenType != JsonTokenType.StartObject)
+            {
+                throw new InvalidOperationException("Invalid token type: " + manager.CurrentReader.TokenType.ToString());
+            }
+
+            manager.CaptureState();
 
             var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
 
@@ -1030,6 +1123,43 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
             //throw new InvalidOperationException(
             //    RelationalStrings.JsonRequiredEntityWithNullJson(typeof(TEntity).Name));
+        }
+
+
+
+
+        private static TResult? MaterializeJsonEntityCollection2<TEntity, TResult>(
+            QueryContext queryContext,
+            object[] keyPropertyValues,
+            JsonReaderData jsonReaderData,
+            INavigationBase navigation,
+            Func<QueryContext, object[], JsonReaderData, TEntity> innerShaper)
+            where TEntity : class
+            where TResult : ICollection<TEntity>
+        {
+            //if (jsonElement.HasValue && jsonElement.Value.ValueKind != JsonValueKind.Null)
+            {
+                var collectionAccessor = navigation.GetCollectionAccessor();
+                var result = (TResult)collectionAccessor!.Create();
+
+                var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
+                Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);
+
+                var manager = new Utf8JsonReaderManager(jsonReaderData);
+                manager.MoveNext();
+                var tokenType = manager.MoveNext();
+                var i = 0;
+                while (tokenType != JsonTokenType.EndArray)
+                {
+                    newKeyPropertyValues[^1] = ++i;
+                    manager.CaptureState();
+                    innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
+                    manager = new Utf8JsonReaderManager(manager.Data);
+                    tokenType = manager.MoveNext();
+                }
+
+                return result;
+            }
         }
 
         private static void IncludeJsonEntityReference2<TIncludingEntity, TIncludedEntity>(
