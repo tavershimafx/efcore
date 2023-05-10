@@ -2023,7 +2023,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                                     readExpressions.Add(
                                         Expression.Block(
-                                            //moveNext,
+                                            moveNext,
                                             captureState,
                                             assignment,
                                             Expression.Empty()));
@@ -2100,22 +2100,43 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                     tokenTypeVariable,
                                     Expression.Constant(JsonTokenType.EndObject));
 
-                                var loopBody = Expression.IfThenElse(
-                                    loopTest,
-                                    Expression.Block(
-                                        Expression.Assign(
-                                            tokenTypeVariable,
-                                            Expression.Call(
-                                                managerVariable,
-                                                Utf8JsonReaderManagerMoveNextMethod)),
+                                var loopBody = Expression.Block(
+                                    Expression.Assign(
+                                        tokenTypeVariable,
+                                        Expression.Call(
+                                            managerVariable,
+                                            Utf8JsonReaderManagerMoveNextMethod)),
+                                    Expression.IfThenElse(
+                                        loopTest,
                                         Expression.Switch(
                                             tokenTypeVariable,
                                             Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
-                                            cases.ToArray())),
-                                    Expression.Break(breakLabel));
+                                            cases.ToArray()),
+                                        Expression.Break(breakLabel)));
+
+
+
+
+
+                                //var loopBody = Expression.IfThenElse(
+                                //    loopTest,
+                                //    Expression.Block(
+                                //        Expression.Assign(
+                                //            tokenTypeVariable,
+                                //            Expression.Call(
+                                //                managerVariable,
+                                //                Utf8JsonReaderManagerMoveNextMethod)),
+                                //        Expression.Switch(
+                                //            tokenTypeVariable,
+                                //            Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
+                                //            cases.ToArray())),
+                                //    Expression.Break(breakLabel));
 
                                 var loop = Expression.Loop(loopBody, breakLabel);
                                 finalBlockExpressions.Add(loop);
+
+                                var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
+                                finalBlockExpressions.Add(finalCaptureState);
 
                                 var entityCtor = jsonEntityTypeInitializerBlock.Expressions[0];
                                 finalBlockExpressions.Add(entityCtor);

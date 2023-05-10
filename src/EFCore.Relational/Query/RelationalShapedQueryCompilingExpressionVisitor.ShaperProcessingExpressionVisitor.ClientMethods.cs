@@ -1184,8 +1184,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             where TResult : ICollection<TEntity>
         {
             var manager = new Utf8JsonReaderManager(jsonReaderData);
-            var tokenType = manager.MoveNext();
+            //var tokenType = manager.MoveNext();
 
+            var tokenType = manager.CurrentReader.TokenType;
             if (tokenType == JsonTokenType.StartArray)
             {
                 var collectionAccessor = navigation.GetCollectionAccessor();
@@ -1208,13 +1209,11 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         var entity = innerShaper(queryContext, newKeyPropertyValues, jsonReaderData);
                         result.Add(entity);
                         manager = new Utf8JsonReaderManager(manager.Data);
-                        tokenType = manager.MoveNext();
 
-                        if (tokenType != JsonTokenType.EndObject)
+                        if (manager.CurrentReader.TokenType != JsonTokenType.EndObject)
                         {
                             throw new InvalidOperationException("expecting end object, got: " + tokenType.ToString());
                         }
-
                     }
                 }
 
