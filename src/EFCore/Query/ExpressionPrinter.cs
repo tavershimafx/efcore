@@ -420,10 +420,14 @@ public class ExpressionPrinter : ExpressionVisitor
                     Append("return ");
                 }
 
-                Visit(blockExpression.Result);
-                if (blockExpression.Result is not (BlockExpression or LoopExpression or SwitchExpression)) 
+                if (blockExpression.Result is not DefaultExpression)
                 {
-                    AppendLine(";");
+                    Visit(blockExpression.Result);
+
+                    if (blockExpression.Result is not (BlockExpression or LoopExpression or SwitchExpression))
+                    {
+                        AppendLine(";");
+                    }
                 }
             }
         }

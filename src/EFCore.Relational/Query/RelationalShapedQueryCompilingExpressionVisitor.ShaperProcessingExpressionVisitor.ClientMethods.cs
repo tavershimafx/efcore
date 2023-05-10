@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
@@ -1101,6 +1102,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 CurrentReader.Skip();
             }
 
+            public JsonTokenType TokenType()
+            {
+                var result = CurrentReader.TokenType;
+
+                return result;
+            }
+
             public void CaptureState() => Data.CaptureState(ref this);
         }
 
@@ -1115,9 +1123,14 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             // TODO: check for nulls
 
             var manager = new Utf8JsonReaderManager(jsonReaderData);
-            var tokentType = manager.MoveNext();
 
-            if (tokentType == JsonTokenType.StartObject)
+            //while (true)
+            //{
+            //    var tokentType2 = manager.MoveNext();
+            //}
+
+
+            if (manager.CurrentReader.TokenType == JsonTokenType.StartObject)
             {
                 manager.CaptureState();
                 var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
@@ -1126,6 +1139,18 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
 
 
+
+
+
+            //var tokentType = manager.MoveNext();
+
+            //if (tokentType == JsonTokenType.StartObject)
+            //{
+            //    manager.CaptureState();
+            //    var result = shaper(queryContext, keyPropertyValues, jsonReaderData);
+
+            //    return result;
+            //}
 
             // todo: check nullability
 
