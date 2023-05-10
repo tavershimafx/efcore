@@ -1197,12 +1197,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                 //tokenType = manager.MoveNext();
 
+                tokenType = manager.MoveNext();
+
                 var i = 0;
                 while (tokenType != JsonTokenType.EndArray)
                 {
                     newKeyPropertyValues[^1] = ++i;
 
-                    tokenType = manager.MoveNext();
                     if (tokenType == JsonTokenType.StartObject)
                     {
                         manager.CaptureState();
@@ -1214,8 +1215,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         {
                             throw new InvalidOperationException("expecting end object, got: " + tokenType.ToString());
                         }
+
+                        tokenType = manager.MoveNext();
                     }
                 }
+
+                //manager.MoveNext();
+                manager.CaptureState();
 
                 return result;
             }

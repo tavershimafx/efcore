@@ -2021,11 +2021,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                         propertyVariable,
                                         innerShaperMapElement.Value);
 
+                                    var managerRecreation = Expression.Assign(
+                                        managerVariable,
+                                        Expression.New(JsonReaderManagerConstructor, _jsonReaderDataParameter));
+
                                     readExpressions.Add(
                                         Expression.Block(
                                             moveNext,
                                             captureState,
                                             assignment,
+                                            managerRecreation,
                                             Expression.Empty()));
 
                                     //navigationAssignmentMap[innerShaperMapElement.Key] = propertyVariable;
