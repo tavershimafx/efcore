@@ -1211,6 +1211,25 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             return base.VisitMethodCall(methodCallExpression);
         }
 
+
+        //        public partial class RelationalShapedQueryCompilingExpressionVisitor
+        //{
+        //    private sealed partial class ShaperProcessingExpressionVisitor : ExpressionVisitor
+
+        private static readonly MethodInfo InverseCollectionFixupMethod
+            = typeof(ShaperProcessingExpressionVisitor).GetMethods(BindingFlags.NonPublic | BindingFlags.Static).Single(x => x.Name == nameof(InverseCollectionFixup))!;
+
+        //private void InverseCollectionFixup<TCollectionElement, TEntity>(
+        //    ICollection<TCollectionElement> collection,
+        //    TEntity entity,
+        //    Action<TCollectionElement, TEntity> elementFixup)
+        //{
+        //    foreach (var collectionElement in collection)
+        //    {
+        //        elementFixup(collectionElement, entity);
+        //    }
+        //}
+
         private Expression CreateJsonShapers2(
             IEntityType entityType,
             bool nullable,
@@ -1240,15 +1259,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             // TODO: need to find instance 
 
             var innerShapersMap = new Dictionary<string, Expression>();
+            var innerFixupMap = new Dictionary<string, LambdaExpression>();
             foreach (var ownedNavigation in entityType.GetNavigations().Where(
                 n => n.TargetEntityType.IsMappedToJson() && n.ForeignKey.IsOwnership && n == n.ForeignKey.PrincipalToDependent))
             {
-                var fixup = GenerateFixup(
-                    ownedNavigation.DeclaringEntityType.ClrType,
-                    ownedNavigation.TargetEntityType.ClrType,
-                    ownedNavigation,
-                    ownedNavigation.Inverse);
-
                 // we need to build entity shapers and fixup separately
                 // we don't know the order in which data comes, so we need to read through everything
                 // before we can do fixup safely
@@ -1266,6 +1280,87 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 var navigationJsonPropertyName = ownedNavigation.TargetEntityType.GetJsonPropertyName()!;
 
                 innerShapersMap[navigationJsonPropertyName] = innerShaper;
+
+                if (ownedNavigation.IsCollection)
+                {
+                    var shaperEntityParameter = Expression.Parameter(ownedNavigation.DeclaringEntityType.ClrType);
+                    var shaperCollectionParameter = Expression.Parameter(ownedNavigation.ClrType);
+                    var expressions = new List<Expression>();
+
+                    if (!ownedNavigation.IsShadowProperty())
+                    {
+                        expressions.Add(
+                            shaperEntityParameter.MakeMemberAccess(ownedNavigation.GetMemberInfo(forMaterialization: true, forSet: true)).Assign(shaperCollectionParameter));
+                    }
+
+                    if (ownedNavigation.Inverse is INavigation inverseNavigation
+                        && !inverseNavigation.IsShadowProperty())
+                    {
+                        //for (var i = 0; i < prm.Count; i++)
+                        //{
+                        //    prm[i].Parent = instance
+                        //}
+
+                        var innerFixupCollectionElementParameter = Expression.Parameter(inverseNavigation.DeclaringEntityType.ClrType);
+                        var innerFixupParentParameter = Expression.Parameter(inverseNavigation.TargetEntityType.ClrType);
+
+                        var elementFixup = Expression.Lambda(
+                            Expression.Block(
+                                typeof(void), 
+                                AssignReferenceNavigation(
+                                    innerFixupCollectionElementParameter,
+                                    innerFixupParentParameter,
+                                    inverseNavigation)),
+                                    innerFixupCollectionElementParameter,
+                                    innerFixupParentParameter);
+
+                        expressions.Add(
+                            Expression.Call(
+                                InverseCollectionFixupMethod.MakeGenericMethod(
+                                    inverseNavigation.DeclaringEntityType.ClrType,
+                                    inverseNavigation.TargetEntityType.ClrType),
+                                shaperCollectionParameter,
+                                shaperEntityParameter,
+                                elementFixup));
+
+                        //var initAssign = Expression.Assign(loopVar, initValue);
+                        //var breakLabel = Expression.Label("forLoopBreak");
+
+                        //var loop = Expression.Block(new[] { loopVar },
+                        //    initAssign,
+                        //    Expression.Loop(
+                        //        Expression.IfThenElse(
+
+
+
+                        //            condition,
+                        //            Expression.Block(
+                        //                loopContent,
+                        //                increment
+                        //            ),
+                        //            Expression.Break(breakLabel)
+                        //        ),
+                        //    breakLabel)
+                        //);
+                    }
+
+                    var fixup = Expression.Lambda(
+                        Expression.Block(typeof(void), expressions),
+                        shaperEntityParameter,
+                        shaperCollectionParameter);
+
+                    innerFixupMap[navigationJsonPropertyName] = fixup;
+                }
+                else
+                {
+                    var fixup = GenerateReferenceFixupForJson(
+                        ownedNavigation.DeclaringEntityType.ClrType,
+                        ownedNavigation.TargetEntityType.ClrType,
+                        ownedNavigation,
+                        ownedNavigation.Inverse);
+
+                    innerFixupMap[navigationJsonPropertyName] = fixup;
+                }
             }
 
             //var entityShaperExpression = new RelationalEntityShaperExpression(
@@ -1278,7 +1373,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             var rewrittenEntityShaperMaterializer = new JsonEntityMaterializerRewriter2(
                 entityShaperExpression.EntityType,
                 jsonReaderDataShaperLambdaParameter,
-                innerShapersMap).Rewrite(entityShaperMaterializer);
+                innerShapersMap, innerFixupMap).Rewrite(entityShaperMaterializer);
 
             var entityShaperMaterializerVariable = Expression.Variable(entityShaperMaterializer.Type);
             shaperBlockVariables.Add(entityShaperMaterializerVariable);
@@ -1691,11 +1786,12 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             };
 
             public static bool ValueTextEquals(ref Utf8JsonReaderManager manager, JsonEncodedText json)
-    => manager.CurrentReader.ValueTextEquals(json.EncodedUtf8Bytes);
+                => manager.CurrentReader.ValueTextEquals(json.EncodedUtf8Bytes);
 
             private readonly IEntityType? _entityType;
             private readonly ParameterExpression _jsonReaderDataParameter;
             private readonly IDictionary<string, Expression> _innerShapersMap;
+            private readonly IDictionary<string, LambdaExpression> _innerFixupMap;
             private bool _found = false;
 
             // TODO: move it to common place somewhere
@@ -1730,14 +1826,26 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 = typeof(Utf8JsonReaderManager).GetMethod(nameof(Utf8JsonReaderManager.TokenType), new Type[] { })!;
 
 
+
+
+
+
+
+
+            // keep track which variable corresponds to which navigation - we need that info for fixup
+            // which happens at the end (after we read everything to guarantee that we can instantiate the entity 
+            private readonly Dictionary<string, ParameterExpression> _navigationVariableMap = new();
+
             public JsonEntityMaterializerRewriter2(
                 IEntityType entityType,
                 ParameterExpression jsonReaderDataParameter,
-                IDictionary<string, Expression> innerShapersMap)
+                IDictionary<string, Expression> innerShapersMap,
+                IDictionary<string, LambdaExpression> innerFixupMap)
             {
                 _entityType = entityType;
                 _jsonReaderDataParameter = jsonReaderDataParameter;
                 _innerShapersMap = innerShapersMap;
+                _innerFixupMap = innerFixupMap;
             }
 
             public BlockExpression Rewrite(BlockExpression jsonEntityShaperMaterializer)
@@ -2009,6 +2117,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                     var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
                                     finalBlockVariables.Add(propertyVariable);
 
+                                    _navigationVariableMap[innerShaperMapElement.Key] = propertyVariable;
+
                                     var moveNext = Expression.Call(
                                         managerVariable,
                                         Utf8JsonReaderManagerMoveNextMethod);
@@ -2032,6 +2142,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                             assignment,
                                             managerRecreation,
                                             Expression.Empty()));
+
 
                                     //navigationAssignmentMap[innerShaperMapElement.Key] = propertyVariable;
 
@@ -2154,13 +2265,14 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                         Expression.Assign(propertyAssignmentMapElement.Key, propertyAssignmentMapElement.Value));
                                 }
 
-                                // also for navs
-
-
-
-                               // finalBlockExpressions.Add()
-
-
+                                foreach (var fixup in _innerFixupMap)
+                                {
+                                    finalBlockExpressions.Add(
+                                        Expression.Invoke(
+                                            fixup.Value,
+                                            jsonEntityTypeVariable,
+                                            _navigationVariableMap[fixup.Key]));
+                                }
 
                                 _found = true;
 
@@ -2728,6 +2840,82 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             }
 
             return Expression.Lambda(Expression.Block(typeof(void), expressions), entityParameter, relatedEntityParameter);
+        }
+
+        private static LambdaExpression GenerateReferenceFixupForJson(
+            Type entityType,
+            Type relatedEntityType,
+            INavigationBase navigation,
+            INavigationBase? inverseNavigation)
+        {
+            var entityParameter = Expression.Parameter(entityType);
+            var relatedEntityParameter = Expression.Parameter(relatedEntityType);
+            var expressions = new List<Expression>();
+
+            if (navigation.IsCollection)
+            {
+                throw new InvalidOperationException("cleaup this!");
+                //if (!navigation.IsShadowProperty())
+                //{
+                //    expressions.Add(
+                //        entityParameter.MakeMemberAccess(
+                //            navigation.GetMemberInfo(
+                //                forMaterialization: true,
+                //                forSet: true))
+                //        .Assign(relatedEntityParameter));
+                //}
+
+                //if (inverseNavigation != null
+                //    && !inverseNavigation.IsShadowProperty())
+                //{
+                //    // TODO: foreach, add everything
+                //}
+            }
+            else
+            {
+                if (!navigation.IsShadowProperty())
+                {
+                    expressions.Add(
+                        AssignReferenceNavigation(
+                            entityParameter,
+                            relatedEntityParameter,
+                            navigation));
+                }
+
+                if (inverseNavigation != null
+                    && !inverseNavigation.IsShadowProperty())
+                {
+                    expressions.Add(
+                        AssignReferenceNavigation(
+                            relatedEntityParameter,
+                            entityParameter,
+                            inverseNavigation));
+                }
+            }
+
+            return Expression.Lambda(Expression.Block(typeof(void), expressions), entityParameter, relatedEntityParameter);
+        }
+
+        private static Expression AddToCollectionNavigationForJson(
+            ParameterExpression entity,
+            ParameterExpression relatedEntity,
+            INavigationBase navigation)
+            => Expression.Call(
+                Expression.Constant(navigation.GetCollectionAccessor()),
+                CollectionAccessorAddMethodInfo,
+                entity,
+                relatedEntity,
+                Expression.Constant(true));
+
+        private static void InverseCollectionFixup<TCollectionElement, TEntity>(
+            ICollection<TCollectionElement> collection,
+            TEntity entity,
+            Action<TCollectionElement, TEntity> elementFixup)
+        {
+            foreach (var collectionElement in collection)
+            {
+                elementFixup(collectionElement, entity);
+            }
         }
 
         private static Expression AssignReferenceNavigation(

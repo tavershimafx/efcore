@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Internal;
 using Microsoft.EntityFrameworkCore.Query.Internal;
@@ -71,8 +70,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private static readonly MethodInfo ExtractJsonPropertyMethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(ExtractJsonProperty))!;
 
-
-
         private static readonly MethodInfo MaterializeJsonEntity2MethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(MaterializeJsonEntity2))!;
 
@@ -84,11 +81,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
         private static readonly MethodInfo IncludeJsonEntityCollection2MethodInfo
             = typeof(ShaperProcessingExpressionVisitor).GetTypeInfo().GetDeclaredMethod(nameof(IncludeJsonEntityCollection2))!;
-
-
-
-
-
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static TValue ThrowReadValueException<TValue>(
