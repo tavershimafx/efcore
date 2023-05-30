@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.SqlServer.Infrastructure.Internal;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Identity.Client;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
 using Newtonsoft.Json.Bson;
@@ -10735,6 +10736,127 @@ WHERE [e].[TimeSpan] = @__parameter_0
     }
 
     #endregion
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public class MyRoot
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public List<MyBranchCollection> Collection { get; set; }
+        public MyBranchReference Reference { get; set; }
+    }
+
+    public class MyBranchCollection
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int ParentId { get; set; }
+    }
+
+
+    public class MyBranchReference
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public int ParentId { get; set; }
+    }
+
+
+    [ConditionalFact]
+    public void Taki_maly_test()
+    {
+        using (var ctx = new MyContext())
+        {
+            ctx.Database.EnsureDeleted();
+            ctx.Database.EnsureCreated();
+
+            var c11 = new MyBranchCollection { Name = "c11" };
+            var c12 = new MyBranchCollection { Name = "c12" };
+            var c13 = new MyBranchCollection { Name = "c13" };
+            var c21 = new MyBranchCollection { Name = "c21" };
+            var c22 = new MyBranchCollection { Name = "c22" };
+            var r1 = new MyBranchReference { Name = "r1" };
+            var r2 = new MyBranchReference { Name = "r2" };
+
+            var e1 = new MyRoot { Name = "e1", Reference = r1, Collection = new List<MyBranchCollection> { c11, c12, c13 } };
+            var e2 = new MyRoot { Name = "e2", Reference = r2, Collection = new List<MyBranchCollection> { c21, c22, } };
+
+            ctx.Roots.AddRange(e1, e2);
+            ctx.SaveChanges();
+        }
+
+        using (var ctx = new MyContext())
+        {
+            var query = ctx.Roots
+                .AsNoTracking()
+                //.Include(x => x.Reference).Include(x => x.Collection)
+                //.Select(x => new { c1 = x.Collection, c2 = x.Collection, r1 = x.Reference, r2 = x.Reference, x })
+                .Select(x => new { r1 = x.Reference, r2 = x.Reference, })
+                .ToList();
+
+            Console.WriteLine(query);
+        }
+    }
+
+    public class MyContext : DbContext
+    {
+        public DbSet<MyRoot> Roots { get; set; }
+        public DbSet<MyBranchCollection> CollectionBranches { get; set; }
+        public DbSet<MyBranchReference> ReferenceBranches { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyRoot>().HasOne(x => x.Reference).WithOne().HasForeignKey<MyBranchReference>(x => x.ParentId);
+            modelBuilder.Entity<MyRoot>().HasMany(x => x.Collection).WithOne().HasForeignKey(x => x.ParentId);
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     [ConditionalFact]

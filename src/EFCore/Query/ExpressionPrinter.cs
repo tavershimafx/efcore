@@ -469,6 +469,13 @@ public class ExpressionPrinter : ExpressionVisitor
 
         void PrintValue(object? value)
         {
+            if (value is char charValue && charValue == 0)
+            {
+                _stringBuilder.Append("default(char)");
+
+                return;
+            }
+
             if (value is IEnumerable enumerable
                 && !(value is string))
             {
