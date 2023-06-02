@@ -2611,14 +2611,6 @@ public sealed partial class SelectExpression : TableExpressionBase
         _projectionMapping = projectionMapping;
     }
 
-    private static ITableBase? GetTableMetadata(TableExpressionBase tableExpression)
-        => tableExpression switch
-        {
-            ITableBasedExpression tbe => tbe.Table,
-            JoinExpressionBase jeb => GetTableMetadata(jeb.Table),
-            _ => null,
-        };
-
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -2871,6 +2863,15 @@ public sealed partial class SelectExpression : TableExpressionBase
 
             return propertyExpressions;
         }
+
+        static ITableBase? GetTableMetadata(TableExpressionBase tableExpression)
+            => tableExpression switch
+            {
+                ITableBasedExpression tbe => tbe.Table,
+                JoinExpressionBase jeb => GetTableMetadata(jeb.Table),
+                _ => null,
+            };
+
 
         static TableExpressionBase FindRootTableExpressionForColumn(TableExpressionBase table, string columnName)
         {
