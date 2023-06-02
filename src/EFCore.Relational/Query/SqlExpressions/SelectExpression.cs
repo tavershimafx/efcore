@@ -2611,6 +2611,14 @@ public sealed partial class SelectExpression : TableExpressionBase
         _projectionMapping = projectionMapping;
     }
 
+    private static ITableBase? GetTableMetadata(TableExpressionBase tableExpression)
+        => tableExpression switch
+        {
+            ITableBasedExpression tbe => tbe.Table,
+            JoinExpressionBase jeb => GetTableMetadata(jeb.Table),
+            _ => null,
+        };
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -2694,7 +2702,7 @@ public sealed partial class SelectExpression : TableExpressionBase
 
             var principalTables = principalMappings.ToList();
             var dependentTables = entityType.GetViewOrTableMappings().Select(e => e.Table).ToList();
-            var baseTableIndex = selectExpression._tables.FindIndex(teb => ReferenceEquals(teb, identifyingColumn.Table));
+            var baseTableIndex = selectExpression._tables.FindIndex(teb => ReferenceEquals(GetTableMetadata(teb), principalTables[0]));
             var dependentMainTable = dependentTables[0];
             var tableReferenceExpressionMap = new Dictionary<ITableBase, TableReferenceExpression>();
             var keyProperties = entityType.FindPrimaryKey()!.Properties;

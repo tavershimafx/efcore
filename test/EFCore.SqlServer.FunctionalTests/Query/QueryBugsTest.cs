@@ -10731,6 +10731,97 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+
+
+
+
+
+
+#nullable enable
+
+    [ConditionalFact]
+    public void Test30735()
+    {
+        using var ctx = new MyContext();
+        //ctx.Database.EnsureDeleted();
+        //ctx.Database.EnsureCreated();
+
+        ctx.Persons!.ToList();
+    }
+
+    public class MyContext : DbContext
+    {
+        public DbSet<Person>? Persons { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.HasDefaultSchema("dbo");
+
+            modelBuilder.Entity<Contact>().ToTable("tContact");
+            modelBuilder.Entity<Contact>().HasKey(x => x.Id);
+            modelBuilder.Entity<Contact>().Property(x => x.Id);
+            modelBuilder.Entity<Contact>().Property(x => x.CreateDate).HasDefaultValueSql("GETDATE()").IsRequired();
+
+            modelBuilder.Entity<Person>().HasBaseType<Contact>();
+            modelBuilder.Entity<Person>().ToTable("tPerson", tableBuilder => tableBuilder.Property(p => p.Id).HasColumnName("Fk_Contact_Id"));
+            modelBuilder.Entity<Person>().OwnsOne(x => x.Privacy, builder =>
+            {
+                builder.ToTable("tDataPrivacy");
+                builder.Property<int>("ContactId").HasColumnName("Fk_Contact_Id");
+                builder.HasKey("ContactId").HasName("Pk_DataPrivacy_Contact_Id");
+                builder.WithOwner("Contact").HasPrincipalKey("Id").HasForeignKey("ContactId");
+            });
+
+            modelBuilder.Entity<Person>().Property(x => x.LastName).HasMaxLength(200).IsUnicode();
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro30735;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+    public class Contact
+    {
+        public Contact()
+        {
+            CreateDate = DateTime.Now;
+        }
+
+        public int Id { get; set; }
+        public DateTime CreateDate { get; set; }
+    }
+
+    public class DataPrivacy
+    {
+        public Contact Contact { get; } = new Contact();
+        public bool Accepted { get; set; } = false;
+        public DateTime? AcceptedOn { get; set; }
+    }
+
+    public class Person : Contact
+    {
+        public string LastName { get; set; } = string.Empty;
+        public DataPrivacy Privacy { get; set; } = new();
+    }
+
+#nullable disable
+
+
+
+
+
+
+
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 
