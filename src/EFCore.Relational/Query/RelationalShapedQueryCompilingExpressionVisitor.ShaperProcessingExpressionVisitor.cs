@@ -125,6 +125,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
             _jsonValueBufferParameterMapping = new();
 
+        private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
+            _jsonValueBufferToJsonReaderDataAndKeyValuesParameterMapping = new();
+
         private readonly Dictionary<ParameterExpression, ParameterExpression>
             _jsonValueBufferParameterMapping2 = new();
 
@@ -133,6 +136,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
         private readonly Dictionary<ParameterExpression, ParameterExpression>
             _jsonMaterializationContextParameterMapping2 = new();
+
+        private readonly Dictionary<ParameterExpression, (ParameterExpression, ParameterExpression)>
+            _jsonMaterializationContextToJsonReaderDataAndKeyValuesParameterMapping = new();
 
         /// <summary>
         ///     Cache for the JsonElement values we have generated - storing variables that the JsonElements are assigned to
@@ -442,10 +448,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 }
 
                 if (newExpression.Arguments[0] is ParameterExpression valueBufferParameter
-                    && _jsonValueBufferParameterMapping2.ContainsKey(valueBufferParameter))
+                    && _jsonValueBufferToJsonReaderDataAndKeyValuesParameterMapping.ContainsKey(valueBufferParameter))
                 {
-                    _jsonMaterializationContextParameterMapping2[parameterExpression] =
-                        _jsonValueBufferParameterMapping2[valueBufferParameter];
+                    _jsonMaterializationContextToJsonReaderDataAndKeyValuesParameterMapping[parameterExpression] =
+                        _jsonValueBufferToJsonReaderDataAndKeyValuesParameterMapping[valueBufferParameter];
 
                     var updatedExpression = newExpression.Update(
                         new[] { Expression.Constant(ValueBuffer.Empty), newExpression.Arguments[1] });
@@ -454,16 +460,28 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 }
 
                 //if (newExpression.Arguments[0] is ParameterExpression valueBufferParameter
-                //    && _jsonValueBufferParameterMapping.ContainsKey(valueBufferParameter))
+                //    && _jsonValueBufferParameterMapping2.ContainsKey(valueBufferParameter))
                 //{
-                //    _jsonMaterializationContextParameterMapping[parameterExpression] =
-                //        _jsonValueBufferParameterMapping[valueBufferParameter];
+                //    _jsonMaterializationContextParameterMapping2[parameterExpression] =
+                //        _jsonValueBufferParameterMapping2[valueBufferParameter];
 
                 //    var updatedExpression = newExpression.Update(
                 //        new[] { Expression.Constant(ValueBuffer.Empty), newExpression.Arguments[1] });
 
                 //    return Expression.Assign(binaryExpression.Left, updatedExpression);
                 //}
+
+                ////if (newExpression.Arguments[0] is ParameterExpression valueBufferParameter
+                ////    && _jsonValueBufferParameterMapping.ContainsKey(valueBufferParameter))
+                ////{
+                ////    _jsonMaterializationContextParameterMapping[parameterExpression] =
+                ////        _jsonValueBufferParameterMapping[valueBufferParameter];
+
+                ////    var updatedExpression = newExpression.Update(
+                ////        new[] { Expression.Constant(ValueBuffer.Empty), newExpression.Arguments[1] });
+
+                ////    return Expression.Assign(binaryExpression.Left, updatedExpression);
+                ////}
             }
 
             if (binaryExpression.NodeType == ExpressionType.Assign
@@ -472,6 +490,18 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 && fieldInfo.IsInitOnly)
             {
                 return memberExpression.Assign(Visit(binaryExpression.Right));
+            }
+
+
+            if (binaryExpression.NodeType == ExpressionType.Assign
+                && binaryExpression.Left is ParameterExpression parameterExpression2
+                && parameterExpression2.Type == typeof(Utf8JsonReaderManager))
+            {
+
+                // TODO: this is where we create local json manager for the entity materializer - we need to preserve this info
+                // so that we know which jsonmanager parameter to use when we replace dummy ValueBufferTryReadValue with the correct
+                // code that reads Json element value from the json stream (using json manager and underlying json reader data)
+                throw new InvalidOperationException("gfgfgf");
             }
 
             return base.VisitBinary(binaryExpression);
@@ -1149,6 +1179,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 var property = methodCallExpression.Arguments[2].GetConstantValue<IProperty?>();
                 var mappingParameter = (ParameterExpression)((MethodCallExpression)methodCallExpression.Arguments[0]).Object!;
 
+
+
+                if (_jsonMaterializationContextToJsonReaderDataAndKeyValuesParameterMapping.ContainsKey(mappingParameter))
+                {
+                    throw new InvalidOperationException("start here");
+                }
+
                 if (_jsonMaterializationContextParameterMapping2.ContainsKey(mappingParameter))
                 {
                     var keyPropertyValuesParameter = _jsonMaterializationContextParameterMapping2[mappingParameter];
@@ -1247,6 +1284,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             var valueBufferParameter = Expression.Parameter(typeof(ValueBuffer));
 
             _jsonValueBufferParameterMapping2[valueBufferParameter] = keyValuesShaperLambdaParameter;
+
+            _jsonValueBufferToJsonReaderDataAndKeyValuesParameterMapping[valueBufferParameter] = (jsonReaderDataShaperLambdaParameter, keyValuesShaperLambdaParameter);
 
             var entityShaperExpression = new RelationalEntityShaperExpression(
                 entityType,
