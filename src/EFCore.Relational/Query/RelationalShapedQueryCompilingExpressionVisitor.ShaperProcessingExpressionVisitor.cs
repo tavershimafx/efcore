@@ -2079,146 +2079,154 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                             managerVariable,
                                             Utf8JsonReaderManagerMoveNextMethod);
 
-                                        //// TODO: re-use?
-                                        //var moveNext2 = Expression.Call(
-                                        //    managerVariable,
-                                        //    Utf8JsonReaderManagerMoveNextMethod);
+                                        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                                        var assignment = Expression.Assign(
+                                            propertyVariable,
+                                            propertyAssignment.Right);
 
-                                        if (property.GetTypeMapping().Converter is ValueConverter valueConverter)
-                                        {
-                                            var propertyProviderClrType = valueConverter.ProviderClrType;
-                                            if (property.ClrType.IsNullableType() && !valueConverter.ConvertsNulls)
-                                            {
-                                                var tempVariable = Expression.Variable(propertyProviderClrType.MakeNullable());
+                                        readExpressions.Add(
+                                            Expression.Block(
+                                                moveNext,
+                                                assignment,
+                                                Expression.Empty()));
 
-                                                var jsonManagerValueRead = Expression.Call(
-                                                    Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                    GetXMethods[propertyProviderClrType]);
+                                        //if (property.GetTypeMapping().Converter is ValueConverter valueConverter)
+                                        //{
+                                        //    var propertyProviderClrType = valueConverter.ProviderClrType;
+                                        //    if (property.ClrType.IsNullableType() && !valueConverter.ConvertsNulls)
+                                        //    {
+                                        //        var tempVariable = Expression.Variable(propertyProviderClrType.MakeNullable());
 
-                                                var tempAssignment = Expression.Assign(
-                                                    tempVariable,
-                                                    tempVariable.Type != jsonManagerValueRead.Type
-                                                        ? Expression.Convert(
-                                                            jsonManagerValueRead,
-                                                            tempVariable.Type)
-                                                        : jsonManagerValueRead);
+                                        //        var jsonManagerValueRead = Expression.Call(
+                                        //            Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //            GetXMethods[propertyProviderClrType]);
 
-                                                //var tempAssignment = Expression.Assign(
-                                                //    tempVariable,
-                                                //    Expression.Call(
-                                                //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                //        GetXMethods[propertyProviderClrType]));
+                                        //        var tempAssignment = Expression.Assign(
+                                        //            tempVariable,
+                                        //            tempVariable.Type != jsonManagerValueRead.Type
+                                        //                ? Expression.Convert(
+                                        //                    jsonManagerValueRead,
+                                        //                    tempVariable.Type)
+                                        //                : jsonManagerValueRead);
+
+                                        //        //var tempAssignment = Expression.Assign(
+                                        //        //    tempVariable,
+                                        //        //    Expression.Call(
+                                        //        //        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //        //        GetXMethods[propertyProviderClrType]));
 
 
 
-                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
-                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
-                                                    tempVariable.Type.IsNullableValueType()
-                                                        ? Expression.Property(tempVariable, nameof(Nullable<int>.Value))
-                                                        : tempVariable,
-                                                    valueConverter.ConvertFromProviderExpression.Body);
+                                        //        var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                        //            valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                        //            tempVariable.Type.IsNullableValueType()
+                                        //                ? Expression.Property(tempVariable, nameof(Nullable<int>.Value))
+                                        //                : tempVariable,
+                                        //            valueConverter.ConvertFromProviderExpression.Body);
 
-                                                // TODO: improve this - see what we do in normal reader generating code
-                                                var assignment = Expression.Assign(
-                                                    propertyVariable,
-                                                    Expression.Condition(
-                                                        Expression.NotEqual(tempVariable, Expression.Constant(null, tempVariable.Type)),
-                                                        propertyVariable.Type != readPropertyValue.Type
-                                                            ? Expression.Convert(readPropertyValue, propertyVariable.Type)
-                                                            : readPropertyValue,
-                                                        Expression.Constant(null, propertyVariable.Type)));
+                                        //        // TODO: improve this - see what we do in normal reader generating code
+                                        //        var assignment = Expression.Assign(
+                                        //            propertyVariable,
+                                        //            Expression.Condition(
+                                        //                Expression.NotEqual(tempVariable, Expression.Constant(null, tempVariable.Type)),
+                                        //                propertyVariable.Type != readPropertyValue.Type
+                                        //                    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                        //                    : readPropertyValue,
+                                        //                Expression.Constant(null, propertyVariable.Type)));
 
-                                                    //propertyVariable.Type != readPropertyValue.Type
-                                                    //    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
-                                                    //    : readPropertyValue); ;
+                                        //            //propertyVariable.Type != readPropertyValue.Type
+                                        //            //    ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                        //            //    : readPropertyValue); ;
 
-                                                readExpressions.Add(
-                                                    Expression.Block(
-                                                        new List<ParameterExpression> { tempVariable },
-                                                        new List<Expression>
-                                                        {
-                                                            moveNext,
-                                                            tempAssignment,
-                                                            assignment,
-                                                            //moveNext2,
-                                                            Expression.Empty()
-                                                        }));
-                                            }
-                                            else
-                                            {
-                                                var readPropertyValue = ReplacingExpressionVisitor.Replace(
-                                                    valueConverter.ConvertFromProviderExpression.Parameters[0],
-                                                    Expression.Call(
-                                                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                        GetXMethods[propertyProviderClrType]),
-                                                    valueConverter.ConvertFromProviderExpression.Body);
+                                        //        readExpressions.Add(
+                                        //            Expression.Block(
+                                        //                new List<ParameterExpression> { tempVariable },
+                                        //                new List<Expression>
+                                        //                {
+                                        //                    moveNext,
+                                        //                    tempAssignment,
+                                        //                    assignment,
+                                        //                    //moveNext2,
+                                        //                    Expression.Empty()
+                                        //                }));
+                                        //    }
+                                        //    else
+                                        //    {
+                                        //        var readPropertyValue = ReplacingExpressionVisitor.Replace(
+                                        //            valueConverter.ConvertFromProviderExpression.Parameters[0],
+                                        //            Expression.Call(
+                                        //                Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //                GetXMethods[propertyProviderClrType]),
+                                        //            valueConverter.ConvertFromProviderExpression.Body);
 
-                                                // TODO: improve this - see what we do in normal reader generating code
-                                                var assignment = Expression.Assign(
-                                                    propertyVariable,
-                                                    propertyVariable.Type != readPropertyValue.Type
-                                                        ? Expression.Convert(readPropertyValue, propertyVariable.Type)
-                                                        : readPropertyValue);
+                                        //        // TODO: improve this - see what we do in normal reader generating code
+                                        //        var assignment = Expression.Assign(
+                                        //            propertyVariable,
+                                        //            propertyVariable.Type != readPropertyValue.Type
+                                        //                ? Expression.Convert(readPropertyValue, propertyVariable.Type)
+                                        //                : readPropertyValue);
 
-                                                readExpressions.Add(
-                                                    Expression.Block(
-                                                        moveNext,
-                                                        assignment,
-                                                        //moveNext2,
-                                                        Expression.Empty()));
-                                            }
-                                        }
-                                        else
-                                        {
-                                            if (property.ClrType.UnwrapNullableType() == typeof(TimeSpan))
-                                            {
-                                                var parseMethod = typeof(TimeSpan).GetRuntimeMethod(nameof(TimeSpan.Parse), new[] { typeof(string) })!;
+                                        //        readExpressions.Add(
+                                        //            Expression.Block(
+                                        //                moveNext,
+                                        //                assignment,
+                                        //                Expression.Empty()));
+                                        //    }
+                                        //}
+                                        //else
+                                        //{
+                                        //    if (property.ClrType.UnwrapNullableType() == typeof(TimeSpan))
+                                        //    {
+                                        //        var parseMethod = typeof(TimeSpan).GetRuntimeMethod(nameof(TimeSpan.Parse), new[] { typeof(string) })!;
 
-                                                var assignment = Expression.Assign(
-                                                    propertyVariable,
-                                                    propertyVariable.Type != property.ClrType.UnwrapNullableType()
-                                                        ? Expression.Convert(
-                                                            Expression.Call(
-                                                                parseMethod,
-                                                                Expression.Call(
-                                                                    Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                                    GetXMethods[typeof(string)])),
-                                                                propertyVariable.Type)
-                                                        : Expression.Call(
-                                                            parseMethod,
-                                                            Expression.Call(
-                                                                Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                                GetXMethods[typeof(string)])));
+                                        //        var assignment = Expression.Assign(
+                                        //            propertyVariable,
+                                        //            propertyVariable.Type != property.ClrType.UnwrapNullableType()
+                                        //                ? Expression.Convert(
+                                        //                    Expression.Call(
+                                        //                        parseMethod,
+                                        //                        Expression.Call(
+                                        //                            Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //                            GetXMethods[typeof(string)])),
+                                        //                        propertyVariable.Type)
+                                        //                : Expression.Call(
+                                        //                    parseMethod,
+                                        //                    Expression.Call(
+                                        //                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //                        GetXMethods[typeof(string)])));
 
-                                                readExpressions.Add(
-                                                    Expression.Block(
-                                                        moveNext,
-                                                        assignment,
-                                                        //moveNext2,
-                                                        Expression.Empty()));
-                                            }
-                                            else
-                                            {
-                                                var assignment = Expression.Assign(
-                                                    propertyVariable,
-                                                    propertyVariable.Type != property.ClrType.UnwrapNullableType()
-                                                        ? Expression.Convert(
-                                                            Expression.Call(
-                                                                Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                                GetXMethods[property.ClrType.UnwrapNullableType()]),
-                                                            propertyVariable.Type)
-                                                        : Expression.Call(
-                                                            Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
-                                                            GetXMethods[property.ClrType.UnwrapNullableType()]));
+                                        //        readExpressions.Add(
+                                        //            Expression.Block(
+                                        //                moveNext,
+                                        //                assignment,
+                                        //                Expression.Empty()));
+                                        //    }
+                                        //    else
+                                        //    {
+                                        //        //// do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                                        //        //var assignment = Expression.Assign(
+                                        //        //    propertyVariable,
+                                        //        //    propertyAssignment.Right);
 
-                                                readExpressions.Add(
-                                                    Expression.Block(
-                                                        moveNext,
-                                                        assignment,
-                                                        //moveNext2,
-                                                        Expression.Empty()));
-                                            }
-                                        }
+                                        //        var assignment = Expression.Assign(
+                                        //            propertyVariable,
+                                        //            propertyVariable.Type != property.ClrType.UnwrapNullableType()
+                                        //                ? Expression.Convert(
+                                        //                    Expression.Call(
+                                        //                        Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //                        GetXMethods[property.ClrType.UnwrapNullableType()]),
+                                        //                    propertyVariable.Type)
+                                        //                : Expression.Call(
+                                        //                    Expression.Field(managerVariable, Utf8JsonReaderManagerCurrentReaderField),
+                                        //                    GetXMethods[property.ClrType.UnwrapNullableType()]));
+
+                                        //        readExpressions.Add(
+                                        //            Expression.Block(
+                                        //                moveNext,
+                                        //                assignment,
+                                        //                Expression.Empty()));
+                                        //    }
+                                        //}
 
                                         propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
                                     }
