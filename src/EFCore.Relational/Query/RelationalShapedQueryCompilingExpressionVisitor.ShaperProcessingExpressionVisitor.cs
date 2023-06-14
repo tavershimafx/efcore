@@ -2790,17 +2790,17 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             keyProperty),
                         typeof(object));
                 }
-                //else
-                //{
-                //    // otherwise it must be non-constant array access and we stored it's projection index
-                //    // extract the value from the projection (or the cache if we used it before)
-                //    var collectionElementAccessParameter = ExtractAndCacheNonConstantJsonArrayElementAccessValue(
-                //        jsonProjectionInfo.KeyAccessInfo[i].KeyProjectionIndex!.Value);
+                else
+                {
+                    // otherwise it must be non-constant array access and we stored it's projection index
+                    // extract the value from the projection (or the cache if we used it before)
+                    var collectionElementAccessParameter = ExtractAndCacheNonConstantJsonArrayElementAccessValue(
+                        jsonProjectionInfo.KeyAccessInfo[i].KeyProjectionIndex!.Value);
 
-                //    keyValues[i] = Expression.Convert(
-                //        Expression.Add(collectionElementAccessParameter, Expression.Constant(1, typeof(int?))),
-                //        typeof(object));
-                //}
+                    keyValues[i] = Expression.Convert(
+                        Expression.Add(collectionElementAccessParameter, Expression.Constant(1, typeof(int?))),
+                        typeof(object));
+                }
             }
 
             // create key values for initial entity
@@ -2813,6 +2813,34 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             _expressions.Add(keyValuesAssignment);
 
             return (jsonReaderDataVariable, currentKeyValuesVariable);
+
+            ParameterExpression ExtractAndCacheNonConstantJsonArrayElementAccessValue(int index)
+            {
+                if (!_jsonArrayNonConstantElementAccessMap.TryGetValue(index, out var arrayElementAccessParameter))
+                {
+                    arrayElementAccessParameter = Expression.Parameter(typeof(int?));
+                    var projection = _selectExpression.Projection[index];
+
+                    var arrayElementAccessValue = CreateGetValueExpression(
+                        _dataReaderParameter,
+                        index,
+                        IsNullableProjection(projection),
+                        projection.Expression.TypeMapping!,
+                        type: typeof(int?),
+                        property: null);
+
+                    var arrayElementAccessAssignment = Expression.Assign(
+                        arrayElementAccessParameter,
+                        arrayElementAccessValue);
+
+                    _variables.Add(arrayElementAccessParameter);
+                    _expressions.Add(arrayElementAccessAssignment);
+
+                    _jsonArrayNonConstantElementAccessMap.Add(index, arrayElementAccessParameter);
+                }
+
+                return arrayElementAccessParameter;
+            }
         }
 
         private static LambdaExpression GenerateFixup(

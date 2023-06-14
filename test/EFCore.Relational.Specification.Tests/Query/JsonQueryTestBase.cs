@@ -30,6 +30,30 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
+    public virtual Task Basic_json_projection_owned_reference_duplicated2(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .OrderBy(x => x.Id)
+                .Select(
+                    x => new
+                    {
+                        //Root1 = x.OwnedReferenceRoot,
+                        Leaf1 = x.OwnedReferenceRoot.OwnedReferenceBranch.OwnedReferenceLeaf,
+                        //Root2 = x.OwnedReferenceRoot,
+                        Leaf2 = x.OwnedReferenceRoot.OwnedReferenceBranch.OwnedReferenceLeaf,
+                    }).AsNoTracking(),
+            assertOrder: true,
+            elementAsserter: (e, a) =>
+            {
+                //AssertEqual(e.Root1, a.Root1);
+                //AssertEqual(e.Root2, a.Root2);
+                AssertEqual(e.Leaf1, a.Leaf1);
+                AssertEqual(e.Leaf2, a.Leaf2);
+            });
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
     public virtual Task Basic_json_projection_owned_reference_duplicated(bool async)
         => AssertQuery(
             async,
