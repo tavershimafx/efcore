@@ -415,4 +415,73 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
     }
 
     #endregion
+
+    #region JunkInJson
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Junk_in_json_basic_tracking(bool async)
+    {
+        var contextFactory = await InitializeAsync<MyContextJunkInJson>(
+            seed: SeedJunkInJson);
+
+        using (var context = contextFactory.CreateContext())
+        {
+            var query = context.Entities;
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+        }
+    }
+
+    protected abstract void SeedJunkInJson(MyContextJunkInJson ctx);
+
+    protected class MyContextJunkInJson : DbContext
+    {
+        public MyContextJunkInJson(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        public DbSet<MyEntityJunkInJson> Entities { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyEntityJunkInJson>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.Reference).ToJson();
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.ReferenceWithCtor).ToJson();
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.Collection).ToJson();
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.CollectionWithCtor).ToJson();
+        }
+    }
+
+    public class MyEntityJunkInJson
+    {
+        public int Id { get; set; }
+        public MyJsonEntityJunkInJson Reference { get; set; }
+        public MyJsonEntityJunkInJsonWithCtor ReferenceWithCtor { get; set; }
+        public List<MyJsonEntityJunkInJson> Collection { get; set; }
+        public List<MyJsonEntityJunkInJsonWithCtor> CollectionWithCtor { get; set; }
+    }
+
+    public class MyJsonEntityJunkInJson
+    {
+        public string Name { get; set; }
+        public double Number { get; set; }
+    }
+
+    public class MyJsonEntityJunkInJsonWithCtor
+    {
+        public MyJsonEntityJunkInJsonWithCtor(bool myBool, string name)
+        {
+            MyBool = myBool;
+            Name = name;
+        }
+
+        public bool MyBool { get; set; }
+        public string Name { get; set; }
+    }
+
+    #endregion
 }

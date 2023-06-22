@@ -1032,8 +1032,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                 manager.CaptureState();
             }
-
-            throw new InvalidOperationException("Expecting StartArray token, got: " + tokenType.ToString());
+            else
+            {
+                throw new InvalidOperationException("Expecting StartArray token, got: " + tokenType.ToString());
+            }
         }
 
         private static void IncludeJsonEntityReference<TIncludingEntity, TIncludedEntity>(

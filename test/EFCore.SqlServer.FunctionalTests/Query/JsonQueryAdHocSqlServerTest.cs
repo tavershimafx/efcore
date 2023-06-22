@@ -122,4 +122,27 @@ N'{{""RootName"":""e4"",""Collection"":[{{""BranchName"":""e4 c1"",""Nested"":{{
         ctx.Entities.AddRange(entity1, entity2);
         ctx.SaveChanges();
     }
+
+    protected override void SeedJunkInJson(MyContextJunkInJson ctx)
+    {
+        var entity1 = new MyEntityJunkInJson
+        {
+            Id = 1,
+            Reference = new MyJsonEntityJunkInJson { Name = "r1", Number = 1.5 },
+            ReferenceWithCtor = new MyJsonEntityJunkInJsonWithCtor(true, "r1 ctor"),
+            Collection = new List<MyJsonEntityJunkInJson>
+            {
+                new MyJsonEntityJunkInJson { Name = "c11", Number = 11.5 },
+                new MyJsonEntityJunkInJson { Name = "c12", Number = 12.5 },
+            },
+            CollectionWithCtor = new List<MyJsonEntityJunkInJsonWithCtor>
+            {
+                new MyJsonEntityJunkInJsonWithCtor(true, "c11 ctor"),
+                new MyJsonEntityJunkInJsonWithCtor(false, "c12 ctor"),
+            },
+        };
+
+        ctx.Entities.AddRange(entity1);
+        ctx.SaveChanges();
+    }
 }
