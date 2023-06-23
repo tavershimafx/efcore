@@ -1519,7 +1519,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     && body.Expressions.Count > 0)
                 {
                     var jsonEntityTypeVariable = default(ParameterExpression);
-                    var jsonEntityTypeConstruction = default(NewExpression);
+                    var jsonEntityTypeConstructionAssignment = default(BinaryExpression);
                     var propertyAssignments = new List<BinaryExpression>();
 
                     //sometimes we have shadow value buffer, sometimes not
@@ -1527,23 +1527,34 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                     if (jsonEntityTypeInitializerExpression is BlockExpression
                         {
-                            Variables: [ ParameterExpression jsonEntityTypeBlockVariable],
-                            Expressions: [ BinaryExpression
+                            Variables: [ParameterExpression jsonEntityTypeBlockVariable],
+                            Expressions: [BinaryExpression
                             {
                                 NodeType: ExpressionType.Assign,
                                 Left: ParameterExpression jsonEntityTypeBlockConstructionAssignmentPrm,
-                                Right: NewExpression jsonEntityTypeBlockConstructionAssignmentCtor
-                            }, .. ]
+                                Right: NewExpression //jsonEntityTypeBlockConstructionAssignmentCtor
+                            } jsonEntityTypeBlockConstructionAssignment, ..]
                         } jsonEntityTypeInitializerBlock
                         && jsonEntityTypeBlockConstructionAssignmentPrm == jsonEntityTypeBlockVariable)
                     {
+                        // common case - ctor + property assignments
                         jsonEntityTypeVariable = jsonEntityTypeBlockVariable;
-                        jsonEntityTypeConstruction = jsonEntityTypeBlockConstructionAssignmentCtor;
+                        jsonEntityTypeConstructionAssignment = jsonEntityTypeBlockConstructionAssignment;
 
                         propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();
                     }
+                    else if (jsonEntityTypeInitializerExpression is NewExpression jsonEntityTypeInitializerCtor)
+                    {
+                        // just ctor, no other property assignments
+                        jsonEntityTypeVariable = Expression.Variable(jsonEntityTypeInitializerCtor.Type, "instance");
+                        jsonEntityTypeConstructionAssignment = Expression.Assign(jsonEntityTypeVariable, jsonEntityTypeInitializerCtor);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("unsupported pattern");
+                    }
 
-                    if (jsonEntityTypeVariable != null && jsonEntityTypeConstruction != null)
+                    if (jsonEntityTypeVariable != null && jsonEntityTypeConstructionAssignment != null)
                     {
                         //var propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();
                         var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
@@ -1595,7 +1606,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
                             // generate variables to store ctor arguments and build the map from the original expression to that variable
                             // so that we can replace it when we construct the actual entity
-                            foreach (var ctorArgument in jsonEntityTypeConstruction.Arguments)
+                            foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
                             {
                                 // TODO: DRY with the code below (for normal properties)
                                 if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
@@ -1753,18 +1764,17 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
                             finalBlockExpressions.Add(finalCaptureState);
 
-                            var entityCtor = (Expression)jsonEntityTypeConstruction;
-                            //var entityCtor = jsonEntityTypeInitializerBlock.Expressions[0];
-
+                            // replace original ctor calls with variables that we assigned the values to
                             if (ctorAssignmentMap.Any())
                             {
-                                var kvps = ctorAssignmentMap.ToList();
-                                entityCtor = new ReplacingExpressionVisitor(kvps.Select(x => x.Key).ToList(), kvps.Select(x => x.Value).ToList()).Visit(entityCtor);
+                                jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
+                                    ctorAssignmentMap.Select(x => x.Key).ToList(),
+                                    ctorAssignmentMap.Select(x => x.Value).ToList())
+                                        .Visit(jsonEntityTypeConstructionAssignment);
                             }
 
-                            finalBlockExpressions.Add(entityCtor);
+                            finalBlockExpressions.Add(jsonEntityTypeConstructionAssignment);
 
-                            // also for ctor
                             foreach (var propertyAssignmentMapElement in propertyAssignmentMap)
                             {
                                 finalBlockExpressions.Add(

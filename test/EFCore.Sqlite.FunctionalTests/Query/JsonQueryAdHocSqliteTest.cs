@@ -122,4 +122,9 @@ VALUES(
         ctx.Entities.AddRange(entity1, entity2);
         ctx.SaveChanges();
     }
+
+    protected override void SeedJunkInJson(MyContextJunkInJson ctx)
+    {
+        throw new NotImplementedException();
+    }
 }

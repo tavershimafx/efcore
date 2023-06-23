@@ -125,24 +125,95 @@ N'{{""RootName"":""e4"",""Collection"":[{{""BranchName"":""e4 c1"",""Nested"":{{
 
     protected override void SeedJunkInJson(MyContextJunkInJson ctx)
     {
-        var entity1 = new MyEntityJunkInJson
-        {
-            Id = 1,
-            Reference = new MyJsonEntityJunkInJson { Name = "r1", Number = 1.5 },
-            ReferenceWithCtor = new MyJsonEntityJunkInJsonWithCtor(true, "r1 ctor"),
-            Collection = new List<MyJsonEntityJunkInJson>
-            {
-                new MyJsonEntityJunkInJson { Name = "c11", Number = 11.5 },
-                new MyJsonEntityJunkInJson { Name = "c12", Number = 12.5 },
-            },
-            CollectionWithCtor = new List<MyJsonEntityJunkInJsonWithCtor>
-            {
-                new MyJsonEntityJunkInJsonWithCtor(true, "c11 ctor"),
-                new MyJsonEntityJunkInJsonWithCtor(false, "c12 ctor"),
-            },
-        };
+        ctx.Database.ExecuteSqlRaw(@"INSERT INTO [Entities] ([Collection], [CollectionWithCtor], [Reference], [ReferenceWithCtor], [Id])
+VALUES(
+N'[{{""Name"":""c11"",""Number"":11.5,""NestedCollection"":[{{""DoB"":""2002-04-01T00:00:00""}},{{""DoB"":""2002-04-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-03-01T00:00:00""}}}},{{""Name"":""c12"",""Number"":12.5,""NestedCollection"":[{{""DoB"":""2002-06-01T00:00:00""}},{{""DoB"":""2002-06-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-05-01T00:00:00""}}}}]',
+N'[{{""MyBool"":true,""Name"":""c11 ctor"",""NestedCollection"":[{{""DoB"":""2002-08-01T00:00:00""}},{{""DoB"":""2002-08-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-07-01T00:00:00""}}}},{{""MyBool"":false,""Name"":""c12 ctor"",""NestedCollection"":[{{""DoB"":""2002-10-01T00:00:00""}},{{""DoB"":""2002-10-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-09-01T00:00:00""}}}}]',
+N'{{""Name"":""r1"",""Number"":1.5,""NestedCollection"":[{{""DoB"":""2000-02-01T00:00:00""}},{{""DoB"":""2000-02-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2000-01-01T00:00:00""}}}}',
+N'{{""MyBool"":true,""Name"":""r1 ctor"",""NestedCollection"":[{{""DoB"":""2001-02-01T00:00:00""}},{{""DoB"":""2001-02-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2001-01-01T00:00:00""}}}}',
+1)");
 
-        ctx.Entities.AddRange(entity1);
-        ctx.SaveChanges();
+        //var entity1 = new MyEntityJunkInJson
+        //{
+        //    Id = 1,
+
+        //    Reference = new MyJsonEntityJunkInJson
+        //    {
+        //        Name = "r1",
+        //        Number = 1.5,
+        //        NestedReference = new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2000, 1, 1) },
+        //        NestedCollection = new List<MyJsonEntityJunkInJsonNested>
+        //        {
+        //            new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2000, 2, 1) },
+        //            new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2000, 2, 2) },
+        //        }
+        //    },
+
+        //    ReferenceWithCtor = new MyJsonEntityJunkInJsonWithCtor(true, "r1 ctor")
+        //    {
+        //        NestedReference = new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2001, 1, 1)),
+        //        NestedCollection = new List<MyJsonEntityJunkInJsonWithCtorNested>
+        //        {
+        //            new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2001, 2, 1)),
+        //            new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2001, 2, 2)),
+        //        }
+        //    },
+
+        //    Collection = new List<MyJsonEntityJunkInJson>
+        //    {
+        //        new MyJsonEntityJunkInJson
+        //        {
+        //            Name = "c11",
+        //            Number = 11.5,
+        //            NestedReference = new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 3, 1) },
+        //            NestedCollection = new List<MyJsonEntityJunkInJsonNested>
+        //            {
+        //                new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 4, 1) },
+        //                new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 4, 2) },
+        //            }
+        //        },
+        //        new MyJsonEntityJunkInJson
+        //        {
+        //            Name = "c12",
+        //            Number = 12.5,
+        //            NestedReference = new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 5, 1) },
+        //            NestedCollection = new List<MyJsonEntityJunkInJsonNested>
+        //            {
+        //                new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 6, 1) },
+        //                new MyJsonEntityJunkInJsonNested { DoB = new DateTime(2002, 6, 2) },
+        //            }
+        //        },
+        //    },
+
+        //    CollectionWithCtor = new List<MyJsonEntityJunkInJsonWithCtor>
+        //    {
+        //        new MyJsonEntityJunkInJsonWithCtor(true, "c11 ctor")
+        //        {
+        //            NestedReference = new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 7, 1)),
+        //            NestedCollection = new List<MyJsonEntityJunkInJsonWithCtorNested>
+        //            {
+        //                new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 8, 1)),
+        //                new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 8, 2)),
+        //            }
+        //        },
+        //        new MyJsonEntityJunkInJsonWithCtor(false, "c12 ctor")
+        //        {
+        //            NestedReference = new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 9, 1)),
+        //            NestedCollection = new List<MyJsonEntityJunkInJsonWithCtorNested>
+        //            {
+        //                new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 10, 1)),
+        //                new MyJsonEntityJunkInJsonWithCtorNested(new DateTime(2002, 10, 2)),
+        //            }
+        //        },
+        //    },
+        //};
+
+        //ctx.Entities.AddRange(entity1);
+        //ctx.SaveChanges();
+    }
+
+    public override Task Junk_in_json_basic_tracking(bool async)
+    {
+        return base.Junk_in_json_basic_tracking(async);
     }
 }

@@ -449,10 +449,30 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<MyEntityJunkInJson>().Property(x => x.Id).ValueGeneratedNever();
-            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.Reference).ToJson();
-            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.ReferenceWithCtor).ToJson();
-            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.Collection).ToJson();
-            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.CollectionWithCtor).ToJson();
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.Reference, b =>
+            {
+                b.ToJson();
+                b.OwnsOne(x => x.NestedReference);
+                b.OwnsMany(x => x.NestedCollection);
+            });
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsOne(x => x.ReferenceWithCtor, b =>
+            {
+                b.ToJson();
+                b.OwnsOne(x => x.NestedReference);
+                b.OwnsMany(x => x.NestedCollection);
+            });
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.Collection, b =>
+            {
+                b.ToJson();
+                b.OwnsOne(x => x.NestedReference);
+                b.OwnsMany(x => x.NestedCollection);
+            });
+            modelBuilder.Entity<MyEntityJunkInJson>().OwnsMany(x => x.CollectionWithCtor, b =>
+            {
+                b.ToJson();
+                b.OwnsOne(x => x.NestedReference);
+                b.OwnsMany(x => x.NestedCollection);
+            });
         }
     }
 
@@ -469,6 +489,14 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
     {
         public string Name { get; set; }
         public double Number { get; set; }
+
+        public MyJsonEntityJunkInJsonNested NestedReference { get; set; }
+        public List<MyJsonEntityJunkInJsonNested> NestedCollection { get; set; }
+    }
+
+    public class MyJsonEntityJunkInJsonNested
+    {
+        public DateTime DoB { get; set; }
     }
 
     public class MyJsonEntityJunkInJsonWithCtor
@@ -481,6 +509,19 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
 
         public bool MyBool { get; set; }
         public string Name { get; set; }
+
+        public MyJsonEntityJunkInJsonWithCtorNested NestedReference { get; set; }
+        public List<MyJsonEntityJunkInJsonWithCtorNested> NestedCollection { get; set; }
+    }
+
+    public class MyJsonEntityJunkInJsonWithCtorNested
+    {
+        public MyJsonEntityJunkInJsonWithCtorNested(DateTime doB)
+        {
+            DoB = doB;
+        }
+
+        public DateTime DoB { get; set; }
     }
 
     #endregion
