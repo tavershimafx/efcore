@@ -125,9 +125,15 @@ N'{{""RootName"":""e4"",""Collection"":[{{""BranchName"":""e4 c1"",""Nested"":{{
 
     protected override void SeedJunkInJson(MyContextJunkInJson ctx)
     {
+
+        /*
+N'[{{""Name"":""c11"",""JunkProperty1"":50,""Number"":11.5,""JunkCollection1"":[],""JunkCollection2"":[{{""Foo"":""junk value""}}],""NestedCollection"":[{{""DoB"":""2002-04-01T00:00:00""}},{{""DoB"":""2002-04-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-03-01T00:00:00""}}}},{{""Name"":""c12"",""Number"":12.5,""NestedCollection"":[{{""DoB"":""2002-06-01T00:00:00""}},{{""DoB"":""2002-06-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-05-01T00:00:00""}}}}]',          
+         */
+
+
         ctx.Database.ExecuteSqlRaw(@"INSERT INTO [Entities] ([Collection], [CollectionWithCtor], [Reference], [ReferenceWithCtor], [Id])
 VALUES(
-N'[{{""Name"":""c11"",""Number"":11.5,""NestedCollection"":[{{""DoB"":""2002-04-01T00:00:00""}},{{""DoB"":""2002-04-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-03-01T00:00:00""}}}},{{""Name"":""c12"",""Number"":12.5,""NestedCollection"":[{{""DoB"":""2002-06-01T00:00:00""}},{{""DoB"":""2002-06-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-05-01T00:00:00""}}}}]',
+N'[{{""Name"":""c11"",""JunkProperty1"":50,""Number"":11.5,""NestedCollection"":[{{""DoB"":""2002-04-01T00:00:00""}},{{""DoB"":""2002-04-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-03-01T00:00:00""}}}},{{""Name"":""c12"",""Number"":12.5,""NestedCollection"":[{{""DoB"":""2002-06-01T00:00:00""}},{{""DoB"":""2002-06-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-05-01T00:00:00""}}}}]',
 N'[{{""MyBool"":true,""Name"":""c11 ctor"",""NestedCollection"":[{{""DoB"":""2002-08-01T00:00:00""}},{{""DoB"":""2002-08-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-07-01T00:00:00""}}}},{{""MyBool"":false,""Name"":""c12 ctor"",""NestedCollection"":[{{""DoB"":""2002-10-01T00:00:00""}},{{""DoB"":""2002-10-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2002-09-01T00:00:00""}}}}]',
 N'{{""Name"":""r1"",""Number"":1.5,""NestedCollection"":[{{""DoB"":""2000-02-01T00:00:00""}},{{""DoB"":""2000-02-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2000-01-01T00:00:00""}}}}',
 N'{{""MyBool"":true,""Name"":""r1 ctor"",""NestedCollection"":[{{""DoB"":""2001-02-01T00:00:00""}},{{""DoB"":""2001-02-02T00:00:00""}}],""NestedReference"":{{""DoB"":""2001-01-01T00:00:00""}}}}',
