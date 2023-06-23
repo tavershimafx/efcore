@@ -2082,16 +2082,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     } resultConditional
                     && rightDefault.Type == typeof(InternalEntityEntry))
                 {
-
-                    var fubar = _entityType.GetProperties().Count(x => !x.IsPrimaryKey());
-
-                    if (_entityType.Name.EndsWith("JsonOwnedBranch", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Console.WriteLine(  "dgfgfgf");
-                    }
-
-
-
                     var entityAlreadyTrackedVariable = Expression.Variable(typeof(bool));
 
                     var resultBlockVariables = new List<ParameterExpression> { entityAlreadyTrackedVariable };

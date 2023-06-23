@@ -65,7 +65,8 @@ public ref struct Utf8JsonReaderManager
     /// </summary>
     public void Skip()
     {
-        CurrentReader.Skip();
+        CurrentReader.TrySkip();
+        //CurrentReader.Skip();
     }
 
     /// <summary>
