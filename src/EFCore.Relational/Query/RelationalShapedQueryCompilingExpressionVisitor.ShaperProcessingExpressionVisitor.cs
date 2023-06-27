@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using System.Text.Json;
@@ -1516,14 +1517,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     && onlyValue.Value == _entityType
                     && body.Expressions.Count > 0)
                 {
-                    //var shadowPropertiesInValueBuffer = false;
-
                     var propertyAssignments = new List<BinaryExpression>();
-
+                    var jsonEntityTypeInitializerBlockExpressions = default(Expression[]);
 
                     var valueBufferTryReadValueMethodsToProcess = new List<MethodCallExpression>();
-
-                    //var shadowValueBufferPropertyAssignmentsMap = new Dictionary<MethodCallExpression, (ParameterExpression, IPropertyBase)>();
 
                     var shadowValueBufferAssignment = default(BinaryExpression);
                     if (body.Expressions[0] is BinaryExpression
@@ -1554,8 +1551,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         {
                             valueBufferTryReadValueMethodsToProcess.AddRange(shadowValueBufferProperties);
                         }
-
-                        //shadowPropertiesInValueBuffer = true;
                     }
 
                     var jsonEntityTypeVariable = default(ParameterExpression);
@@ -1570,7 +1565,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             {
                                 NodeType: ExpressionType.Assign,
                                 Left: ParameterExpression jsonEntityTypeBlockConstructionAssignmentPrm,
-                                Right: NewExpression //jsonEntityTypeBlockConstructionAssignmentCtor
+                                Right: NewExpression
                             } jsonEntityTypeBlockConstructionAssignment, ..]
                         } jsonEntityTypeInitializerBlock
                         && jsonEntityTypeBlockConstructionAssignmentPrm == jsonEntityTypeBlockVariable)
@@ -1579,16 +1574,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         jsonEntityTypeVariable = jsonEntityTypeBlockVariable;
                         jsonEntityTypeConstructionAssignment = jsonEntityTypeBlockConstructionAssignment;
 
-                        var propertyAssignments2 = jsonEntityTypeInitializerBlock.Expressions
-                            .OfType<BinaryExpression>()
-                            .Where(x => x.NodeType == ExpressionType.Assign)
-                            .Select(x => x.Right)
-                            .OfType<MethodCallExpression>().ToList();
+                        // storing expressions used to initialize the entity, we will process them later
+                        // first expression is ctor, last one is returning the instance, so we skip them both
+                        jsonEntityTypeInitializerBlockExpressions = jsonEntityTypeInitializerBlock.Expressions.ToArray()[1..^1];
 
-                        if (propertyAssignments2.Count > 0)
-                        {
-                            valueBufferTryReadValueMethodsToProcess.AddRange(propertyAssignments2);
-                        }
+                        valueBufferTryReadValueMethodsToProcess.AddRange(
+                            jsonEntityTypeInitializerBlock.Expressions
+                                .OfType<BinaryExpression>()
+                                .Where(x => x.NodeType == ExpressionType.Assign)
+                                .Select(x => x.Right)
+                                .OfType<MethodCallExpression>());
                     }
                     else if (jsonEntityTypeInitializerExpression is NewExpression jsonEntityTypeInitializerCtor)
                     {
@@ -1596,15 +1591,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         jsonEntityTypeVariable = Expression.Variable(jsonEntityTypeInitializerCtor.Type, "instance");
                         jsonEntityTypeConstructionAssignment = Expression.Assign(jsonEntityTypeVariable, jsonEntityTypeInitializerCtor);
                     }
-                    else
-                    {
-                        // TODO: remove once we test it all works - we make sure we have what we need in the "if" below
-                        throw new InvalidOperationException("unsupported pattern");
-                    }
 
                     if (jsonEntityTypeVariable != null && jsonEntityTypeConstructionAssignment != null)
                     {
-                        //var propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();
                         var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
                         var tokenTypeVariable = Expression.Variable(typeof(JsonTokenType), "tokenType");
 
@@ -1627,565 +1616,220 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                     Expression.Call(managerVariable, Utf8JsonReaderManagerTokenTypeMethod)),
                             };
 
-                        // TODO: do the proper check - make sure this thing always can only have 1 or 2 statements (with and without value buffer)
-                        //if (body.Expressions.Count > 1)
-                        //{
-                        //    finalBlockExpressions.Insert(0, body.Expressions[0]);
-                        //}
+                        var (loop, propertyAssignmentMap) = GenerateJsonPropertyReadLoop(
+                            managerVariable,
+                            tokenTypeVariable,
+                            jsonEntityTypeConstructionAssignment,
+                            finalBlockVariables,
+                            valueBufferTryReadValueMethodsToProcess);
 
-                        //if (jsonEntityTypeConstruction.Arguments.Any())
-                        //{
-                        //    //propertyAssignments.AddRange(jsonEntityTypeConstruction.Arguments);
+                        finalBlockExpressions.Add(loop);
 
-                        //    // ctor has arguments - need to cache all the values 
-                        //}
-                        //else
+                        var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
+                        finalBlockExpressions.Add(finalCaptureState);
+
+                        var propertyAssignmentReplacer = new ReplacingExpressionVisitor(
+                            propertyAssignmentMap.Select(x => x.Key).ToList(),
+                            propertyAssignmentMap.Select(x => x.Value).ToList());
+
+                        if (shadowValueBufferAssignment != null)
                         {
-                            var breakLabel = Expression.Label("done");
-
-                            var testExpressions = new List<Expression>();
-                            var readExpressions = new List<Expression>();
-
-                            // look into ctor - if it takes any arguments we need to include them in the loop
-                            var ctorAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-                            var propertyAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-                            var propertyAssignmentMap2 = new Dictionary<MethodCallExpression, ParameterExpression>();
-                            var navigationAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-
-                            // add ctor arguments to the list of properties we need to extract from JSON
-                            foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
-                            {
-                                if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
-                                {
-                                    valueBufferTryReadValueMethodsToProcess.Add(valueBufferTryReadValueCall);
-                                }
-                            }
-
-                            //foreach (var propertyAssignment in propertyAssignments)
-                            //{
-                            //    valueBufferTryReadValueMethodsToProcess.Add((MethodCallExpression)propertyAssignment.Right);
-                            //}
-
-                            foreach (var valueBufferTryReadValueMethodToProcess in valueBufferTryReadValueMethodsToProcess)
-                            {
-                                var property = (IProperty)((ConstantExpression)valueBufferTryReadValueMethodToProcess.Arguments[2]).Value!;
-
-                                testExpressions.Add(
-                                    Expression.Call(
-                                        managerVariable,
-                                        Utf8JsonReaderManagerValueTextEqualsMethod,
-                                        Expression.Property(
-                                            Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                                            "EncodedUtf8Bytes")));
-
-
-                                var propertyVariable = Expression.Variable(valueBufferTryReadValueMethodToProcess.Type);
-
-                                //var propertyVariable = Expression.Variable(property.ClrType);
-                                finalBlockVariables.Add(propertyVariable);
-
-                                var moveNext = Expression.Call(
-                                    managerVariable,
-                                    Utf8JsonReaderManagerMoveNextMethod);
-
-                                // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                                var assignment = Expression.Assign(
-                                    propertyVariable,
-                                    valueBufferTryReadValueMethodToProcess);
-
-                                readExpressions.Add(
-                                    Expression.Block(
-                                        moveNext,
-                                        assignment,
-                                        Expression.Empty()));
-
-                                //propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
-                                propertyAssignmentMap2[valueBufferTryReadValueMethodToProcess] = propertyVariable;
-                            }
-
-                            //    // generate variables to store ctor arguments and build the map from the original expression to that variable
-                            //    // so that we can replace it when we construct the actual entity
-                            //    foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
-                            //{
-                            //    // TODO: DRY with the code below (for normal properties)
-                            //    if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
-                            //    {
-                            //        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
-
-                            //        testExpressions.Add(
-                            //            Expression.Call(
-                            //                managerVariable,
-                            //                Utf8JsonReaderManagerValueTextEqualsMethod,
-                            //                Expression.Property(
-                            //                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                            //                    "EncodedUtf8Bytes")));
-
-                            //        var propertyVariable = Expression.Variable(property.ClrType);
-                            //        finalBlockVariables.Add(propertyVariable);
-
-                            //        var moveNext = Expression.Call(
-                            //            managerVariable,
-                            //            Utf8JsonReaderManagerMoveNextMethod);
-
-                            //        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                            //        var assignment = Expression.Assign(
-                            //            propertyVariable,
-                            //            ctorArgument);
-
-                            //        readExpressions.Add(
-                            //            Expression.Block(
-                            //                moveNext,
-                            //                assignment,
-                            //                Expression.Empty()));
-
-                            //        ctorAssignmentMap[ctorArgument] = propertyVariable;
-                            //    }
-                            //}
-
-                            //foreach (var propertyAssignment in propertyAssignments)
-                            //{
-                            //    if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
-                            //    {
-                            //        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
-
-                            //        testExpressions.Add(
-                            //            Expression.Call(
-                            //                managerVariable,
-                            //                Utf8JsonReaderManagerValueTextEqualsMethod,
-                            //                Expression.Property(
-                            //                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                            //                    "EncodedUtf8Bytes")));
-
-                            //        var propertyVariable = Expression.Variable(property.ClrType);
-                            //        finalBlockVariables.Add(propertyVariable);
-
-                            //        var moveNext = Expression.Call(
-                            //            managerVariable,
-                            //            Utf8JsonReaderManagerMoveNextMethod);
-
-                            //        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                            //        var assignment = Expression.Assign(
-                            //            propertyVariable,
-                            //            propertyAssignment.Right);
-
-                            //        readExpressions.Add(
-                            //            Expression.Block(
-                            //                moveNext,
-                            //                assignment,
-                            //                Expression.Empty()));
-
-                            //        propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
-                            //    }
-                            //}
-
-                            foreach (var innerShaperMapElement in _innerShapersMap)
-                            {
-                                testExpressions.Add(
-                                    Expression.Call(
-                                        managerVariable,
-                                        Utf8JsonReaderManagerValueTextEqualsMethod,
-                                        Expression.Property(
-                                            Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
-                                            "EncodedUtf8Bytes")));
-
-                                var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
-                                finalBlockVariables.Add(propertyVariable);
-
-                                _navigationVariableMap[innerShaperMapElement.Key] = propertyVariable;
-
-                                var moveNext = Expression.Call(
-                                    managerVariable,
-                                    Utf8JsonReaderManagerMoveNextMethod);
-
-                                var captureState = Expression.Call(
-                                    managerVariable,
-                                    Utf8JsonReaderManagerCaptureStateMethod);
-
-                                var assignment = Expression.Assign(
-                                    propertyVariable,
-                                    innerShaperMapElement.Value);
-
-                                var managerRecreation = Expression.Assign(
-                                    managerVariable,
-                                    Expression.New(JsonReaderManagerConstructor, _jsonReaderDataParameter));
-
-                                readExpressions.Add(
-                                    Expression.Block(
-                                        moveNext,
-                                        captureState,
-                                        assignment,
-                                        managerRecreation,
-                                        Expression.Empty()));
-                            }
-
-                            var testsCount = testExpressions.Count;
-                            var testExpression = Expression.IfThen(
-                                testExpressions[testsCount - 1],
-                                readExpressions[testsCount - 1]);
-
-                            for (var i = testsCount - 2; i >= 0; i--)
-                            {
-                                testExpression = Expression.IfThenElse(
-                                    testExpressions[i],
-                                    readExpressions[i],
-                                    testExpression);
-                            }
-
-                            var cases = new List<SwitchCase>();
-
-                            var propertySwitchCase = Expression.SwitchCase(
-                                testExpression,
-                                Expression.Constant(JsonTokenType.PropertyName));
-
-                            cases.Add(propertySwitchCase);
-
-                            var loopTest = Expression.NotEqual(
-                                tokenTypeVariable,
-                                Expression.Constant(JsonTokenType.EndObject));
-
-                            var loopBody = Expression.Block(
-                                Expression.Assign(
-                                    tokenTypeVariable,
-                                    Expression.Call(
-                                        managerVariable,
-                                        Utf8JsonReaderManagerMoveNextMethod)),
-                                Expression.IfThenElse(
-                                    loopTest,
-                                    Expression.Switch(
-                                        tokenTypeVariable,
-                                        Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
-                                        cases.ToArray()),
-                                    Expression.Break(breakLabel)));
-
-                            var loop = Expression.Loop(loopBody, breakLabel);
-                            finalBlockExpressions.Add(loop);
-
-                            var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
-                            finalBlockExpressions.Add(finalCaptureState);
-
-                            if (shadowValueBufferAssignment != null)
-                            {
-                                shadowValueBufferAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
-                                    propertyAssignmentMap2.Select(x => x.Key).ToList(),
-                                    propertyAssignmentMap2.Select(x => x.Value).ToList())
-                                        .Visit(shadowValueBufferAssignment);
-
-                                finalBlockExpressions.Add(shadowValueBufferAssignment);
-                            }
-
-                            // replace original ctor calls with variables that we assigned the values to
-                            jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
-                                propertyAssignmentMap2.Select(x => x.Key).ToList(),
-                                propertyAssignmentMap2.Select(x => x.Value).ToList())
-                                    .Visit(jsonEntityTypeConstructionAssignment);
-
-                            //// replace original ctor calls with variables that we assigned the values to
-                            //if (ctorAssignmentMap.Any())
-                            //{
-                            //    //jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
-                            //    //    ctorAssignmentMap.Select(x => x.Key).ToList(),
-                            //    //    ctorAssignmentMap.Select(x => x.Value).ToList())
-                            //    //        .Visit(jsonEntityTypeConstructionAssignment);
-
-                            //    jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
-                            //        propertyAssignmentMap2.Select(x => x.Key).ToList(),
-                            //        propertyAssignmentMap2.Select(x => x.Value).ToList())
-                            //            .Visit(jsonEntityTypeConstructionAssignment);
-
-                            //}
-
-                            finalBlockExpressions.Add(jsonEntityTypeConstructionAssignment);
-
-                            foreach (var propertyAssignmentMapElement in propertyAssignmentMap)
-                            {
-                                finalBlockExpressions.Add(
-                                    Expression.Assign(propertyAssignmentMapElement.Key, propertyAssignmentMapElement.Value));
-                            }
-
-                            foreach (var fixup in _innerFixupMap)
-                            {
-                                finalBlockExpressions.Add(
-                                    Expression.Invoke(
-                                        fixup.Value,
-                                        jsonEntityTypeVariable,
-                                        _navigationVariableMap[fixup.Key]));
-                            }
-
-                            _found = true;
-
-                            finalBlockExpressions.Add(jsonEntityTypeVariable);
-
-                            var kups = Expression.Block(
-                                finalBlockVariables,
-                                finalBlockExpressions);
-
-                            return Expression.Block(
-                                finalBlockVariables,
-                                finalBlockExpressions);
+                            finalBlockExpressions.Add(propertyAssignmentReplacer.Visit(shadowValueBufferAssignment));
                         }
+
+                        // replace original ctor calls with variables that we assigned the values to
+                        finalBlockExpressions.Add(propertyAssignmentReplacer.Visit(jsonEntityTypeConstructionAssignment));
+
+                        // there are property assignments that we need to process and add to the final block
+                        if (jsonEntityTypeInitializerBlockExpressions != null)
+                        {
+                            foreach (var jsonEntityTypeInitializerBlockExpression in jsonEntityTypeInitializerBlockExpressions)
+                            {
+                                // TODO: if (instance is IInjectibleService) call should happen after navigations or before?
+                                finalBlockExpressions.Add(propertyAssignmentReplacer.Visit(jsonEntityTypeInitializerBlockExpression));
+                            }
+                        }
+
+                        //foreach (var propertyAssignmentMapElement in propertyAssignmentMap)
+                        //{
+                        //    finalBlockExpressions.Add(
+                        //        Expression.Assign(propertyAssignmentMapElement.Key, propertyAssignmentMapElement.Value));
+                        //}
+
+                        foreach (var fixup in _innerFixupMap)
+                        {
+                            finalBlockExpressions.Add(
+                                Expression.Invoke(
+                                    fixup.Value,
+                                    jsonEntityTypeVariable,
+                                    _navigationVariableMap[fixup.Key]));
+                        }
+
+                        _found = true;
+
+                        finalBlockExpressions.Add(jsonEntityTypeVariable);
+
+                        var kups = ExpressionPrinter.Print(Expression.Block(
+                            finalBlockVariables,
+                            finalBlockExpressions));
+
+                        return Expression.Block(
+                            finalBlockVariables,
+                            finalBlockExpressions);
                     }
-
-                    //if (body.Expressions[^1] is BlockExpression jsonEntityTypeInitializerBlock)
-                    //{
-                    //    if (jsonEntityTypeInitializerBlock.Variables.Count == 1
-                    //        && jsonEntityTypeInitializerBlock.Variables[0] is ParameterExpression jsonEntityTypeVariable
-                    //        && jsonEntityTypeInitializerBlock.Expressions[0] is BinaryExpression jsonEntityTypeConstructionAssignment
-                    //        && jsonEntityTypeConstructionAssignment.NodeType == ExpressionType.Assign
-                    //        && jsonEntityTypeConstructionAssignment.Left == jsonEntityTypeVariable
-                    //        && jsonEntityTypeConstructionAssignment.Right is NewExpression jsonEntityTypeConstruction)
-                    //    {
-                    //        //var propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();
-                    //        //var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
-                    //        //var tokenTypeVariable = Expression.Variable(typeof(JsonTokenType), "tokenType");
-
-                    //        //var finalBlockVariables = new List<ParameterExpression>
-                    //        //{
-                    //        //    jsonEntityTypeVariable,
-                    //        //    managerVariable,
-                    //        //    tokenTypeVariable,
-                    //        //};
-
-                    //        //var finalBlockExpressions = new List<Expression>
-                    //        //{
-                    //        //    Expression.Assign(
-                    //        //        managerVariable,
-                    //        //        Expression.New(
-                    //        //            JsonReaderManagerConstructor,
-                    //        //            _jsonReaderDataParameter)),
-                    //        //    Expression.Assign(
-                    //        //        tokenTypeVariable,
-                    //        //        Expression.Call(managerVariable, Utf8JsonReaderManagerTokenTypeMethod)),
-                    //        //};
-
-                    //        //// TODO: do the proper check - make sure this thing always can only have 1 or 2 statements (with and without value buffer)
-                    //        //if (body.Expressions.Count > 1)
-                    //        //{
-                    //        //    finalBlockExpressions.Insert(0, body.Expressions[0]);
-                    //        //}
-
-                    //        ////if (jsonEntityTypeConstruction.Arguments.Any())
-                    //        ////{
-                    //        ////    //propertyAssignments.AddRange(jsonEntityTypeConstruction.Arguments);
-
-                    //        ////    // ctor has arguments - need to cache all the values 
-                    //        ////}
-                    //        ////else
-                    //        //{
-
-                    //        //    var breakLabel = Expression.Label("done");
-
-                    //        //    var testExpressions = new List<Expression>();
-                    //        //    var readExpressions = new List<Expression>();
-
-                    //        //    // look into ctor - if it takes any arguments we need to include them in the loop
-                    //        //    var ctorAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-                    //        //    var propertyAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-                    //        //    var navigationAssignmentMap = new Dictionary<Expression, ParameterExpression>();
-
-                    //        //    // generate variables to store ctor arguments and build the map from the original expression to that variable
-                    //        //    // so that we can replace it when we construct the actual entity
-                    //        //    foreach (var ctorArgument in jsonEntityTypeConstruction.Arguments)
-                    //        //    {
-                    //        //        // TODO: DRY with the code below (for normal properties)
-                    //        //        if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
-                    //        //        {
-                    //        //            var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
-
-                    //        //            testExpressions.Add(
-                    //        //                Expression.Call(
-                    //        //                    managerVariable,
-                    //        //                    Utf8JsonReaderManagerValueTextEqualsMethod,
-                    //        //                    Expression.Property(
-                    //        //                        Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                    //        //                        "EncodedUtf8Bytes")));
-
-                    //        //            var propertyVariable = Expression.Variable(property.ClrType);
-                    //        //            finalBlockVariables.Add(propertyVariable);
-
-                    //        //            var moveNext = Expression.Call(
-                    //        //                managerVariable,
-                    //        //                Utf8JsonReaderManagerMoveNextMethod);
-
-                    //        //            // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                    //        //            var assignment = Expression.Assign(
-                    //        //                propertyVariable,
-                    //        //                ctorArgument);
-
-                    //        //            readExpressions.Add(
-                    //        //                Expression.Block(
-                    //        //                    moveNext,
-                    //        //                    assignment,
-                    //        //                    Expression.Empty()));
-
-                    //        //            ctorAssignmentMap[ctorArgument] = propertyVariable;
-                    //        //        }
-                    //        //    }
-
-                    //        //    foreach (var propertyAssignment in propertyAssignments)
-                    //        //    {
-                    //        //        if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
-                    //        //        {
-                    //        //            var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
-
-                    //        //            testExpressions.Add(
-                    //        //                Expression.Call(
-                    //        //                    managerVariable,
-                    //        //                    Utf8JsonReaderManagerValueTextEqualsMethod,
-                    //        //                    Expression.Property(
-                    //        //                        Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                    //        //                        "EncodedUtf8Bytes")));
-
-                    //        //            var propertyVariable = Expression.Variable(property.ClrType);
-                    //        //            finalBlockVariables.Add(propertyVariable);
-
-                    //        //            var moveNext = Expression.Call(
-                    //        //                managerVariable,
-                    //        //                Utf8JsonReaderManagerMoveNextMethod);
-
-                    //        //            // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                    //        //            var assignment = Expression.Assign(
-                    //        //                propertyVariable,
-                    //        //                propertyAssignment.Right);
-
-                    //        //            readExpressions.Add(
-                    //        //                Expression.Block(
-                    //        //                    moveNext,
-                    //        //                    assignment,
-                    //        //                    Expression.Empty()));
-
-                    //        //            propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
-                    //        //        }
-                    //        //    }
-
-                    //        //    foreach (var innerShaperMapElement in _innerShapersMap)
-                    //        //    {
-                    //        //        testExpressions.Add(
-                    //        //            Expression.Call(
-                    //        //                managerVariable,
-                    //        //                Utf8JsonReaderManagerValueTextEqualsMethod,
-                    //        //                Expression.Property(
-                    //        //                    Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
-                    //        //                    "EncodedUtf8Bytes")));
-
-                    //        //        var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
-                    //        //        finalBlockVariables.Add(propertyVariable);
-
-                    //        //        _navigationVariableMap[innerShaperMapElement.Key] = propertyVariable;
-
-                    //        //        var moveNext = Expression.Call(
-                    //        //            managerVariable,
-                    //        //            Utf8JsonReaderManagerMoveNextMethod);
-
-                    //        //        var captureState = Expression.Call(
-                    //        //            managerVariable,
-                    //        //            Utf8JsonReaderManagerCaptureStateMethod);
-
-                    //        //        var assignment = Expression.Assign(
-                    //        //            propertyVariable,
-                    //        //            innerShaperMapElement.Value);
-
-                    //        //        var managerRecreation = Expression.Assign(
-                    //        //            managerVariable,
-                    //        //            Expression.New(JsonReaderManagerConstructor, _jsonReaderDataParameter));
-
-                    //        //        readExpressions.Add(
-                    //        //            Expression.Block(
-                    //        //                moveNext,
-                    //        //                captureState,
-                    //        //                assignment,
-                    //        //                managerRecreation,
-                    //        //                Expression.Empty()));
-                    //        //    }
-
-                    //        //    var testsCount = testExpressions.Count;
-                    //        //    var testExpression = Expression.IfThen(
-                    //        //        testExpressions[testsCount - 1],
-                    //        //        readExpressions[testsCount - 1]);
-
-                    //        //    for (var i = testsCount - 2; i >= 0; i--)
-                    //        //    {
-                    //        //        testExpression = Expression.IfThenElse(
-                    //        //            testExpressions[i],
-                    //        //            readExpressions[i],
-                    //        //            testExpression);
-                    //        //    }
-
-                    //        //    var cases = new List<SwitchCase>();
-
-                    //        //    var propertySwitchCase = Expression.SwitchCase(
-                    //        //        testExpression,
-                    //        //        Expression.Constant(JsonTokenType.PropertyName));
-
-                    //        //    cases.Add(propertySwitchCase);
-
-                    //        //    var loopTest = Expression.NotEqual(
-                    //        //        tokenTypeVariable,
-                    //        //        Expression.Constant(JsonTokenType.EndObject));
-
-                    //        //    var loopBody = Expression.Block(
-                    //        //        Expression.Assign(
-                    //        //            tokenTypeVariable,
-                    //        //            Expression.Call(
-                    //        //                managerVariable,
-                    //        //                Utf8JsonReaderManagerMoveNextMethod)),
-                    //        //        Expression.IfThenElse(
-                    //        //            loopTest,
-                    //        //            Expression.Switch(
-                    //        //                tokenTypeVariable,
-                    //        //                Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
-                    //        //                cases.ToArray()),
-                    //        //            Expression.Break(breakLabel)));
-
-                    //        //    var loop = Expression.Loop(loopBody, breakLabel);
-                    //        //    finalBlockExpressions.Add(loop);
-
-                    //        //    var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
-                    //        //    finalBlockExpressions.Add(finalCaptureState);
-
-                    //        //    var entityCtor = jsonEntityTypeInitializerBlock.Expressions[0];
-
-                    //        //    if (ctorAssignmentMap.Any())
-                    //        //    {
-                    //        //        var kvps = ctorAssignmentMap.ToList();
-                    //        //        entityCtor = new ReplacingExpressionVisitor(kvps.Select(x => x.Key).ToList(), kvps.Select(x => x.Value).ToList()).Visit(entityCtor);
-                    //        //    }
-
-                    //        //    finalBlockExpressions.Add(entityCtor);
-
-                    //        //    // also for ctor
-                    //        //    foreach (var propertyAssignmentMapElement in propertyAssignmentMap)
-                    //        //    {
-                    //        //        finalBlockExpressions.Add(
-                    //        //            Expression.Assign(propertyAssignmentMapElement.Key, propertyAssignmentMapElement.Value));
-                    //        //    }
-
-                    //        //    foreach (var fixup in _innerFixupMap)
-                    //        //    {
-                    //        //        finalBlockExpressions.Add(
-                    //        //            Expression.Invoke(
-                    //        //                fixup.Value,
-                    //        //                jsonEntityTypeVariable,
-                    //        //                _navigationVariableMap[fixup.Key]));
-                    //        //    }
-
-                    //        //    _found = true;
-
-                    //        //    finalBlockExpressions.Add(jsonEntityTypeVariable);
-
-
-                    //        //    var kups = Expression.Block(
-                    //        //        finalBlockVariables,
-                    //        //        finalBlockExpressions);
-
-                    //        //    return Expression.Block(
-                    //        //        finalBlockVariables,
-                    //        //        finalBlockExpressions);
-                    //        //}
-                    //    }
-                    //}
                 }
 
                 return base.VisitSwitch(switchExpression);
+
+
+                (LoopExpression, Dictionary<MethodCallExpression, ParameterExpression>) GenerateJsonPropertyReadLoop(
+                    ParameterExpression managerVariable,
+                    ParameterExpression tokenTypeVariable,
+                    BinaryExpression jsonEntityTypeConstructionAssignment,
+                    List<ParameterExpression> finalBlockVariables,
+                    List<MethodCallExpression> valueBufferTryReadValueMethodsToProcess)
+                {
+                    var breakLabel = Expression.Label("done");
+
+                    var testExpressions = new List<Expression>();
+                    var readExpressions = new List<Expression>();
+
+                    // look into ctor - if it takes any arguments we need to include them in the loop
+                    var propertyAssignmentMap = new Dictionary<MethodCallExpression, ParameterExpression>();
+                    var navigationAssignmentMap = new Dictionary<Expression, ParameterExpression>();
+
+                    // add ctor arguments to the list of properties we need to extract from JSON
+                    foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
+                    {
+                        if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
+                        {
+                            valueBufferTryReadValueMethodsToProcess.Add(valueBufferTryReadValueCall);
+                        }
+                    }
+
+                    foreach (var valueBufferTryReadValueMethodToProcess in valueBufferTryReadValueMethodsToProcess)
+                    {
+                        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueMethodToProcess.Arguments[2]).Value!;
+
+                        testExpressions.Add(
+                            Expression.Call(
+                                managerVariable,
+                                Utf8JsonReaderManagerValueTextEqualsMethod,
+                                Expression.Property(
+                                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                                    "EncodedUtf8Bytes")));
+
+
+                        //var propertyVariable = Expression.Variable(property.ClrType);
+
+                        var propertyVariable = Expression.Variable(valueBufferTryReadValueMethodToProcess.Type);
+
+                        // shadow properties are stored in array of objects, so type the variable as object
+                        // otherwise use property CLR type
+                        //var propertyVariable = Expression.Variable(property.IsShadowProperty()
+                        //    ? valueBufferTryReadValueMethodToProcess.Type
+                        //    : property.ClrType);
+
+                        finalBlockVariables.Add(propertyVariable);
+
+                        var moveNext = Expression.Call(
+                            managerVariable,
+                            Utf8JsonReaderManagerMoveNextMethod);
+
+                        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                        var assignment = Expression.Assign(
+                            propertyVariable,
+                            valueBufferTryReadValueMethodToProcess);
+
+                        readExpressions.Add(
+                            Expression.Block(
+                                moveNext,
+                                assignment,
+                                Expression.Empty()));
+
+                        propertyAssignmentMap[valueBufferTryReadValueMethodToProcess] = propertyVariable;
+                    }
+
+                    foreach (var innerShaperMapElement in _innerShapersMap)
+                    {
+                        testExpressions.Add(
+                            Expression.Call(
+                                managerVariable,
+                                Utf8JsonReaderManagerValueTextEqualsMethod,
+                                Expression.Property(
+                                    Expression.Constant(JsonEncodedText.Encode(innerShaperMapElement.Key)),
+                                    "EncodedUtf8Bytes")));
+
+                        var propertyVariable = Expression.Variable(innerShaperMapElement.Value.Type);
+                        finalBlockVariables.Add(propertyVariable);
+
+                        _navigationVariableMap[innerShaperMapElement.Key] = propertyVariable;
+
+                        var moveNext = Expression.Call(
+                            managerVariable,
+                            Utf8JsonReaderManagerMoveNextMethod);
+
+                        var captureState = Expression.Call(
+                            managerVariable,
+                            Utf8JsonReaderManagerCaptureStateMethod);
+
+                        var assignment = Expression.Assign(
+                            propertyVariable,
+                            innerShaperMapElement.Value);
+
+                        var managerRecreation = Expression.Assign(
+                            managerVariable,
+                            Expression.New(JsonReaderManagerConstructor, _jsonReaderDataParameter));
+
+                        readExpressions.Add(
+                            Expression.Block(
+                                moveNext,
+                                captureState,
+                                assignment,
+                                managerRecreation,
+                                Expression.Empty()));
+                    }
+
+                    var testsCount = testExpressions.Count;
+                    var testExpression = Expression.IfThen(
+                        testExpressions[testsCount - 1],
+                        readExpressions[testsCount - 1]);
+
+                    for (var i = testsCount - 2; i >= 0; i--)
+                    {
+                        testExpression = Expression.IfThenElse(
+                            testExpressions[i],
+                            readExpressions[i],
+                            testExpression);
+                    }
+
+                    var cases = new List<SwitchCase>();
+                    var propertySwitchCase = Expression.SwitchCase(
+                        testExpression,
+                        Expression.Constant(JsonTokenType.PropertyName));
+
+                    cases.Add(propertySwitchCase);
+
+                    var loopTest = Expression.NotEqual(
+                        tokenTypeVariable,
+                        Expression.Constant(JsonTokenType.EndObject));
+
+                    var loopBody = Expression.Block(
+                        Expression.Assign(
+                            tokenTypeVariable,
+                            Expression.Call(
+                                managerVariable,
+                                Utf8JsonReaderManagerMoveNextMethod)),
+                        Expression.IfThenElse(
+                            loopTest,
+                            Expression.Switch(
+                                tokenTypeVariable,
+                                Expression.Call(managerVariable, Utf8JsonReaderManagerSkipMethod),
+                                cases.ToArray()),
+                            Expression.Break(breakLabel)));
+
+                    return (Expression.Loop(loopBody, breakLabel), propertyAssignmentMap);
+                }
             }
 
             protected override Expression VisitConditional(ConditionalExpression conditionalExpression)
