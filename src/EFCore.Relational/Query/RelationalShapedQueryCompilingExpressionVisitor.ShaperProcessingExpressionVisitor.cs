@@ -1516,57 +1516,53 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     && onlyValue.Value == _entityType
                     && body.Expressions.Count > 0)
                 {
-                    var finalBlockVariables = new List<ParameterExpression>();
+                    //var shadowPropertiesInValueBuffer = false;
+
+                    var propertyAssignments = new List<BinaryExpression>();
 
 
+                    var valueBufferTryReadValueMethodsToProcess = new List<MethodCallExpression>();
+
+                    //var shadowValueBufferPropertyAssignmentsMap = new Dictionary<MethodCallExpression, (ParameterExpression, IPropertyBase)>();
+
+                    var shadowValueBufferAssignment = default(BinaryExpression);
                     if (body.Expressions[0] is BinaryExpression
                         {
                             NodeType: ExpressionType.Assign,
                             Right: NewExpression
                             {
-                                Arguments: [ NewArrayExpression shadowValueBufferInitExpression ]
+                                Arguments: [ NewArrayExpression svbInitExpression ]
                             }
-                        } shadowValueBufferAssignment
-                        && shadowValueBufferAssignment.Type == typeof(ValueBuffer))
+                        } svbAssignment
+                        && svbAssignment.Type == typeof(ValueBuffer))
                     {
-                        var entityPrimaryKeyProperties = _entityType.FindPrimaryKey()!.Properties;
+                        // TODO: is there more elegant way to do this?
+                        shadowValueBufferAssignment = svbAssignment;
 
-                        var shadowValueBufferProperties = shadowValueBufferInitExpression.Expressions
+                        // if we have shadow value buffer, and it contains some non-key properties, we need to extract them from JSON
+                        // but we can only do it in a streaming manner, so we generate a variable to store the shadow property value, like we do for normal properties
+                        // we also need to push the generation of shadowValueBuffer to after we've done all the reading (by default it's generated before)
+                        var entityPrimaryKeyProperties = _entityType.FindPrimaryKey()!.Properties;
+                        var shadowValueBufferProperties = svbInitExpression.Expressions
                             .Cast<MethodCallExpression>()
                             .Select(x => new { Expression = x, Property = (IPropertyBase)((ConstantExpression)x.Arguments[2]).Value! })
                             .Where(x => x.Property.IsShadowProperty() && !entityPrimaryKeyProperties.Contains(x.Property))
+                            .Select(x => x.Expression)
                             .ToList();
 
-
-
-                        foreach (var shadowValueBufferProperty in shadowValueBufferProperties)
+                        if (shadowValueBufferProperties.Count > 0)
                         {
-                            var shadowValueBufferPropertyVarialbe = Expression.Variable(shadowValueBufferProperty.Expression.Type);
-                            finalBlockVariables.Add(shadowValueBufferPropertyVarialbe);
-
+                            valueBufferTryReadValueMethodsToProcess.AddRange(shadowValueBufferProperties);
                         }
 
-
-
-
-
-
-
-
-
+                        //shadowPropertiesInValueBuffer = true;
                     }
-
-
-
-
 
                     var jsonEntityTypeVariable = default(ParameterExpression);
                     var jsonEntityTypeConstructionAssignment = default(BinaryExpression);
-                    var propertyAssignments = new List<BinaryExpression>();
 
                     //sometimes we have shadow value buffer, sometimes not
                     var jsonEntityTypeInitializerExpression = body.Expressions[^1];
-
                     if (jsonEntityTypeInitializerExpression is BlockExpression
                         {
                             Variables: [ParameterExpression jsonEntityTypeBlockVariable],
@@ -1583,7 +1579,16 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         jsonEntityTypeVariable = jsonEntityTypeBlockVariable;
                         jsonEntityTypeConstructionAssignment = jsonEntityTypeBlockConstructionAssignment;
 
-                        propertyAssignments = jsonEntityTypeInitializerBlock.Expressions.Skip(1).Where(x => x.NodeType == ExpressionType.Assign).Cast<BinaryExpression>().ToList();
+                        var propertyAssignments2 = jsonEntityTypeInitializerBlock.Expressions
+                            .OfType<BinaryExpression>()
+                            .Where(x => x.NodeType == ExpressionType.Assign)
+                            .Select(x => x.Right)
+                            .OfType<MethodCallExpression>().ToList();
+
+                        if (propertyAssignments2.Count > 0)
+                        {
+                            valueBufferTryReadValueMethodsToProcess.AddRange(propertyAssignments2);
+                        }
                     }
                     else if (jsonEntityTypeInitializerExpression is NewExpression jsonEntityTypeInitializerCtor)
                     {
@@ -1593,6 +1598,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     }
                     else
                     {
+                        // TODO: remove once we test it all works - we make sure we have what we need in the "if" below
                         throw new InvalidOperationException("unsupported pattern");
                     }
 
@@ -1602,12 +1608,12 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
                         var tokenTypeVariable = Expression.Variable(typeof(JsonTokenType), "tokenType");
 
-                        finalBlockVariables.AddRange(
-                            new[] {
+                        var finalBlockVariables = new List<ParameterExpression>
+                            {
                                 jsonEntityTypeVariable,
                                 managerVariable,
                                 tokenTypeVariable,
-                            });
+                            };
 
                         var finalBlockExpressions = new List<Expression>
                             {
@@ -1622,10 +1628,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             };
 
                         // TODO: do the proper check - make sure this thing always can only have 1 or 2 statements (with and without value buffer)
-                        if (body.Expressions.Count > 1)
-                        {
-                            finalBlockExpressions.Insert(0, body.Expressions[0]);
-                        }
+                        //if (body.Expressions.Count > 1)
+                        //{
+                        //    finalBlockExpressions.Insert(0, body.Expressions[0]);
+                        //}
 
                         //if (jsonEntityTypeConstruction.Arguments.Any())
                         //{
@@ -1635,7 +1641,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         //}
                         //else
                         {
-
                             var breakLabel = Expression.Label("done");
 
                             var testExpressions = new List<Expression>();
@@ -1644,82 +1649,134 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             // look into ctor - if it takes any arguments we need to include them in the loop
                             var ctorAssignmentMap = new Dictionary<Expression, ParameterExpression>();
                             var propertyAssignmentMap = new Dictionary<Expression, ParameterExpression>();
+                            var propertyAssignmentMap2 = new Dictionary<MethodCallExpression, ParameterExpression>();
                             var navigationAssignmentMap = new Dictionary<Expression, ParameterExpression>();
 
-                            // generate variables to store ctor arguments and build the map from the original expression to that variable
-                            // so that we can replace it when we construct the actual entity
+                            // add ctor arguments to the list of properties we need to extract from JSON
                             foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
                             {
-                                // TODO: DRY with the code below (for normal properties)
                                 if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
                                 {
-                                    var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
-
-                                    testExpressions.Add(
-                                        Expression.Call(
-                                            managerVariable,
-                                            Utf8JsonReaderManagerValueTextEqualsMethod,
-                                            Expression.Property(
-                                                Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                                                "EncodedUtf8Bytes")));
-
-                                    var propertyVariable = Expression.Variable(property.ClrType);
-                                    finalBlockVariables.Add(propertyVariable);
-
-                                    var moveNext = Expression.Call(
-                                        managerVariable,
-                                        Utf8JsonReaderManagerMoveNextMethod);
-
-                                    // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                                    var assignment = Expression.Assign(
-                                        propertyVariable,
-                                        ctorArgument);
-
-                                    readExpressions.Add(
-                                        Expression.Block(
-                                            moveNext,
-                                            assignment,
-                                            Expression.Empty()));
-
-                                    ctorAssignmentMap[ctorArgument] = propertyVariable;
+                                    valueBufferTryReadValueMethodsToProcess.Add(valueBufferTryReadValueCall);
                                 }
                             }
 
-                            foreach (var propertyAssignment in propertyAssignments)
+                            //foreach (var propertyAssignment in propertyAssignments)
+                            //{
+                            //    valueBufferTryReadValueMethodsToProcess.Add((MethodCallExpression)propertyAssignment.Right);
+                            //}
+
+                            foreach (var valueBufferTryReadValueMethodToProcess in valueBufferTryReadValueMethodsToProcess)
                             {
-                                if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
-                                {
-                                    var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+                                var property = (IProperty)((ConstantExpression)valueBufferTryReadValueMethodToProcess.Arguments[2]).Value!;
 
-                                    testExpressions.Add(
-                                        Expression.Call(
-                                            managerVariable,
-                                            Utf8JsonReaderManagerValueTextEqualsMethod,
-                                            Expression.Property(
-                                                Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
-                                                "EncodedUtf8Bytes")));
-
-                                    var propertyVariable = Expression.Variable(property.ClrType);
-                                    finalBlockVariables.Add(propertyVariable);
-
-                                    var moveNext = Expression.Call(
+                                testExpressions.Add(
+                                    Expression.Call(
                                         managerVariable,
-                                        Utf8JsonReaderManagerMoveNextMethod);
+                                        Utf8JsonReaderManagerValueTextEqualsMethod,
+                                        Expression.Property(
+                                            Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                                            "EncodedUtf8Bytes")));
 
-                                    // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
-                                    var assignment = Expression.Assign(
-                                        propertyVariable,
-                                        propertyAssignment.Right);
 
-                                    readExpressions.Add(
-                                        Expression.Block(
-                                            moveNext,
-                                            assignment,
-                                            Expression.Empty()));
+                                var propertyVariable = Expression.Variable(valueBufferTryReadValueMethodToProcess.Type);
 
-                                    propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
-                                }
+                                //var propertyVariable = Expression.Variable(property.ClrType);
+                                finalBlockVariables.Add(propertyVariable);
+
+                                var moveNext = Expression.Call(
+                                    managerVariable,
+                                    Utf8JsonReaderManagerMoveNextMethod);
+
+                                // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                                var assignment = Expression.Assign(
+                                    propertyVariable,
+                                    valueBufferTryReadValueMethodToProcess);
+
+                                readExpressions.Add(
+                                    Expression.Block(
+                                        moveNext,
+                                        assignment,
+                                        Expression.Empty()));
+
+                                //propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
+                                propertyAssignmentMap2[valueBufferTryReadValueMethodToProcess] = propertyVariable;
                             }
+
+                            //    // generate variables to store ctor arguments and build the map from the original expression to that variable
+                            //    // so that we can replace it when we construct the actual entity
+                            //    foreach (var ctorArgument in ((NewExpression)jsonEntityTypeConstructionAssignment.Right).Arguments)
+                            //{
+                            //    // TODO: DRY with the code below (for normal properties)
+                            //    if (ctorArgument is MethodCallExpression valueBufferTryReadValueCall)
+                            //    {
+                            //        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+
+                            //        testExpressions.Add(
+                            //            Expression.Call(
+                            //                managerVariable,
+                            //                Utf8JsonReaderManagerValueTextEqualsMethod,
+                            //                Expression.Property(
+                            //                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                            //                    "EncodedUtf8Bytes")));
+
+                            //        var propertyVariable = Expression.Variable(property.ClrType);
+                            //        finalBlockVariables.Add(propertyVariable);
+
+                            //        var moveNext = Expression.Call(
+                            //            managerVariable,
+                            //            Utf8JsonReaderManagerMoveNextMethod);
+
+                            //        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                            //        var assignment = Expression.Assign(
+                            //            propertyVariable,
+                            //            ctorArgument);
+
+                            //        readExpressions.Add(
+                            //            Expression.Block(
+                            //                moveNext,
+                            //                assignment,
+                            //                Expression.Empty()));
+
+                            //        ctorAssignmentMap[ctorArgument] = propertyVariable;
+                            //    }
+                            //}
+
+                            //foreach (var propertyAssignment in propertyAssignments)
+                            //{
+                            //    if (propertyAssignment.Right is MethodCallExpression valueBufferTryReadValueCall)
+                            //    {
+                            //        var property = (IProperty)((ConstantExpression)valueBufferTryReadValueCall.Arguments[2]).Value!;
+
+                            //        testExpressions.Add(
+                            //            Expression.Call(
+                            //                managerVariable,
+                            //                Utf8JsonReaderManagerValueTextEqualsMethod,
+                            //                Expression.Property(
+                            //                    Expression.Constant(JsonEncodedText.Encode(property.GetJsonPropertyName()!)),
+                            //                    "EncodedUtf8Bytes")));
+
+                            //        var propertyVariable = Expression.Variable(property.ClrType);
+                            //        finalBlockVariables.Add(propertyVariable);
+
+                            //        var moveNext = Expression.Call(
+                            //            managerVariable,
+                            //            Utf8JsonReaderManagerMoveNextMethod);
+
+                            //        // do the conversion to appropriate json reader method in the visit later (like we do for non-json property access)
+                            //        var assignment = Expression.Assign(
+                            //            propertyVariable,
+                            //            propertyAssignment.Right);
+
+                            //        readExpressions.Add(
+                            //            Expression.Block(
+                            //                moveNext,
+                            //                assignment,
+                            //                Expression.Empty()));
+
+                            //        propertyAssignmentMap[propertyAssignment.Left] = propertyVariable;
+                            //    }
+                            //}
 
                             foreach (var innerShaperMapElement in _innerShapersMap)
                             {
@@ -1806,14 +1863,36 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             var finalCaptureState = Expression.Call(managerVariable, Utf8JsonReaderManagerCaptureStateMethod);
                             finalBlockExpressions.Add(finalCaptureState);
 
-                            // replace original ctor calls with variables that we assigned the values to
-                            if (ctorAssignmentMap.Any())
+                            if (shadowValueBufferAssignment != null)
                             {
-                                jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
-                                    ctorAssignmentMap.Select(x => x.Key).ToList(),
-                                    ctorAssignmentMap.Select(x => x.Value).ToList())
-                                        .Visit(jsonEntityTypeConstructionAssignment);
+                                shadowValueBufferAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
+                                    propertyAssignmentMap2.Select(x => x.Key).ToList(),
+                                    propertyAssignmentMap2.Select(x => x.Value).ToList())
+                                        .Visit(shadowValueBufferAssignment);
+
+                                finalBlockExpressions.Add(shadowValueBufferAssignment);
                             }
+
+                            // replace original ctor calls with variables that we assigned the values to
+                            jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
+                                propertyAssignmentMap2.Select(x => x.Key).ToList(),
+                                propertyAssignmentMap2.Select(x => x.Value).ToList())
+                                    .Visit(jsonEntityTypeConstructionAssignment);
+
+                            //// replace original ctor calls with variables that we assigned the values to
+                            //if (ctorAssignmentMap.Any())
+                            //{
+                            //    //jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
+                            //    //    ctorAssignmentMap.Select(x => x.Key).ToList(),
+                            //    //    ctorAssignmentMap.Select(x => x.Value).ToList())
+                            //    //        .Visit(jsonEntityTypeConstructionAssignment);
+
+                            //    jsonEntityTypeConstructionAssignment = (BinaryExpression)new ReplacingExpressionVisitor(
+                            //        propertyAssignmentMap2.Select(x => x.Key).ToList(),
+                            //        propertyAssignmentMap2.Select(x => x.Value).ToList())
+                            //            .Visit(jsonEntityTypeConstructionAssignment);
+
+                            //}
 
                             finalBlockExpressions.Add(jsonEntityTypeConstructionAssignment);
 
@@ -1835,7 +1914,6 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             _found = true;
 
                             finalBlockExpressions.Add(jsonEntityTypeVariable);
-
 
                             var kups = Expression.Block(
                                 finalBlockVariables,
@@ -2154,27 +2232,46 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     var instanceAssignmentBody = (BlockExpression)instanceAssignment.Right;
 
                     var newInstanceAssignmentVariables = instanceAssignmentBody.Variables.ToList();
-                    var newInstanceAssignmentExpressions = new List<Expression>
-                    {
-                        // TODO: add check that first expression is really the shadow value buffer assignment
-                        Expression.IfThen(
-                            Expression.Not(entityAlreadyTrackedVariable),
-                            instanceAssignmentBody.Expressions[0]),
+                    var newInstanceAssignmentExpressions = new List<Expression>();
 
-                        // jsonManagerPrm = new Utf8JsonReaderManager(jsonReaderDataPrm);
-                        instanceAssignmentBody.Expressions[1],
-
-                        // tokenType = jsonManagerPrm.TokenType;
-                        instanceAssignmentBody.Expressions[2],
-                    };
-
-                    // TODO: inject check to skip reading the value from json if entityAlreadyTracked
-                    var propertyAssignmentLoop = (LoopExpression)instanceAssignmentBody.Expressions[3];
-
-                    newInstanceAssignmentExpressions.Add(propertyAssignmentLoop);
-
+                    // we only need to generate shadowValueBuffer if the entity isn't already tracked
+                    // shadow value buffer can be generated early in the block (default)
+                    // or after we read all the values from JSON (case when the entity has some shadow properties)
+                    // so we loop through the existing expressions and add the condition to value buffer assignment when we find it
+                    // expressions processed here:
+                    // shadowValueBuffer = new ValueBuffer(...)
+                    // jsonManagerPrm = new Utf8JsonReaderManager(jsonReaderDataPrm);
+                    // tokenType = jsonManagerPrm.TokenType;
+                    // property_reading_loop(...)
                     // jsonManagerPrm.CaptureState();
-                    newInstanceAssignmentExpressions.Add(instanceAssignmentBody.Expressions[4]);
+                    for (var i = 0; i < 5; i++)
+                    {
+                        newInstanceAssignmentExpressions.Add(
+                            instanceAssignmentBody.Expressions[i].Type == typeof(ValueBuffer)
+                            ? Expression.IfThen(
+                                Expression.Not(entityAlreadyTrackedVariable),
+                                instanceAssignmentBody.Expressions[i])
+                            : instanceAssignmentBody.Expressions[i]);
+                    }
+
+                    //var newInstanceAssignmentExpressions = new List<Expression>
+                    //{
+                    //    // TODO: add check that first expression is really the shadow value buffer assignment
+                    //    Expression.IfThen(
+                    //        Expression.Not(entityAlreadyTrackedVariable),
+                    //        instanceAssignmentBody.Expressions[0]),
+
+                    //    instanceAssignmentBody.Expressions[1],
+
+                    //    instanceAssignmentBody.Expressions[2],
+                    //};
+
+                    //// TODO: inject check to skip reading the value from json if entityAlreadyTracked
+                    //var propertyAssignmentLoop = (LoopExpression)instanceAssignmentBody.Expressions[3];
+
+                    //newInstanceAssignmentExpressions.Add(propertyAssignmentLoop);
+
+                    //newInstanceAssignmentExpressions.Add(instanceAssignmentBody.Expressions[4]);
 
 
                     var innerInstanceVariable = ((BinaryExpression)instanceAssignmentBody.Expressions[5]).Left;
@@ -2190,11 +2287,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         instanceAssignmentBody.Expressions[5]
                     };
 
-                    // TODO: also take into account properties that go into the constructor - the will be missing from a regular assignment
-                    var jsonEntityNonKeyPropertyCount = _entityType.GetProperties().Count(x => !x.IsPrimaryKey());
-                    if (jsonEntityNonKeyPropertyCount > 0)
+                    var jsonEntityNonKeyNonShadowPropertyCount = _entityType.GetProperties().Count(x => !x.IsPrimaryKey() && !x.IsShadowProperty());
+                    if (jsonEntityNonKeyNonShadowPropertyCount > 0)
                     {
-                        createAndPopulateInstanceIfTrueBlockExpressions.AddRange(instanceAssignmentBody.Expressions.Skip(6).Take(jsonEntityNonKeyPropertyCount));
+                        createAndPopulateInstanceIfTrueBlockExpressions.AddRange(instanceAssignmentBody.Expressions.Skip(6).Take(jsonEntityNonKeyNonShadowPropertyCount));
                     }
 
                     createAndPopulateInstanceIfTrueBlockExpressions.Add(Expression.Default(typeof(void)));
@@ -2210,7 +2306,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     var navigationCount = _entityType.NavigationCount();
                     if (navigationCount > 0)
                     {
-                        newInstanceAssignmentExpressions.AddRange(instanceAssignmentBody.Expressions.Skip(6 + jsonEntityNonKeyPropertyCount).Take(navigationCount));
+                        newInstanceAssignmentExpressions.AddRange(instanceAssignmentBody.Expressions.Skip(6 + jsonEntityNonKeyNonShadowPropertyCount).Take(navigationCount));
                     }
 
                     newInstanceAssignmentExpressions.Add(innerInstanceVariable);
