@@ -357,7 +357,6 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
         }
     }
 
-
     protected abstract void SeedArrayOfPrimitives(MyContextArrayOfPrimitives ctx);
 
     protected class MyContextArrayOfPrimitives : DbContext
@@ -432,6 +431,39 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
             var result = async
                 ? await query.ToListAsync()
                 : query.ToList();
+
+            Assert.Equal(1, result.Count);
+            Assert.Equal(2, result[0].Collection.Count);
+            Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            Assert.Equal(2, result[0].Reference.NestedCollection.Count);
+            Assert.NotNull(result[0].Reference.NestedReference);
+            Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
+            Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Junk_in_json_basic_no_tracking(bool async)
+    {
+        var contextFactory = await InitializeAsync<MyContextJunkInJson>(
+            seed: SeedJunkInJson);
+
+        using (var context = contextFactory.CreateContext())
+        {
+            var query = context.Entities.AsNoTracking();
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Equal(1, result.Count);
+            Assert.Equal(2, result[0].Collection.Count);
+            Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            Assert.Equal(2, result[0].Reference.NestedCollection.Count);
+            Assert.NotNull(result[0].Reference.NestedReference);
+            Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
+            Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
         }
     }
 
@@ -522,6 +554,123 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
         }
 
         public DateTime DoB { get; set; }
+    }
+
+    #endregion
+
+    #region ShadowProperties
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Shadow_properties_basic_tracking(bool async)
+    {
+        var contextFactory = await InitializeAsync<MyContextShadowProperties>(
+            seed: SeedShadowProperties);
+
+        using (var context = contextFactory.CreateContext())
+        {
+            var query = context.Entities;
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Equal(1, result.Count);
+            //Assert.Equal(2, result[0].Collection.Count);
+            //Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            //Assert.Equal(2, result[0].Reference.NestedCollection.Count);
+            //Assert.NotNull(result[0].Reference.NestedReference);
+            //Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
+            //Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Shadow_properties_basic_no_tracking(bool async)
+    {
+        var contextFactory = await InitializeAsync<MyContextShadowProperties>(
+            seed: SeedShadowProperties);
+
+        using (var context = contextFactory.CreateContext())
+        {
+            var query = context.Entities.AsNoTracking();
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Equal(1, result.Count);
+            //Assert.Equal(2, result[0].Collection.Count);
+            //Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            //Assert.Equal(2, result[0].Reference.NestedCollection.Count);
+            //Assert.NotNull(result[0].Reference.NestedReference);
+            //Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
+            //Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
+        }
+    }
+
+    protected abstract void SeedShadowProperties(MyContextShadowProperties ctx);
+
+    protected class MyContextShadowProperties : DbContext
+    {
+        public MyContextShadowProperties(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        public DbSet<MyEntityShadowProperties> Entities { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyEntityShadowProperties>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<MyEntityShadowProperties>().OwnsOne(x => x.Reference, b =>
+            {
+                b.ToJson();
+                b.Property<string>("ShadowString");
+            });
+            modelBuilder.Entity<MyEntityShadowProperties>().OwnsOne(x => x.ReferenceWithCtor, b =>
+            {
+                b.ToJson();
+                b.Property<int>("ShadowInt");
+            });
+            modelBuilder.Entity<MyEntityShadowProperties>().OwnsMany(x => x.Collection, b =>
+            {
+                b.ToJson();
+                b.Property<double>("ShadowdDouble");
+            });
+            modelBuilder.Entity<MyEntityShadowProperties>().OwnsMany(x => x.CollectionWithCtor, b =>
+            {
+                b.ToJson();
+                b.Property<byte>("ShadowByte");
+            });
+        }
+    }
+
+    public class MyEntityShadowProperties
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public MyJsonEntityShadowProperties Reference { get; set; }
+        public List<MyJsonEntityShadowProperties> Collection { get; set; }
+        public MyJsonEntityShadowPropertiesWithCtor ReferenceWithCtor { get; set; }
+        public List<MyJsonEntityShadowPropertiesWithCtor> CollectionWithCtor { get; set; }
+    }
+
+    public class MyJsonEntityShadowProperties
+    {
+        public string Name { get; set; }
+    }
+
+    public class MyJsonEntityShadowPropertiesWithCtor
+    {
+        public MyJsonEntityShadowPropertiesWithCtor(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; set; }
     }
 
     #endregion

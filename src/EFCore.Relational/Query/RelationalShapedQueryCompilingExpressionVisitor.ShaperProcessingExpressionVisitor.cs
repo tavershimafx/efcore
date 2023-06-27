@@ -1508,16 +1508,58 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
             protected override Expression VisitSwitch(SwitchExpression switchExpression)
             {
-                // TODO: make a nice pattern match so that Shay is happy
                 if (switchExpression.SwitchValue.Type == typeof(IEntityType)
-                    && switchExpression.Cases.Count == 1
-                    && switchExpression.Cases[0] is SwitchCase onlyCase
-                    && onlyCase.TestValues.Count == 1
-                    && onlyCase.TestValues[0] is ConstantExpression onlyValue
+                    && switchExpression is SwitchExpression
+                    {
+                        Cases: [ SwitchCase { TestValues: [ ConstantExpression onlyValue ], Body: BlockExpression body } onlyCase ]
+                    }
                     && onlyValue.Value == _entityType
-                    && onlyCase.Body is BlockExpression body
                     && body.Expressions.Count > 0)
                 {
+                    var finalBlockVariables = new List<ParameterExpression>();
+
+
+                    if (body.Expressions[0] is BinaryExpression
+                        {
+                            NodeType: ExpressionType.Assign,
+                            Right: NewExpression
+                            {
+                                Arguments: [ NewArrayExpression shadowValueBufferInitExpression ]
+                            }
+                        } shadowValueBufferAssignment
+                        && shadowValueBufferAssignment.Type == typeof(ValueBuffer))
+                    {
+                        var entityPrimaryKeyProperties = _entityType.FindPrimaryKey()!.Properties;
+
+                        var shadowValueBufferProperties = shadowValueBufferInitExpression.Expressions
+                            .Cast<MethodCallExpression>()
+                            .Select(x => new { Expression = x, Property = (IPropertyBase)((ConstantExpression)x.Arguments[2]).Value! })
+                            .Where(x => x.Property.IsShadowProperty() && !entityPrimaryKeyProperties.Contains(x.Property))
+                            .ToList();
+
+
+
+                        foreach (var shadowValueBufferProperty in shadowValueBufferProperties)
+                        {
+                            var shadowValueBufferPropertyVarialbe = Expression.Variable(shadowValueBufferProperty.Expression.Type);
+                            finalBlockVariables.Add(shadowValueBufferPropertyVarialbe);
+
+                        }
+
+
+
+
+
+
+
+
+
+                    }
+
+
+
+
+
                     var jsonEntityTypeVariable = default(ParameterExpression);
                     var jsonEntityTypeConstructionAssignment = default(BinaryExpression);
                     var propertyAssignments = new List<BinaryExpression>();
@@ -1560,12 +1602,12 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         var managerVariable = Expression.Variable(typeof(Utf8JsonReaderManager));
                         var tokenTypeVariable = Expression.Variable(typeof(JsonTokenType), "tokenType");
 
-                        var finalBlockVariables = new List<ParameterExpression>
-                            {
+                        finalBlockVariables.AddRange(
+                            new[] {
                                 jsonEntityTypeVariable,
                                 managerVariable,
                                 tokenTypeVariable,
-                            };
+                            });
 
                         var finalBlockExpressions = new List<Expression>
                             {

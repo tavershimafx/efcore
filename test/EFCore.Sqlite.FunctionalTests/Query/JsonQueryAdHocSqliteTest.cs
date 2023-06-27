@@ -127,4 +127,9 @@ VALUES(
     {
         throw new NotImplementedException();
     }
+
+    protected override void SeedShadowProperties(MyContextShadowProperties ctx)
+    {
+        throw new NotImplementedException();
+    }
 }
