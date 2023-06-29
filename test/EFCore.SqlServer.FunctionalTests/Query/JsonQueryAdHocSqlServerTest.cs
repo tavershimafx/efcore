@@ -217,18 +217,6 @@ N'{{""Name"":""e1_r"", ""ShadowString"":""Foo""}}',
 N'{{""ShadowInt"":143,""Name"":""e1_r ctor""}}',
 1,
 N'e1')");
-
-
-//        ctx.Database.ExecuteSqlRaw(@"INSERT INTO [Entities] ([Reference], [Id], [Name])
-//VALUES(
-//N'{{""Name"":""e1_r"", ""ShadowString"":""Foo""}}',
-//1,
-//N'e1')");
-
-
-
-
-
         //var entity1 = new MyEntityShadowProperties
         //{
         //    Id = 1,

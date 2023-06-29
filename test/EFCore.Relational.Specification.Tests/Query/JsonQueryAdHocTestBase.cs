@@ -571,12 +571,13 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
                 : query.ToList();
 
             Assert.Equal(1, result.Count);
-            //Assert.Equal(2, result[0].Collection.Count);
-            //Assert.Equal(2, result[0].CollectionWithCtor.Count);
-            //Assert.Equal(2, result[0].Reference.NestedCollection.Count);
-            //Assert.NotNull(result[0].Reference.NestedReference);
-            //Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
-            //Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
+            Assert.Equal(2, result[0].Collection.Count);
+            Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            Assert.NotNull(result[0].Reference);
+            Assert.NotNull(result[0].ReferenceWithCtor);
+
+            // TODO: actually validate that shadow property values has been set correctly
+            //var referenceEntry = context.ChangeTracker.Entries().Single(x => x.Entity == result[0].Reference);
         }
     }
 
@@ -596,12 +597,35 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
                 : query.ToList();
 
             Assert.Equal(1, result.Count);
-            //Assert.Equal(2, result[0].Collection.Count);
-            //Assert.Equal(2, result[0].CollectionWithCtor.Count);
-            //Assert.Equal(2, result[0].Reference.NestedCollection.Count);
-            //Assert.NotNull(result[0].Reference.NestedReference);
-            //Assert.Equal(2, result[0].ReferenceWithCtor.NestedCollection.Count);
-            //Assert.NotNull(result[0].ReferenceWithCtor.NestedReference);
+            Assert.Equal(2, result[0].Collection.Count);
+            Assert.Equal(2, result[0].CollectionWithCtor.Count);
+            Assert.NotNull(result[0].Reference);
+            Assert.NotNull(result[0].ReferenceWithCtor);
+        }
+    }
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual async Task Project_shadow_properties_from_json_entity(bool async)
+    {
+        var contextFactory = await InitializeAsync<MyContextShadowProperties>(
+            seed: SeedShadowProperties);
+
+        using (var context = contextFactory.CreateContext())
+        {
+            var query = context.Entities.Select(x => new
+            {
+                ShadowString = EF.Property<string>(x.Reference, "ShadowString"),
+                ShadowInt = EF.Property<int>(x.ReferenceWithCtor, "Shadow_Int"),
+            });
+
+            var result = async
+                ? await query.ToListAsync()
+                : query.ToList();
+
+            Assert.Equal(1, result.Count);
+            Assert.Equal("Foo", result[0].ShadowString);
+            Assert.Equal(143, result[0].ShadowInt);
         }
     }
 
@@ -627,7 +651,7 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
             modelBuilder.Entity<MyEntityShadowProperties>().OwnsOne(x => x.ReferenceWithCtor, b =>
             {
                 b.ToJson();
-                b.Property<int>("ShadowInt");
+                b.Property<int>("Shadow_Int").HasJsonPropertyName("ShadowInt");
             });
             modelBuilder.Entity<MyEntityShadowProperties>().OwnsMany(x => x.Collection, b =>
             {
