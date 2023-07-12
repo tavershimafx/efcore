@@ -912,6 +912,65 @@ WHERE (
 """);
     }
 
+    public override async Task Project_collection_of_ints_simple(bool async)
+    {
+        await base.Project_collection_of_ints_simple(async);
+
+        AssertSql(
+"""
+SELECT [p].[Ints]
+FROM [PrimitiveCollectionsEntity] AS [p]
+ORDER BY [p].[Id]
+""");
+    }
+
+    public override async Task Project_collection_of_ints_with_duplicates_simple(bool async)
+    {
+        await base.Project_collection_of_ints_with_duplicates_simple(async);
+
+        AssertSql(
+"""
+SELECT [p].[IntsWithDuplicates]
+FROM [PrimitiveCollectionsEntity] AS [p]
+ORDER BY [p].[Id]
+""");
+    }
+
+    public override async Task Project_collection_of_ints_ordered(bool async)
+    {
+        await base.Project_collection_of_ints_ordered(async);
+
+        AssertSql(
+"""
+SELECT [p].[Id], [i].[value]
+FROM [PrimitiveCollectionsEntity] AS [p]
+OUTER APPLY OPENJSON([p].[Ints]) WITH ([value] int '$') AS [i]
+ORDER BY [p].[Id], [i].[value] DESC
+""");
+    }
+
+    public override async Task Project_collection_of_ints_with_duplicates_ordered(bool async)
+    {
+        await base.Project_collection_of_ints_with_duplicates_ordered(async);
+
+        AssertSql(
+"""
+SELECT [p].[Id], [i].[value]
+ORDER BY [p].[Id], [i].[value] DESC
+""");
+    }
+
+    public override async Task Project_collection_of_ints_with_duplicates_filtered(bool async)
+    {
+        await base.Project_collection_of_ints_with_duplicates_filtered(async);
+
+        AssertSql(
+"""
+SELECT [p].[Id], [i].[value]
+ORDER BY [p].[Id], [i].[value] DESC
+""");
+    }
+
     [ConditionalFact]
     public virtual void Check_all_tests_overridden()
         => TestHelpers.AssertAllMethodsOverridden(GetType());

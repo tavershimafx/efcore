@@ -10732,6 +10732,93 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+
+
+    [ConditionalFact]
+    public async Task KupsonSikson()
+    {
+        //using (var context = new SomeDbContext())
+        //{
+        //    context.Database.EnsureDeleted();
+        //    context.Database.EnsureCreated();
+
+        //    var foo = new DogWalk();
+
+        //    context.Walks.Add(foo);
+        //    context.SaveChanges();
+        //}
+
+        using (var context = new SomeDbContext())
+        {
+            var days = await context.Walks
+                .Select(e => e.DaysVisited/*.OrderBy(e => e.Day).ToList()*/)
+                .ToListAsync();
+        }
+    }
+
+    public class DogWalk
+    {
+        public int Id { get; set; }
+        public List<DateOnly> DaysVisited { get; private set; } = new();
+    }
+
+    public class SomeDbContext : DbContext
+    {
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+
+        public DbSet<DogWalk> Walks => Set<DogWalk>();
+    }
+
+
+
+#nullable enable
+
+[ConditionalFact]
+    public async Task Fubarson()
+    {
+        await using var ctx = new BlogContext();
+        await ctx.Database.EnsureDeletedAsync();
+        await ctx.Database.EnsureCreatedAsync();
+
+        var result = await ctx.Blogs!
+            .Select(address => string.Join(", ", new[] { address.Street1, address.City }.Where(s => s != "")))
+            .ToListAsync();
+    }
+
+    public class BlogContext : DbContext
+    {
+        public DbSet<Blog>? Blogs { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro30922;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+    public class Blog
+    {
+        public int Id { get; set; }
+        public string? Street1 { get; set; }
+        public string? City { get; set; }
+    }
+
+
+
+
+
+#nullable disable
+
+
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 

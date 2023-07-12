@@ -128,6 +128,8 @@ public sealed partial class SelectExpression : TableExpressionBase
             isColumnNullable ?? columnType.IsNullableType());
 
         _projectionMapping[new ProjectionMember()] = columnExpression;
+
+        _identifier.Add((columnExpression, columnTypeMapping!.Comparer));
     }
 
     internal SelectExpression(IEntityType entityType, ISqlExpressionFactory sqlExpressionFactory)
@@ -1180,7 +1182,11 @@ public sealed partial class SelectExpression : TableExpressionBase
                     {
                         var innerSelectExpression = (SelectExpression)shapedQueryExpression.QueryExpression;
                         if (_identifier.Count == 0
-                            || innerSelectExpression._identifier.Count == 0)
+                            || (innerSelectExpression is not SelectExpression
+                            {
+                                Tables: [TableValuedFunctionExpression],
+                            }
+                            && innerSelectExpression._identifier.Count == 0))
                         {
                             throw new InvalidOperationException(
                                 RelationalStrings.InsufficientInformationToIdentifyElementOfCollectionJoin);

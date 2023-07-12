@@ -180,7 +180,11 @@ public class SqlServerQueryableMethodTranslatingExpressionVisitor : RelationalQu
                     _typeMappingSource.FindMapping(typeof(int))),
                 ascending: true));
 
-        var shaperExpression = new ProjectionBindingExpression(selectExpression, new ProjectionMember(), elementClrType);
+        var shaperExpression = (Expression)new ProjectionBindingExpression(selectExpression, new ProjectionMember(), elementClrType.MakeNullable());
+        if (shaperExpression.Type != elementClrType)
+        {
+            shaperExpression = Expression.Convert(shaperExpression, elementClrType);
+        }
 
         return new ShapedQueryExpression(selectExpression, shaperExpression);
     }

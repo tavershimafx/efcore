@@ -644,6 +644,51 @@ public class PrimitiveCollectionsQueryTestBase<TFixture> : QueryTestBase<TFixtur
             entryCount: 1);
     }
 
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Project_collection_of_ints_simple(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<PrimitiveCollectionsEntity>().OrderBy(x => x.Id).Select(x => x.Ints),
+            assertOrder: true,
+            elementAsserter: (e, a) => AssertCollection(e, a, ordered: true));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Project_collection_of_ints_with_duplicates_simple(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<PrimitiveCollectionsEntity>().OrderBy(x => x.Id).Select(x => x.IntsWithDuplicates),
+            assertOrder: true,
+            elementAsserter: (e, a) => AssertCollection(e, a, ordered: true));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Project_collection_of_ints_ordered(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<PrimitiveCollectionsEntity>().OrderBy(x => x.Id).Select(x => x.Ints.OrderByDescending(xx => xx).ToList()),
+            assertOrder: true,
+            elementAsserter: (e, a) => AssertCollection(e, a, ordered: true));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Project_collection_of_ints_with_duplicates_ordered(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<PrimitiveCollectionsEntity>().OrderBy(x => x.Id).Select(x => x.IntsWithDuplicates.OrderByDescending(xx => xx).ToList()),
+            assertOrder: true,
+            elementAsserter: (e, a) => AssertCollection(e, a, ordered: true));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Project_collection_of_ints_with_duplicates_filtered(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<PrimitiveCollectionsEntity>().OrderBy(x => x.Id).Select(x => x.IntsWithDuplicates.Where(xx => xx > 0).ToList()),
+            assertOrder: true,
+            elementAsserter: (e, a) => AssertCollection(e, a, ordered: true));
+
     public abstract class PrimitiveCollectionsQueryFixtureBase : SharedStoreFixtureBase<PrimitiveCollectionsContext>, IQueryFixtureBase
     {
         private PrimitiveArrayData _expectedData;
@@ -716,6 +761,7 @@ public class PrimitiveCollectionsQueryTestBase<TFixture> : QueryTestBase<TFixtur
 
         public string[] Strings { get; set; }
         public int[] Ints { get; set; }
+        public int[] IntsWithDuplicates { get; set; }
         public DateTime[] DateTimes { get; set; }
         public bool[] Bools { get; set; }
         public MyEnum[] Enums { get; set; }
@@ -765,6 +811,7 @@ public class PrimitiveCollectionsQueryTestBase<TFixture> : QueryTestBase<TFixtur
                     NullableInt = 10,
 
                     Ints = new[] { 1, 10 },
+                    IntsWithDuplicates = new[] { 1, 1, 10, 10, 10, 1, 10, 1, 1, 10, 10, 10 },
                     Strings = new[] { "1", "10" },
                     DateTimes = new DateTime[]
                     {
@@ -787,6 +834,7 @@ public class PrimitiveCollectionsQueryTestBase<TFixture> : QueryTestBase<TFixtur
                     NullableInt = null,
 
                     Ints = new[] { 1, 11, 111 },
+                    IntsWithDuplicates = new[] { 1, 1, 111, 11, 1, 111, 111, 1, 1, 1, 111 },
                     Strings = new[] { "1", "11", "111" },
                     DateTimes = new DateTime[]
                     {
@@ -810,6 +858,7 @@ public class PrimitiveCollectionsQueryTestBase<TFixture> : QueryTestBase<TFixtur
                     NullableInt = null,
 
                     Ints = Array.Empty<int>(),
+                    IntsWithDuplicates = Array.Empty<int>(),
                     Strings = Array.Empty<string>(),
                     DateTimes = Array.Empty<DateTime>(),
                     Bools = Array.Empty<bool>(),
