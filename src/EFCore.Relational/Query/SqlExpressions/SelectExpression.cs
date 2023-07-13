@@ -128,8 +128,51 @@ public sealed partial class SelectExpression : TableExpressionBase
             isColumnNullable ?? columnType.IsNullableType());
 
         _projectionMapping[new ProjectionMember()] = columnExpression;
+    }
 
-        _identifier.Add((columnExpression, columnTypeMapping!.Comparer));
+    /// <summary>
+    ///     Creates a new instance of the <see cref="SelectExpression" /> class given a <see cref="TableExpressionBase" />, with a single
+    ///     column projection.
+    /// </summary>
+    /// <param name="identidierColumnName">TODO TODO</param>
+    /// <param name="identifierColumnType">TODO TODO</param>
+    /// <param name="identifierColumnTypeMapping">TODO TODO</param>
+    /// <param name="tableExpression">The table expression.</param>
+    /// <param name="columnName">The name of the column to add as the projection.</param>
+    /// <param name="columnType">The type of the column to add as the projection.</param>
+    /// <param name="columnTypeMapping">The type mapping of the column to add as the projection.</param>
+    /// <param name="isColumnNullable">Whether the column projected out is nullable.</param>
+    public SelectExpression(
+        TableExpressionBase tableExpression,
+        string identidierColumnName,
+        Type identifierColumnType,
+        RelationalTypeMapping? identifierColumnTypeMapping,
+        string columnName,
+        Type columnType,
+        RelationalTypeMapping? columnTypeMapping,
+        bool? isColumnNullable = null)
+        : base(null)
+    {
+        var tableReferenceExpression = new TableReferenceExpression(this, tableExpression.Alias!);
+        AddTable(tableExpression, tableReferenceExpression);
+
+        var identifierColumn = new ConcreteColumnExpression(
+            identidierColumnName,
+            tableReferenceExpression,
+            identifierColumnType.UnwrapNullableType(),
+            identifierColumnTypeMapping,
+            identifierColumnType.IsNullableType());
+
+        var columnExpression = new ConcreteColumnExpression(
+            columnName,
+            tableReferenceExpression,
+            columnType.UnwrapNullableType(),
+            columnTypeMapping,
+            isColumnNullable ?? columnType.IsNullableType());
+
+        _projectionMapping[new ProjectionMember()] = columnExpression;
+
+        _identifier.Add((identifierColumn, identifierColumnTypeMapping!.Comparer));
     }
 
     internal SelectExpression(IEntityType entityType, ISqlExpressionFactory sqlExpressionFactory)

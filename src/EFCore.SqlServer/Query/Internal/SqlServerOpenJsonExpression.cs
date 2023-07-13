@@ -61,7 +61,7 @@ public class SqlServerOpenJsonExpression : TableValuedFunctionExpression, IClona
         IReadOnlyList<ColumnInfo>? columnInfos = null)
         : base(alias, "OPENJSON", schema: null, builtIn: true, path is null ? new[] { jsonExpression } : new[] { jsonExpression, path })
     {
-        ColumnInfos = columnInfos;
+        //ColumnInfos = columnInfos;
     }
 
     /// <summary>

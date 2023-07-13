@@ -156,7 +156,24 @@ public class SqlServerQueryableMethodTranslatingExpressionVisitor : RelationalQu
         var isColumnNullable = elementClrType.IsNullableType();
 
         var selectExpression = new SelectExpression(
-            openJsonExpression, columnName: "value", columnType: elementClrType, columnTypeMapping: elementTypeMapping, isColumnNullable);
+            openJsonExpression,
+            identidierColumnName: "key",
+            identifierColumnType: typeof(string),
+            identifierColumnTypeMapping: _typeMappingSource.FindMapping("nvarchar(4000)"),
+            columnName: "value",
+            columnType: elementClrType,
+            columnTypeMapping: elementTypeMapping,
+            isColumnNullable);
+
+        selectExpression.AppendOrdering(
+            new OrderingExpression(
+                    selectExpression.CreateColumnExpression(
+                        openJsonExpression,
+                        "key",
+                        typeof(string),
+                        typeMapping: _typeMappingSource.FindMapping("nvarchar(4000)"),
+                        columnNullable: false),
+                ascending: true));
 
         // OPENJSON doesn't guarantee the ordering of the elements coming out; when using OPENJSON without WITH, a [key] column is returned
         // with the JSON array's ordering, which we can ORDER BY; this option doesn't exist with OPENJSON with WITH, unfortunately.
@@ -167,18 +184,18 @@ public class SqlServerQueryableMethodTranslatingExpressionVisitor : RelationalQu
         // IN, EXISTS or a set operation), we'll just leave the OPENJSON with WITH. If not, we'll convert the OPENJSON with WITH to an
         // OPENJSON without WITH.
         // Note that the OPENJSON 'key' column is an nvarchar - we convert it to an int before sorting.
-        selectExpression.AppendOrdering(
-            new OrderingExpression(
-                _sqlExpressionFactory.Convert(
-                    selectExpression.CreateColumnExpression(
-                        openJsonExpression,
-                        "key",
-                        typeof(string),
-                        typeMapping: _typeMappingSource.FindMapping("nvarchar(4000)"),
-                        columnNullable: false),
-                    typeof(int),
-                    _typeMappingSource.FindMapping(typeof(int))),
-                ascending: true));
+        //selectExpression.AppendOrdering(
+        //    new OrderingExpression(
+        //        _sqlExpressionFactory.Convert(
+        //            selectExpression.CreateColumnExpression(
+        //                openJsonExpression,
+        //                "key",
+        //                typeof(string),
+        //                typeMapping: _typeMappingSource.FindMapping("nvarchar(4000)"),
+        //                columnNullable: false),
+        //            typeof(int),
+        //            _typeMappingSource.FindMapping(typeof(int))),
+        //        ascending: true));
 
         var shaperExpression = (Expression)new ProjectionBindingExpression(selectExpression, new ProjectionMember(), elementClrType.MakeNullable());
         if (shaperExpression.Type != elementClrType)

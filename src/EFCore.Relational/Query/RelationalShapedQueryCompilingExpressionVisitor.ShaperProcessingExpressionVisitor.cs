@@ -705,8 +705,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 _dataReaderParameter,
                                 _resultCoordinatorParameter,
                                 entity,
-                                Constant(parentIdentifierLambda.Compile()),
-                                Constant(outerIdentifierLambda.Compile()),
+                                parentIdentifierLambda,
+                                outerIdentifierLambda,
+                                //Constant(parentIdentifierLambda.Compile()),
+                                //Constant(outerIdentifierLambda.Compile()),
                                 Constant(navigation),
                                 Constant(navigation.IsShadowProperty()
                                     ? null
@@ -726,9 +728,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 QueryCompilationContext.QueryContextParameter,
                                 _dataReaderParameter,
                                 _resultCoordinatorParameter,
-                                Constant(parentIdentifierLambda.Compile()),
-                                Constant(outerIdentifierLambda.Compile()),
-                                Constant(selfIdentifierLambda.Compile()),
+
+                                parentIdentifierLambda,
+                                outerIdentifierLambda,
+                                selfIdentifierLambda,
+                                //Constant(parentIdentifierLambda.Compile()),
+                                //Constant(outerIdentifierLambda.Compile()),
+                                //Constant(selfIdentifierLambda.Compile()),
                                 Constant(
                                     relationalCollectionShaperExpression.ParentIdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
@@ -738,11 +744,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 Constant(
                                     relationalCollectionShaperExpression.SelfIdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
-                                Constant(innerShaper.Compile()),
+                                innerShaper,
+                                //Constant(innerShaper.Compile()),
                                 Constant(inverseNavigation, typeof(INavigationBase)),
-                                Constant(
-                                    GenerateFixup(
-                                        includingEntityType, relatedEntityType, navigation, inverseNavigation).Compile()),
+                                GenerateFixup(includingEntityType, relatedEntityType, navigation, inverseNavigation),
+                                //Constant(
+                                //    GenerateFixup(
+                                //        includingEntityType, relatedEntityType, navigation, inverseNavigation).Compile()),
                                 Constant(_isTracking)));
                     }
                     else if (includeExpression.NavigationExpression is RelationalSplitCollectionShaperExpression
@@ -794,7 +802,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 _dataReaderParameter,
                                 _resultCoordinatorParameter,
                                 entity,
-                                Constant(parentIdentifierLambda.Compile()),
+                                parentIdentifierLambda,
+                                //Constant(parentIdentifierLambda.Compile()),
                                 Constant(navigation),
                                 Constant(navigation.GetCollectionAccessor()),
                                 Constant(_isTracking),
@@ -816,20 +825,23 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 Constant(readerColumns, typeof(IReadOnlyList<ReaderColumn?>)),
                                 Constant(_detailedErrorsEnabled),
                                 _resultCoordinatorParameter,
-                                Constant(childIdentifierLambda.Compile()),
+                                childIdentifierLambda,
+                                //Constant(childIdentifierLambda.Compile()),
                                 Constant(
                                     relationalSplitCollectionShaperExpression.IdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
-                                Constant(innerShaper.Compile()),
+                                innerShaper,
+                                //Constant(innerShaper.Compile()),
                                 Constant(
                                     relatedDataLoaders?.Compile(),
                                     _isAsync
                                         ? typeof(Func<QueryContext, IExecutionStrategy, SplitQueryResultCoordinator, Task>)
                                         : typeof(Action<QueryContext, IExecutionStrategy, SplitQueryResultCoordinator>)),
                                 Constant(inverseNavigation, typeof(INavigationBase)),
-                                Constant(
-                                    GenerateFixup(
-                                        includingEntityType, relatedEntityType, navigation, inverseNavigation).Compile()),
+                                GenerateFixup(includingEntityType, relatedEntityType, navigation, inverseNavigation),
+                                //Constant(
+                                //    GenerateFixup(
+                                //        includingEntityType, relatedEntityType, navigation, inverseNavigation).Compile()),
                                 Constant(_isTracking)));
                     }
                     else
@@ -939,8 +951,10 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                     QueryCompilationContext.QueryContextParameter,
                                     _dataReaderParameter,
                                     _resultCoordinatorParameter,
-                                    Constant(parentIdentifierLambda.Compile()),
-                                    Constant(outerIdentifierLambda.Compile()),
+                                    parentIdentifierLambda,
+                                    outerIdentifierLambda,
+                                    //Constant(parentIdentifierLambda.Compile()),
+                                    //Constant(outerIdentifierLambda.Compile()),
                                     Constant(collectionAccessor, typeof(IClrCollectionAccessor)))));
 
                         _valuesArrayInitializers!.Add(collectionParameter);
@@ -957,9 +971,12 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 QueryCompilationContext.QueryContextParameter,
                                 _dataReaderParameter,
                                 _resultCoordinatorParameter,
-                                Constant(parentIdentifierLambda.Compile()),
-                                Constant(outerIdentifierLambda.Compile()),
-                                Constant(selfIdentifierLambda.Compile()),
+                                parentIdentifierLambda,
+                                outerIdentifierLambda,
+                                selfIdentifierLambda,
+                                //Constant(parentIdentifierLambda.Compile()),
+                                //Constant(outerIdentifierLambda.Compile()),
+                                //Constant(selfIdentifierLambda.Compile()),
                                 Constant(
                                     relationalCollectionShaperExpression.ParentIdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
@@ -969,7 +986,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 Constant(
                                     relationalCollectionShaperExpression.SelfIdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
-                                Constant(innerShaper.Compile())));
+                                innerShaper
+                                //Constant(innerShaper.Compile())
+                                ));
 
                         _variableShaperMapping[relationalCollectionShaperExpression] = accessor;
                     }
@@ -1048,11 +1067,13 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                                 Constant(readerColumns, typeof(IReadOnlyList<ReaderColumn?>)),
                                 Constant(_detailedErrorsEnabled),
                                 _resultCoordinatorParameter,
-                                Constant(childIdentifierLambda.Compile()),
+                                childIdentifierLambda,
+                                //Constant(childIdentifierLambda.Compile()),
                                 Constant(
                                     relationalSplitCollectionShaperExpression.IdentifierValueComparers,
                                     typeof(IReadOnlyList<ValueComparer>)),
-                                Constant(innerShaper.Compile()),
+                                innerShaper,
+                                //Constant(innerShaper.Compile()),
                                 Constant(
                                     relatedDataLoaders?.Compile(),
                                     _isAsync
