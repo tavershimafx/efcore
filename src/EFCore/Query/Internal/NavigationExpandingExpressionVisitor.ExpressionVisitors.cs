@@ -124,15 +124,17 @@ public partial class NavigationExpandingExpressionVisitor
                     return ExpandSkipNavigation(root, entityReference, skipNavigation, convertedType is not null);
                 }
 
-                var property = memberIdentity.MemberInfo != null
-                    ? entityType.FindProperty(memberIdentity.MemberInfo)
-                    : memberIdentity.Name is not null
-                        ? entityType.FindProperty(memberIdentity.Name)
-                        : null;
-                if (property?.GetTypeMapping().ElementTypeMapping != null)
-                {
-                    return new PrimitiveCollectionReference(root, property);
-                }
+                // maumar: why???
+
+                //var property = memberIdentity.MemberInfo != null
+                //    ? entityType.FindProperty(memberIdentity.MemberInfo)
+                //    : memberIdentity.Name is not null
+                //        ? entityType.FindProperty(memberIdentity.Name)
+                //        : null;
+                //if (property?.GetTypeMapping().ElementTypeMapping != null)
+                //{
+                //    return new PrimitiveCollectionReference(root, property);
+                //}
             }
 
             return null;

@@ -982,8 +982,10 @@ WHERE EXISTS (
     FROM OPENJSON([j].[OwnedReferenceRoot], '$.OwnedCollectionBranch') WITH (
         [Date] datetime2 '$.Date',
         [Enum] nvarchar(max) '$.Enum',
+        [Enums] nvarchar(max) '$.Enums',
         [Fraction] decimal(18,2) '$.Fraction',
         [NullableEnum] nvarchar(max) '$.NullableEnum',
+        [NullableEnums] nvarchar(max) '$.NullableEnums',
         [OwnedCollectionLeaf] nvarchar(max) '$.OwnedCollectionLeaf' AS JSON,
         [OwnedReferenceLeaf] nvarchar(max) '$.OwnedReferenceLeaf' AS JSON
     ) AS [o]
@@ -1090,6 +1092,75 @@ WHERE EXISTS (
             [OwnedCollectionLeaf] nvarchar(max) '$.OwnedCollectionLeaf' AS JSON,
             [OwnedReferenceLeaf] nvarchar(max) '$.OwnedReferenceLeaf' AS JSON
         ) AS [o0]) = 2)
+""");
+    }
+
+
+    public override async Task Json_collection_in_projection_with_composition_count(bool async)
+    {
+        await base.Json_collection_in_projection_with_composition_count(async);
+
+        AssertSql(
+"""
+SELECT (
+    SELECT COUNT(*)
+    FROM OPENJSON([j].[OwnedCollectionRoot], '$') WITH (
+        [Name] nvarchar(max) '$.Name',
+        [Names] nvarchar(max) '$.Names',
+        [Number] int '$.Number',
+        [Numbers] nvarchar(max) '$.Numbers',
+        [OwnedCollectionBranch] nvarchar(max) '$.OwnedCollectionBranch' AS JSON,
+        [OwnedReferenceBranch] nvarchar(max) '$.OwnedReferenceBranch' AS JSON
+    ) AS [o])
+FROM [JsonEntitiesBasic] AS [j]
+ORDER BY [j].[Id]
+""");
+    }
+
+    public override async Task Json_collection_in_projection_with_anonymous_projection_of_scalars(bool async)
+    {
+        await base.Json_collection_in_projection_with_anonymous_projection_of_scalars(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], JSON_VALUE([o].[value], '$.Name'), CAST(JSON_VALUE([o].[value], '$.Number') AS int), [o].[key]
+FROM [JsonEntitiesBasic] AS [j]
+OUTER APPLY OPENJSON([j].[OwnedCollectionRoot], '$') AS [o]
+ORDER BY [j].[Id], CAST([o].[key] AS int)
+""");
+    }
+
+    public override async Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(bool async)
+    {
+        await base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [t].[Name], [t].[Number], [t].[key]
+FROM [JsonEntitiesBasic] AS [j]
+OUTER APPLY (
+    SELECT JSON_VALUE([o].[value], '$.Name') AS [Name], CAST(JSON_VALUE([o].[value], '$.Number') AS int) AS [Number], [o].[key], CAST([o].[key] AS int) AS [c]
+    FROM OPENJSON([j].[OwnedCollectionRoot], '$') AS [o]
+    WHERE JSON_VALUE([o].[value], '$.Name') = N'Foo'
+) AS [t]
+ORDER BY [j].[Id], [t].[c]
+""");
+    }
+
+    public override async Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(bool async)
+    {
+        await base.Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(async);
+
+        AssertSql(
+"""
+SELECT [j].[Id], [t].[Names], [t].[Numbers], [t].[key]
+FROM [JsonEntitiesBasic] AS [j]
+OUTER APPLY (
+    SELECT JSON_VALUE([o].[value], '$.Names') AS [Names], JSON_VALUE([o].[value], '$.Numbers') AS [Numbers], [o].[key], CAST([o].[key] AS int) AS [c]
+    FROM OPENJSON([j].[OwnedCollectionRoot], '$') AS [o]
+    WHERE JSON_VALUE([o].[value], '$.Name') = N'Foo'
+) AS [t]
+ORDER BY [j].[Id], [t].[c]
 """);
     }
 

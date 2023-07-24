@@ -2031,6 +2031,43 @@ public class RelationalQueryableMethodTranslatingExpressionVisitor : QueryableMe
                 }
             }
 
+
+            /*
+
+            if (methodCallExpression.Method.IsGenericMethod
+                && methodCallExpression.Method.GetGenericMethodDefinition() == QueryableMethods.Select)
+            {
+                source = methodCallExpression.Arguments[0];
+
+                var asQueryableMethodCallExpression = default(MethodCallExpression);
+                if (source is MethodCallExpression { Method.IsGenericMethod: true } maybeAsQueryableMethodCall
+                    && maybeAsQueryableMethodCall.Method.GetGenericMethodDefinition() == QueryableMethods.AsQueryable)
+                {
+                    asQueryableMethodCallExpression = maybeAsQueryableMethodCall;
+                    source = maybeAsQueryableMethodCall.Arguments[0];
+                }
+
+
+                source = Visit(source);
+
+                // TODO: need to somehow figure out if this is query on JSON or normal query - only remove includes for JSON
+                //if (source is JsonQueryExpression jsonQueryExpression)
+                {
+                    var lambda = methodCallExpression.Arguments[1].UnwrapLambdaFromQuote();
+                    var bodyWithoutIncludes = StripIncludes(lambda.Body);
+                    if (bodyWithoutIncludes is ParameterExpression bodyWithoutIncludesPrm
+                        && bodyWithoutIncludesPrm == lambda.Parameters[0])
+                    {
+                        var updated = methodCallExpression.Update(
+                            null,
+                            //new[] { source, Expression.Lambda(bodyWithoutIncludesPrm, bodyWithoutIncludesPrm) });
+                            new[] { methodCallExpression.Arguments[0], Expression.Lambda(bodyWithoutIncludesPrm, bodyWithoutIncludesPrm) });
+
+                        return updated;
+                    }
+                }
+            }*/
+
             return base.VisitMethodCall(methodCallExpression);
 
             static Expression PrepareFailedTranslationResult(

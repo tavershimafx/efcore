@@ -520,17 +520,31 @@ public sealed partial class SelectExpression : TableExpressionBase
         }
     }
 
+    ///// <summary>
+    /////     Constructs a <see cref="SelectExpression" /> over a collection within a JSON document.
+    ///// </summary>
+    ///// <param name="jsonQueryExpression">
+    /////     The collection within a JSON document which the <see cref="SelectExpression" /> will represent.
+    ///// </param>
+    ///// <param name="tableExpressionBase">
+    /////     The table for the <see cref="SelectExpression" />; typically a provider-specific table-valued function that converts a JSON
+    /////     array to a relational table/rowset (e.g. SQL Server OPENJSON)
+    ///// </param>
+    /////
+
     /// <summary>
-    ///     Constructs a <see cref="SelectExpression" /> over a collection within a JSON document.
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    /// <param name="jsonQueryExpression">
-    ///     The collection within a JSON document which the <see cref="SelectExpression" /> will represent.
-    /// </param>
-    /// <param name="tableExpressionBase">
-    ///     The table for the <see cref="SelectExpression" />; typically a provider-specific table-valued function that converts a JSON
-    ///     array to a relational table/rowset (e.g. SQL Server OPENJSON)
-    /// </param>
-    public SelectExpression(JsonQueryExpression jsonQueryExpression, TableExpressionBase tableExpressionBase)
+    [EntityFrameworkInternal]
+    public SelectExpression(
+        JsonQueryExpression jsonQueryExpression,
+        TableExpressionBase tableExpressionBase,
+        string identifierColumnName,
+        Type identifierColumnType,
+        RelationalTypeMapping identifierColumnTypeMapping)
         : base(null)
     {
         if (!jsonQueryExpression.IsCollection)
@@ -588,12 +602,31 @@ public sealed partial class SelectExpression : TableExpressionBase
                 jsonColumnTypeMapping,
                 nullable: !navigation.ForeignKey.IsRequiredDependent || navigation.IsCollection);
 
+            // maumar: need to remap key property map also can't just use key from parent - see what we do in BindNavigation
+
+
+
+
+
+            var newKeyPropertyMap = new Dictionary<IProperty, ColumnExpression>();
+            var targetPrimaryKeyProperties = targetEntityType.FindPrimaryKey()!.Properties.Take(jsonQueryExpression.KeyPropertyMap.Count);
+            var sourcePrimaryKeyProperties = jsonQueryExpression.EntityType.FindPrimaryKey()!.Properties.Take(jsonQueryExpression.KeyPropertyMap.Count);
+            foreach (var (target, source) in targetPrimaryKeyProperties.Zip(sourcePrimaryKeyProperties, (t, s) => (t, s)))
+            {
+                newKeyPropertyMap[target] = jsonQueryExpression.KeyPropertyMap[source];
+            }
+
+
+
+
+
             var entityShaperExpression = new RelationalEntityShaperExpression(
                 targetEntityType,
                 new JsonQueryExpression(
                     targetEntityType,
                     jsonColumn,
-                    jsonQueryExpression.KeyPropertyMap,
+                    //jsonQueryExpression.KeyPropertyMap,
+                    newKeyPropertyMap,
                     navigation.ClrType,
                     navigation.IsCollection),
                 !navigation.ForeignKey.IsRequiredDependent);
@@ -603,10 +636,20 @@ public sealed partial class SelectExpression : TableExpressionBase
 
         _projectionMapping[new ProjectionMember()] = entityProjection;
 
-        foreach (var (property, column) in jsonQueryExpression.KeyPropertyMap)
-        {
-            _identifier.Add((column, property.GetKeyValueComparer()));
-        }
+        var identifierColumn = new ConcreteColumnExpression(
+            identifierColumnName,
+            tableReferenceExpression,
+            identifierColumnType.UnwrapNullableType(),
+            identifierColumnTypeMapping,
+            identifierColumnType.IsNullableType());
+
+        _identifier.Add((identifierColumn, identifierColumnTypeMapping!.Comparer));
+
+        //// maumar : RONG!
+        //foreach (var (property, column) in jsonQueryExpression.KeyPropertyMap)
+        //{
+        //    _identifier.Add((column, property.GetKeyValueComparer()));
+        //}
     }
 
     private void AddJsonNavigationBindings(
@@ -1707,6 +1750,11 @@ public sealed partial class SelectExpression : TableExpressionBase
 
         ConstantExpression AddEntityProjection(EntityProjectionExpression entityProjectionExpression)
         {
+            if (entityProjectionExpression.EntityType.IsMappedToJson())
+            {
+                throw new InvalidOperationException("Can't compose on JSON entity and project it entirely. Use anonymous type as final projection instead.");
+            }
+
             var dictionary = new Dictionary<IProperty, int>();
             foreach (var property in GetAllPropertiesInHierarchy(entityProjectionExpression.EntityType))
             {

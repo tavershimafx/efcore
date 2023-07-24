@@ -1088,6 +1088,52 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_in_projection_with_composition_count(bool async)
+        => AssertQueryScalar(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .OrderBy(x => x.Id)
+                .Select(x => x.OwnedCollectionRoot.Count));
+
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_in_projection_with_anonymous_projection_of_scalars(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .OrderBy(x => x.Id)
+                .Select(x => x.OwnedCollectionRoot
+                    //.Where(xx => xx.Name == "Foo")
+                    .Select(xx => new { xx.Name, xx.Number })
+                    .ToList()));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_scalars(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .OrderBy(x => x.Id)
+                .Select(x => x.OwnedCollectionRoot
+                    .Where(xx => xx.Name == "Foo")
+                    .Select(xx => new { xx.Name, xx.Number })
+                    .ToList()));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Json_collection_in_projection_with_composition_where_and_anonymous_projection_of_primitive_arrays(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<JsonEntityBasic>()
+                .OrderBy(x => x.Id)
+                .Select(x => x.OwnedCollectionRoot
+                    .Where(xx => xx.Name == "Foo")
+                    .Select(xx => new { xx.Names, xx.Numbers })
+                    .ToList()));
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
     public virtual async Task Json_collection_index_with_parameter_Select_ElementAt(bool async)
     {
         var prm = 0;
