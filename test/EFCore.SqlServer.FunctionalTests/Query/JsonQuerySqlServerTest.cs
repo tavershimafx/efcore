@@ -1021,7 +1021,7 @@ FROM [JsonEntitiesBasic] AS [j]
 WHERE (
     SELECT [t].[c]
     FROM (
-        SELECT JSON_VALUE([o].[value], '$.OwnedReferenceLeaf.SomethingSomething') AS [c], [j].[Id], CAST([o].[key] AS int) AS [c0]
+        SELECT JSON_VALUE([o].[value], '$.OwnedReferenceLeaf.SomethingSomething') AS [c], [o].[key], CAST([o].[key] AS int) AS [c0]
         FROM OPENJSON([j].[OwnedReferenceRoot], '$.OwnedCollectionBranch') AS [o]
         ORDER BY CAST([o].[key] AS int)
         OFFSET 1 ROWS
@@ -1042,16 +1042,9 @@ FROM [JsonEntitiesBasic] AS [j]
 WHERE (
     SELECT [t].[c]
     FROM (
-        SELECT JSON_VALUE([o].[OwnedReferenceLeaf], '$.SomethingSomething') AS [c], [j].[Id], [o].[Date] AS [c0]
-        FROM OPENJSON([j].[OwnedReferenceRoot], '$.OwnedCollectionBranch') WITH (
-            [Date] datetime2 '$.Date',
-            [Enum] nvarchar(max) '$.Enum',
-            [Fraction] decimal(18,2) '$.Fraction',
-            [NullableEnum] nvarchar(max) '$.NullableEnum',
-            [OwnedCollectionLeaf] nvarchar(max) '$.OwnedCollectionLeaf' AS JSON,
-            [OwnedReferenceLeaf] nvarchar(max) '$.OwnedReferenceLeaf' AS JSON
-        ) AS [o]
-        ORDER BY [o].[Date] DESC
+        SELECT JSON_VALUE([o].[value], '$.OwnedReferenceLeaf.SomethingSomething') AS [c], [o].[key], CAST(JSON_VALUE([o].[value], '$.Date') AS datetime2) AS [c0]
+        FROM OPENJSON([j].[OwnedReferenceRoot], '$.OwnedCollectionBranch') AS [o]
+        ORDER BY CAST(JSON_VALUE([o].[value], '$.Date') AS datetime2) DESC
         OFFSET 1 ROWS
     ) AS [t]
     ORDER BY [t].[c0] DESC
@@ -1078,7 +1071,9 @@ WHERE EXISTS (
     SELECT 1
     FROM OPENJSON([j].[OwnedCollectionRoot], '$') WITH (
         [Name] nvarchar(max) '$.Name',
+        [Names] nvarchar(max) '$.Names',
         [Number] int '$.Number',
+        [Numbers] nvarchar(max) '$.Numbers',
         [OwnedCollectionBranch] nvarchar(max) '$.OwnedCollectionBranch' AS JSON,
         [OwnedReferenceBranch] nvarchar(max) '$.OwnedReferenceBranch' AS JSON
     ) AS [o]
@@ -1087,14 +1082,15 @@ WHERE EXISTS (
         FROM OPENJSON([o].[OwnedCollectionBranch], '$') WITH (
             [Date] datetime2 '$.Date',
             [Enum] nvarchar(max) '$.Enum',
+            [Enums] nvarchar(max) '$.Enums',
             [Fraction] decimal(18,2) '$.Fraction',
             [NullableEnum] nvarchar(max) '$.NullableEnum',
+            [NullableEnums] nvarchar(max) '$.NullableEnums',
             [OwnedCollectionLeaf] nvarchar(max) '$.OwnedCollectionLeaf' AS JSON,
             [OwnedReferenceLeaf] nvarchar(max) '$.OwnedReferenceLeaf' AS JSON
         ) AS [o0]) = 2)
 """);
     }
-
 
     public override async Task Json_collection_in_projection_with_composition_count(bool async)
     {

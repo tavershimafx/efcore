@@ -471,7 +471,8 @@ public class SqlServerQuerySqlGenerator : QuerySqlGenerator
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException();
+                    break;
+                    //throw new ArgumentOutOfRangeException();
             }
         }
 

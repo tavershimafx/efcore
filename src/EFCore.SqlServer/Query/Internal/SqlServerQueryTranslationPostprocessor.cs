@@ -127,17 +127,18 @@ public class SqlServerQueryTranslationPostprocessor : RelationalQueryTranslation
                     var appliedCasts = new List<(SqlServerOpenJsonExpression, string)>();
 
                     var columnsToRewrite = new Dictionary<(SqlServerOpenJsonExpression, string), SqlServerOpenJsonExpression.ColumnInfo>();
-                    var needsRewrite = false;
+                    //var needsRewrite = false;
                     var needsTableUpdate = false;
                     var newTables = new List<TableExpressionBase>();
 
                     for (var i = 0; i < selectExpression.Tables.Count; i++)
                     {
-                        var table = (TableExpressionBase)Visit(selectExpression.Tables[i]);
-                        if (table != selectExpression.Tables[i])
-                        {
-                            needsTableUpdate = true;
-                        }
+                        var table = selectExpression.Tables[i];
+                        //var table = (TableExpressionBase)Visit(selectExpression.Tables[i]);
+                        //if (table != selectExpression.Tables[i])
+                        //{
+                        //    needsTableUpdate = true;
+                        //}
 
                         if ((table is SqlServerOpenJsonExpression { ColumnInfos: not null }
                             or JoinExpressionBase { Table: SqlServerOpenJsonExpression { ColumnInfos: not null } })
@@ -163,7 +164,7 @@ public class SqlServerQueryTranslationPostprocessor : RelationalQueryTranslation
                             };
 
                             needsTableUpdate = true;
-                            needsRewrite = true;
+                            //needsRewrite = true;
 
                             newTables.Add(newTable);
 
@@ -219,28 +220,40 @@ public class SqlServerQueryTranslationPostprocessor : RelationalQueryTranslation
 
                     }
 
-                    // nothing changed - we can return the original
-                    if (!needsTableUpdate)
-                    {
-                        return selectExpression;
-                    }
+                    var newSelectExpression = needsTableUpdate
+                        ? selectExpression.Update(
+                            selectExpression.Projection,
+                            newTables,
+                            selectExpression.Predicate,
+                            selectExpression.GroupBy,
+                            selectExpression.Having,
+                            selectExpression.Orderings,
+                            selectExpression.Limit,
+                            selectExpression.Offset)
+                        : selectExpression;
 
-                    var newSelectExpression = selectExpression.Update(
-                        selectExpression.Projection,
-                        newTables,
-                        selectExpression.Predicate,
-                        selectExpression.GroupBy,
-                        selectExpression.Having,
-                        selectExpression.Orderings,
-                        selectExpression.Limit,
-                        selectExpression.Offset);
+                    //////////// nothing changed - we can return the original
+                    //////////if (!needsTableUpdate)
+                    //////////{
+                    //////////    return selectExpression;
+                    //////////}
 
-                    // changes in (at least) one of the tables (presumably nested SelectExpression - with OPENJSON that was rewritten)
-                    // but no new changes on this level - return new SelectExpression with updated tables
-                    if (!needsRewrite)
-                    {
-                        return newSelectExpression;
-                    }
+                    //////////var newSelectExpression = selectExpression.Update(
+                    //////////    selectExpression.Projection,
+                    //////////    newTables,
+                    //////////    selectExpression.Predicate,
+                    //////////    selectExpression.GroupBy,
+                    //////////    selectExpression.Having,
+                    //////////    selectExpression.Orderings,
+                    //////////    selectExpression.Limit,
+                    //////////    selectExpression.Offset);
+
+                    //////// changes in (at least) one of the tables (presumably nested SelectExpression - with OPENJSON that was rewritten)
+                    //////// but no new changes on this level - return new SelectExpression with updated tables
+                    //////if (!needsRewrite)
+                    //////{
+                    //////    return newSelectExpression;
+                    //////}
 
                     // we changed one of the OPENJSON tables on this level we stripped WITH, so need to rewrite the entire select expression
                     // to replace columns with the JSON_VALUE/JSON_QUERY calls

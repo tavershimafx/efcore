@@ -802,14 +802,28 @@ public sealed partial class SelectExpression : TableExpressionBase
             {
                 if (projection is EntityProjectionExpression entityProjection)
                 {
-                    var primaryKey = entityProjection.EntityType.FindPrimaryKey();
-                    // If there are any existing identifier then all entity projection must have a key
-                    // else keyless entity would have wiped identifier when generating join.
-                    Check.DebugAssert(primaryKey != null, "primary key is null.");
-                    foreach (var property in primaryKey.Properties)
+                    if (entityProjection.EntityType.IsMappedToJson())
                     {
-                        entityProjectionIdentifiers.Add(entityProjection.BindProperty(property));
-                        entityProjectionValueComparers.Add(property.GetKeyValueComparer());
+                        // for JSON entities identifier is the key that was generated when we convert from json to query root (OPENJSON, json_each, etc)
+                        // but we can't use it for distinct, as it would warp the results
+                        // instead, we will treat every non-key property as identifier
+                        foreach (var property in entityProjection.EntityType.GetDeclaredProperties().Where(p => !p.IsPrimaryKey()))
+                        {
+                            entityProjectionIdentifiers.Add(entityProjection.BindProperty(property));
+                            entityProjectionValueComparers.Add(property.GetKeyValueComparer());
+                        }
+                    }
+                    else
+                    {
+                        var primaryKey = entityProjection.EntityType.FindPrimaryKey();
+                        // If there are any existing identifier then all entity projection must have a key
+                        // else keyless entity would have wiped identifier when generating join.
+                        Check.DebugAssert(primaryKey != null, "primary key is null.");
+                        foreach (var property in primaryKey.Properties)
+                        {
+                            entityProjectionIdentifiers.Add(entityProjection.BindProperty(property));
+                            entityProjectionValueComparers.Add(property.GetKeyValueComparer());
+                        }
                     }
                 }
                 else if (projection is JsonQueryExpression jsonQueryExpression)
@@ -3904,6 +3918,14 @@ public sealed partial class SelectExpression : TableExpressionBase
             var propertyExpressions = new Dictionary<IProperty, ColumnExpression>();
             foreach (var property in GetAllPropertiesInHierarchy(entityProjection.EntityType))
             {
+                //json entity projection (i.e. JSON entity that was transformed into query root) doesn't have keys anymore
+                // just lift non-key properties
+                if (entityProjection.EntityType.IsMappedToJson()
+                    && property.IsPrimaryKey())
+                {
+                    continue;
+                }
+
                 var innerColumn = entityProjection.BindProperty(property);
                 var outerColumn = subquery.GenerateOuterColumn(subqueryTableReferenceExpression, innerColumn);
                 projectionMap[innerColumn] = outerColumn;
