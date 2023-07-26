@@ -1194,8 +1194,13 @@ public abstract class JsonQueryTestBase<TFixture> : QueryTestBase<TFixture>
     public virtual async Task Json_collection_Select_entity_in_anonymous_object_ElementAt(bool async)
         => await AssertQuery(
             async,
-            ss => ss.Set<JsonEntityBasic>().AsNoTracking().Select(x =>
-                x.OwnedCollectionRoot.Select(xx => new { xx.OwnedReferenceBranch }).ElementAt(0)));
+            ss => ss.Set<JsonEntityBasic>().AsNoTracking().OrderBy(x => x.Id).Select(x =>
+                x.OwnedCollectionRoot.Select(xx => new { xx.OwnedReferenceBranch }).ElementAt(0)),
+            assertOrder: true,
+            elementAsserter: (e, a) =>
+            {
+                AssertEqual(e.OwnedReferenceBranch, a.OwnedReferenceBranch);
+            });
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]

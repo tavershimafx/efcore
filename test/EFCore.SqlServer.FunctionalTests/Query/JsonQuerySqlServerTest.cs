@@ -1218,8 +1218,15 @@ FROM [JsonEntitiesBasic] AS [j]
 
         AssertSql(
 """
-SELECT JSON_QUERY([j].[OwnedCollectionRoot], '$[0].OwnedReferenceBranch'), [j].[Id]
+SELECT [t].[c], [t].[Id], [t].[c1]
 FROM [JsonEntitiesBasic] AS [j]
+OUTER APPLY (
+    SELECT JSON_QUERY([o].[value], '$.OwnedReferenceBranch') AS [c], [j].[Id], 1 AS [c1]
+    FROM OPENJSON([j].[OwnedCollectionRoot], '$') AS [o]
+    ORDER BY CAST([o].[key] AS int)
+    OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY
+) AS [t]
+ORDER BY [j].[Id]
 """);
     }
 

@@ -14,6 +14,22 @@ public abstract class OwnedQueryTestBase<TFixture> : QueryTestBase<TFixture>
         fixture.ListLoggerFactory.Clear();
     }
 
+
+    [ConditionalTheory]
+    [MemberData(nameof(IsAsyncData))]
+    public virtual Task Kupson(bool async)
+        => AssertQuery(
+            async,
+            ss => ss.Set<OwnedPerson>().Select(x => new { x.Id, Blah = x.Orders.Where(x => x.Id < 10000).OrderBy(x => x.Id).Select(x => new { Foo = x }).ElementAt(0) }),
+            elementSorter: e => e.Id,
+            elementAsserter: (e, a) =>
+            {
+                Assert.Equal(e.Id, a.Id);
+                //AssertCollection(
+                //    e.Blah,
+                //    a.Blah, ordered: true, elementAsserter: (ee, aa) => AssertCollection(ee.Foo, aa.Foo, ordered: true));
+            });
+
     [ConditionalTheory] // Issue #26257
     [MemberData(nameof(IsAsyncData))]
     public virtual async Task Can_query_owner_with_different_owned_types_having_same_property_name_in_hierarchy(bool async)

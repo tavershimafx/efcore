@@ -2046,6 +2046,27 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 }
             }
 
+            if (keyValues.Length != entityType.FindPrimaryKey()!.Properties.Count)
+            {
+                if (_isTracking)
+                {
+                    throw new InvalidOperationException($"JSON entity '{entityType.ShortName()}' is missing key information. This is not allowed for Tracking queries since EF can't correctly build identity for this entity object.");
+                }
+
+                // fill missing keys (with arbitrary values) - we *should* only be missing synthesized keys
+                // TODO: CHECK!!!!!!
+                // and those are only needed to build identity, which we don't use in NonTracking queries
+
+                // ALSO TODO: improve this logic, just making sure it works
+                var newKeyValues = new List<Expression>(keyValues);
+                for (var i = keyValues.Length; i < entityType.FindPrimaryKey()!.Properties.Count; i++)
+                {
+                    newKeyValues.Add(Constant(1, typeof(object)));
+                }
+
+                keyValues = newKeyValues.ToArray();
+            }
+
             // create key values for initial entity
             var currentKeyValuesVariable = Variable(typeof(object[]), "currentKeyValues");
             var keyValuesAssignment = Assign(

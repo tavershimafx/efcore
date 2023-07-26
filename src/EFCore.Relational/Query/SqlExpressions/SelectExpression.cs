@@ -566,6 +566,13 @@ public sealed partial class SelectExpression : TableExpressionBase
 
         foreach (var property in GetAllPropertiesInHierarchy(entityType))
         {
+            // also adding column(s) representing key of the parent (non-JSON) entity, on top of all the projections from OPENJSON/json_each/etc.
+            if (jsonQueryExpression.KeyPropertyMap.TryGetValue(property, out var ownerKeyColumn))
+            {
+                propertyExpressions[property] = ownerKeyColumn;
+                continue;
+            }
+
             // Skip also properties with no JSON name (i.e. shadow keys containing the index in the collection, which don't actually exist
             // in the JSON document and can't be bound to)
             if (property.GetJsonPropertyName() is string jsonPropertyName)
