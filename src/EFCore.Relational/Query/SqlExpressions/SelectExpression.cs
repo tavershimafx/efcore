@@ -1773,7 +1773,7 @@ public sealed partial class SelectExpression : TableExpressionBase
         {
             if (entityProjectionExpression.EntityType.IsMappedToJson())
             {
-                throw new InvalidOperationException("Can't compose on JSON entity and project it entirely. Use anonymous type as final projection instead.");
+                //throw new InvalidOperationException("Can't compose on JSON entity and project it entirely. Use anonymous type as final projection instead.");
             }
 
             var dictionary = new Dictionary<IProperty, int>();

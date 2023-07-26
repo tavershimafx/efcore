@@ -496,7 +496,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             // json entity at the root
                             var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess(
                                 jsonProjectionInfo,
-                                entityShaperExpression.EntityType);
+                                entityShaperExpression.EntityType,
+                                isCollection: false);
 
                             var shaperResult = CreateJsonShapers(
                                 entityShaperExpression.EntityType,
@@ -582,7 +583,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                     // json entity collection at the root
                     var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess(
                         jsonProjectionInfo,
-                        navigation.TargetEntityType);
+                        navigation.TargetEntityType,
+                        isCollection: true);
 
                     var shaperResult = CreateJsonShapers(
                         navigation.TargetEntityType,
@@ -858,7 +860,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                         {
                             var (jsonReaderDataVariable, keyValuesParameter) = JsonShapingPreProcess(
                                 jsonProjectionInfo,
-                                includeExpression.Navigation.TargetEntityType);
+                                includeExpression.Navigation.TargetEntityType,
+                                includeExpression.Navigation.IsCollection);
 
                             var shaperResult = CreateJsonShapers(
                                 includeExpression.Navigation.TargetEntityType,
@@ -1955,7 +1958,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
 
         private (ParameterExpression, ParameterExpression) JsonShapingPreProcess(
             JsonProjectionInfo jsonProjectionInfo,
-            IEntityType entityType)
+            IEntityType entityType,
+            bool isCollection)
         {
             var jsonColumnName = entityType.GetContainerColumnName()!;
             var jsonColumnTypeMapping = (entityType.GetViewOrTableMappings().SingleOrDefault()?.Table
@@ -2006,7 +2010,18 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             _expressions.Add(jsonReaderDataAssignment);
             _expressions.Add(jsonReaderManagerBlock);
 
-            var keyValues = new Expression[jsonProjectionInfo.KeyAccessInfo.Count];
+            // we should have keyAccessInfo for every PK property of the entity, unless we are generating shaper for the collection
+            // in that case the final key property will be synthesized in the shaper code
+            var expectedKeyValuesCount = entityType.FindPrimaryKey()!.Properties.Count - (isCollection ? 1 : 0);
+            var keyValues = new Expression[expectedKeyValuesCount];
+
+            if (keyValues.Length != expectedKeyValuesCount && !_isTracking)
+            {
+                throw new InvalidOperationException(
+                    $"JSON entity '{entityType.ShortName()}' is missing key information. This is not allowed for Tracking queries since EF can't correctly build identity for this entity object.");
+            }
+
+            //var keyValues = new Expression[jsonProjectionInfo.KeyAccessInfo.Count];
             for (var i = 0; i < jsonProjectionInfo.KeyAccessInfo.Count; i++)
             {
                 var keyAccessInfo = jsonProjectionInfo.KeyAccessInfo[i];
@@ -2046,26 +2061,34 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 }
             }
 
-            if (keyValues.Length != entityType.FindPrimaryKey()!.Properties.Count)
+            // fill missing keys (with arbitrary values) - this *should* only be missing synthesized keys (CHECK!)
+            // and those are only used to build identity for purpose of identity resolution in Tracking queries
+            // missing keys can happen when we do advanced querying of JSON entities (e.g. filters, paging)
+            for (var i = jsonProjectionInfo.KeyAccessInfo.Count; i < expectedKeyValuesCount; i++)
             {
-                if (_isTracking)
-                {
-                    throw new InvalidOperationException($"JSON entity '{entityType.ShortName()}' is missing key information. This is not allowed for Tracking queries since EF can't correctly build identity for this entity object.");
-                }
-
-                // fill missing keys (with arbitrary values) - we *should* only be missing synthesized keys
-                // TODO: CHECK!!!!!!
-                // and those are only needed to build identity, which we don't use in NonTracking queries
-
-                // ALSO TODO: improve this logic, just making sure it works
-                var newKeyValues = new List<Expression>(keyValues);
-                for (var i = keyValues.Length; i < entityType.FindPrimaryKey()!.Properties.Count; i++)
-                {
-                    newKeyValues.Add(Constant(1, typeof(object)));
-                }
-
-                keyValues = newKeyValues.ToArray();
+                keyValues[i] = Constant(1, typeof(object));
             }
+
+            //if (keyValues.Length != expectedKeyValuesCount)
+            //{
+            //    if (_isTracking)
+            //    {
+            //        throw new InvalidOperationException($"JSON entity '{entityType.ShortName()}' is missing key information. This is not allowed for Tracking queries since EF can't correctly build identity for this entity object.");
+            //    }
+
+            //    // fill missing keys (with arbitrary values) - we *should* only be missing synthesized keys
+            //    // TODO: CHECK!!!!!!
+            //    // and those are only needed to build identity, which we don't use in NonTracking queries
+
+            //    // ALSO TODO: improve this logic, just making sure it works
+            //    var newKeyValues = new List<Expression>(keyValues);
+            //    for (var i = keyValues.Length; i < entityType.FindPrimaryKey()!.Properties.Count; i++)
+            //    {
+            //        newKeyValues.Add(Constant(1, typeof(object)));
+            //    }
+
+            //    keyValues = newKeyValues.ToArray();
+            //}
 
             // create key values for initial entity
             var currentKeyValuesVariable = Variable(typeof(object[]), "currentKeyValues");

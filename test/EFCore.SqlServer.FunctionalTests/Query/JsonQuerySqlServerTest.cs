@@ -1419,10 +1419,14 @@ GROUP BY [t].[Key]
         await base.Group_by_on_json_scalar_using_collection_indexer(async);
 
         AssertSql(
-            """
+"""
 SELECT [t].[Key], COUNT(*) AS [Count]
 FROM (
-    SELECT JSON_VALUE([j].[OwnedCollectionRoot], '$[0].Name') AS [Key]
+    SELECT (
+        SELECT JSON_VALUE([o].[value], '$.Name')
+        FROM OPENJSON([j].[OwnedCollectionRoot], '$') AS [o]
+        ORDER BY CAST([o].[key] AS int)
+        OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) AS [Key]
     FROM [JsonEntitiesBasic] AS [j]
 ) AS [t]
 GROUP BY [t].[Key]
