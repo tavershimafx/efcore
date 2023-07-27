@@ -2267,7 +2267,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new RelationshipSnapshotFactoryFactory().Create(entityType);
+                return RelationshipSnapshotFactoryFactory.Instance.Create(entityType);
             });
 
     /// <summary>
@@ -2282,7 +2282,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new OriginalValuesFactoryFactory().Create(entityType);
+                return OriginalValuesFactoryFactory.Instance.Create(entityType);
             });
 
     /// <summary>
@@ -2297,7 +2297,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new StoreGeneratedValuesFactoryFactory().CreateEmpty(entityType);
+                return StoreGeneratedValuesFactoryFactory.Instance.CreateEmpty(entityType);
             });
 
     /// <summary>
@@ -2312,7 +2312,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new TemporaryValuesFactoryFactory().Create(entityType);
+                return TemporaryValuesFactoryFactory.Instance.Create(entityType);
             });
 
     /// <summary>
@@ -2327,7 +2327,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new ShadowValuesFactoryFactory().Create(entityType);
+                return ShadowValuesFactoryFactory.Instance.Create(entityType);
             });
 
     /// <summary>
@@ -2342,7 +2342,7 @@ public class EntityType : TypeBase, IMutableEntityType, IConventionEntityType, I
             static entityType =>
             {
                 entityType.EnsureReadOnly();
-                return new EmptyShadowValuesFactoryFactory().CreateEmpty(entityType);
+                return EmptyShadowValuesFactoryFactory.Instance.CreateEmpty(entityType);
             });
 
     /// <summary>

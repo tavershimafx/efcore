@@ -8,6 +8,8 @@ using System.Runtime.CompilerServices;
 using System.Security;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
@@ -1541,8 +1543,42 @@ public class CSharpHelper : ICSharpHelper
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual string Expression(Expression node, ISet<string> collectedNamespaces)
-        => ToSourceCode(_translator.TranslateExpression(node, collectedNamespaces));
+    public virtual string Expression(
+        Expression node,
+        Dictionary<object, string>? knownInstances,
+        Dictionary<(MemberInfo, bool), string>? replacementMethods,
+        ISet<string> collectedNamespaces,
+        out bool isStatement)
+    {
+        Dictionary<object, ExpressionSyntax>? knownInstanceExpressions = null;
+        if (knownInstances != null)
+        {
+            knownInstanceExpressions = new();
+
+            foreach (var instancePair in knownInstances)
+            {
+                knownInstanceExpressions[instancePair.Key] = SyntaxFactory.IdentifierName(instancePair.Value);
+            }
+        }
+
+        Dictionary<(MemberInfo, bool), ExpressionSyntax>? replacementMethodExpressions = null;
+        if (replacementMethods != null)
+        {
+            replacementMethodExpressions = new();
+
+            foreach (var methodPair in replacementMethods)
+            {
+                replacementMethodExpressions[methodPair.Key] = SyntaxFactory.IdentifierName(methodPair.Value);
+            }
+        }
+
+        return ToSourceCode(_translator.TranslateExpression(
+            node,
+            knownInstanceExpressions,
+            replacementMethodExpressions,
+            collectedNamespaces,
+            out isStatement));
+    }
 
     private static bool IsIdentifierStartCharacter(char ch)
     {

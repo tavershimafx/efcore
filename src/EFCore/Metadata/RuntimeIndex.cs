@@ -122,9 +122,5 @@ public class RuntimeIndex : AnnotatableBase, IIndex
     [DebuggerStepThrough]
     IDependentKeyValueFactory<TKey> IIndex.GetNullableValueFactory<TKey>()
         => (IDependentKeyValueFactory<TKey>)NonCapturingLazyInitializer.EnsureInitialized(
-            ref _nullableValueFactory, this, static index =>
-            {
-                index.EnsureReadOnly();
-                return new CompositeValueFactory(index.Properties);
-            });
+            ref _nullableValueFactory, this, static index => new CompositeValueFactory(index.Properties));
 }

@@ -28,7 +28,8 @@ public class RuntimeProperty : RuntimePropertyBase, IProperty
     private readonly ValueConverter? _valueConverter;
     private ValueComparer? _valueComparer;
     private ValueComparer? _keyValueComparer;
-    private readonly ValueComparer? _providerValueComparer;
+    private IComparer<IUpdateEntry>? _currentValueComparer;
+    private ValueComparer? _providerValueComparer;
     private readonly JsonValueReaderWriter? _jsonValueReaderWriter;
     private CoreTypeMapping? _typeMapping;
 
@@ -226,6 +227,16 @@ public class RuntimeProperty : RuntimePropertyBase, IProperty
                     : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
         set => _typeMapping = value;
     }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [DebuggerStepThrough]
+    public virtual void SetCurrentValueComparer(IComparer<IUpdateEntry> comparer)
+        => _currentValueComparer = comparer;
 
     private ValueComparer GetValueComparer()
         => (GetValueComparer(null) ?? TypeMapping.Comparer)
@@ -426,13 +437,22 @@ public class RuntimeProperty : RuntimePropertyBase, IProperty
 
     /// <inheritdoc />
     [DebuggerStepThrough]
+    IComparer<IUpdateEntry> IProperty.GetCurrentValueComparer()
+        => NonCapturingLazyInitializer.EnsureInitialized(
+            ref _currentValueComparer, this, static property =>
+            RuntimeFeature.IsDynamicCodeSupported
+                ? CurrentValueComparerFactory.Instance.Create(property)
+                : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
+
+    /// <inheritdoc />
+    [DebuggerStepThrough]
     ValueComparer? IReadOnlyProperty.GetProviderValueComparer()
-        => _providerValueComparer ?? TypeMapping.ProviderValueComparer;
+        => _providerValueComparer ??= TypeMapping.ProviderValueComparer;
 
     /// <inheritdoc />
     [DebuggerStepThrough]
     ValueComparer IProperty.GetProviderValueComparer()
-        => _providerValueComparer ?? TypeMapping.ProviderValueComparer;
+        => _providerValueComparer ??= TypeMapping.ProviderValueComparer;
 
     /// <inheritdoc />
     [DebuggerStepThrough]

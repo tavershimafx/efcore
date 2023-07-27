@@ -309,7 +309,7 @@ public class Navigation : PropertyBase, IMutableNavigation, IConventionNavigatio
             static navigation =>
             {
                 navigation.EnsureReadOnly();
-                return new ClrCollectionAccessorFactory().Create(navigation);
+                return ClrCollectionAccessorFactory.Instance.Create(navigation);
             });
 
     /// <summary>

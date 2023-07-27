@@ -141,7 +141,7 @@ public abstract class RuntimeTypeBase : AnnotatableBase, IRuntimeTypeBase
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     [EntityFrameworkInternal]
-    protected abstract PropertyCounts Counts { get; }
+    public abstract PropertyCounts Counts { get; set; }
 
     /// <summary>
     ///     Adds a property to this entity type.
@@ -684,7 +684,7 @@ public abstract class RuntimeTypeBase : AnnotatableBase, IRuntimeTypeBase
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _originalValuesFactory, this,
             static complexType => RuntimeFeature.IsDynamicCodeSupported
-                        ? new OriginalValuesFactoryFactory().Create(complexType)
+                        ? OriginalValuesFactoryFactory.Instance.Create(complexType)
                         : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
@@ -692,32 +692,32 @@ public abstract class RuntimeTypeBase : AnnotatableBase, IRuntimeTypeBase
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _storeGeneratedValuesFactory, this,
             static complexType => RuntimeFeature.IsDynamicCodeSupported
-                        ? new StoreGeneratedValuesFactoryFactory().CreateEmpty(complexType)
-                        : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
+                ? StoreGeneratedValuesFactoryFactory.Instance.CreateEmpty(complexType)
+                : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
     Func<IInternalEntry, ISnapshot> IRuntimeTypeBase.TemporaryValuesFactory
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _temporaryValuesFactory, this,
             static complexType => RuntimeFeature.IsDynamicCodeSupported
-                        ? new TemporaryValuesFactoryFactory().Create(complexType)
-                        : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
+                ? TemporaryValuesFactoryFactory.Instance.Create(complexType)
+                : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
     Func<ValueBuffer, ISnapshot> IRuntimeTypeBase.ShadowValuesFactory
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _shadowValuesFactory, this,
             static complexType => RuntimeFeature.IsDynamicCodeSupported
-                        ? new ShadowValuesFactoryFactory().Create(complexType)
-                        : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
+                ? ShadowValuesFactoryFactory.Instance.Create(complexType)
+                : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
     Func<ISnapshot> IRuntimeTypeBase.EmptyShadowValuesFactory
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _emptyShadowValuesFactory, this,
             static complexType => RuntimeFeature.IsDynamicCodeSupported
-                        ? new EmptyShadowValuesFactoryFactory().CreateEmpty(complexType)
-                        : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
+                ? EmptyShadowValuesFactoryFactory.Instance.CreateEmpty(complexType)
+                : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
     [DebuggerStepThrough]

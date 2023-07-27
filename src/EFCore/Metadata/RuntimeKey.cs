@@ -149,17 +149,10 @@ public class RuntimeKey : AnnotatableBase, IRuntimeKey
 
     private IPrincipalKeyValueFactory<TKey> CreatePrincipalKeyValueFactory<TKey>()
         where TKey : notnull
-    {
-        EnsureReadOnly();
-        return new KeyValueFactoryFactory().Create<TKey>(this);
-    }
+        => new KeyValueFactoryFactory().Create<TKey>(this);
 
     /// <inheritdoc />
     Func<bool, IIdentityMap> IRuntimeKey.GetIdentityMapFactory()
         => NonCapturingLazyInitializer.EnsureInitialized(
-            ref _identityMapFactory, this, static key =>
-            {
-                key.EnsureReadOnly();
-                return new IdentityMapFactoryFactory().Create(key);
-            });
+            ref _identityMapFactory, this, static key => new IdentityMapFactoryFactory().Create(key));
 }

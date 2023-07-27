@@ -13,6 +13,18 @@ namespace Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 /// </summary>
 public class ShadowValuesFactoryFactory : SnapshotFactoryFactory<ValueBuffer>
 {
+    private ShadowValuesFactoryFactory()
+    {
+    }
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    public static readonly ShadowValuesFactoryFactory Instance = new();
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -59,10 +71,10 @@ public class ShadowValuesFactoryFactory : SnapshotFactoryFactory<ValueBuffer>
         ParameterExpression? parameter,
         IPropertyBase property)
         => Expression.Convert(
-            Expression.Call(
-                parameter,
-                ValueBuffer.GetValueMethod,
-                Expression.Constant(property.GetShadowIndex())),
+            Expression.MakeIndex(
+                parameter!,
+                ValueBuffer.Indexer,
+                new[] { Expression.Constant(property.GetShadowIndex()) }),
             property.ClrType);
 
     /// <summary>

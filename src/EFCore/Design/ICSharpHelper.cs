@@ -351,7 +351,10 @@ public interface ICSharpHelper
     ///     Translates a node representing an expression into source code that would produce it.
     /// </summary>
     /// <param name="node">The node to be translated.</param>
+    /// <param name="knownInstances">Collection of translations for statically known instances.</param>
+    /// <param name="replacementMethods">Collection of translations for non-public member accesses.</param>
     /// <param name="collectedNamespaces">Any namespaces required by the translated code will be added to this set.</param>
+    /// <param name="isStatement">A value indicating whether the translation can only be used in a statement context.</param>
     /// <returns>Source code that would produce  <paramref name="node" />.</returns>
     /// <remarks>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -360,5 +363,9 @@ public interface ICSharpHelper
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </remarks>
     [EntityFrameworkInternal]
-    string Expression(Expression node, ISet<string> collectedNamespaces);
+    string Expression(Expression node,
+        Dictionary<object, string>? knownInstances,
+        Dictionary<(MemberInfo, bool), string>? replacementMethods,
+        ISet<string> collectedNamespaces,
+        out bool isStatement);
 }

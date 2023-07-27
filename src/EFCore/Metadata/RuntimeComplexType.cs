@@ -144,8 +144,13 @@ public class RuntimeComplexType : RuntimeTypeBase, IRuntimeComplexType
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected override PropertyCounts Counts
-        => NonCapturingLazyInitializer.EnsureInitialized(ref _counts, this, static complexType => complexType.CalculateCounts());
+    [EntityFrameworkInternal]
+    public override PropertyCounts Counts
+    {
+        get => NonCapturingLazyInitializer.EnsureInitialized(ref _counts, this, static complexType =>
+            complexType.CalculateCounts());
+        set => _counts = value;
+    }
 
     /// <summary>
     ///     Returns a string that represents the current object.

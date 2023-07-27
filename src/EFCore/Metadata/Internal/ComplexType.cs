@@ -388,7 +388,7 @@ public class ComplexType : TypeBase, IMutableComplexType, IConventionComplexType
             static complexType =>
             {
                 complexType.EnsureReadOnly();
-                return new OriginalValuesFactoryFactory().Create(complexType);
+                return OriginalValuesFactoryFactory.Instance.Create(complexType);
             });
 
     /// <summary>
@@ -403,7 +403,7 @@ public class ComplexType : TypeBase, IMutableComplexType, IConventionComplexType
             static complexType =>
             {
                 complexType.EnsureReadOnly();
-                return new StoreGeneratedValuesFactoryFactory().CreateEmpty(complexType);
+                return StoreGeneratedValuesFactoryFactory.Instance.CreateEmpty(complexType);
             });
 
     /// <summary>
@@ -418,7 +418,7 @@ public class ComplexType : TypeBase, IMutableComplexType, IConventionComplexType
             static complexType =>
             {
                 complexType.EnsureReadOnly();
-                return new TemporaryValuesFactoryFactory().Create(complexType);
+                return TemporaryValuesFactoryFactory.Instance.Create(complexType);
             });
 
     /// <summary>
@@ -433,7 +433,7 @@ public class ComplexType : TypeBase, IMutableComplexType, IConventionComplexType
             static complexType =>
             {
                 complexType.EnsureReadOnly();
-                return new ShadowValuesFactoryFactory().Create(complexType);
+                return ShadowValuesFactoryFactory.Instance.Create(complexType);
             });
 
     /// <summary>
@@ -448,7 +448,7 @@ public class ComplexType : TypeBase, IMutableComplexType, IConventionComplexType
             static complexType =>
             {
                 complexType.EnsureReadOnly();
-                return new EmptyShadowValuesFactoryFactory().CreateEmpty(complexType);
+                return EmptyShadowValuesFactoryFactory.Instance.CreateEmpty(complexType);
             });
 
     /// <summary>

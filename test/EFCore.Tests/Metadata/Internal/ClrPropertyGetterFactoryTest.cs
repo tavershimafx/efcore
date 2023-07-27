@@ -14,7 +14,7 @@ public class ClrPropertyGetterFactoryTest
     {
         var property = new FakeProperty();
 
-        Assert.Same(property, new ClrPropertyGetterFactory().Create(property));
+        Assert.Same(property, ClrPropertyGetterFactory.Instance.Create(property));
     }
 
     private class FakeProperty : Annotatable, IProperty, IClrPropertyGetter
@@ -136,14 +136,14 @@ public class ClrPropertyGetterFactoryTest
         var idProperty = model.FindEntityType(typeof(Customer)).FindProperty(nameof(Customer.Id));
 
         Assert.Equal(
-            7, new ClrPropertyGetterFactory().Create(idProperty).GetClrValue(
+            7, ClrPropertyGetterFactory.Instance.Create(idProperty).GetClrValue(
                 new Customer { Id = 7 }));
     }
 
     [ConditionalFact]
     public void Delegate_getter_is_returned_for_property_info()
         => Assert.Equal(
-            7, new ClrPropertyGetterFactory().Create(typeof(Customer).GetAnyProperty("Id")).GetClrValue(
+            7, ClrPropertyGetterFactory.Instance.Create(typeof(Customer).GetAnyProperty("Id")).GetClrValue(
                 new Customer { Id = 7 }));
 
     [ConditionalFact]
@@ -156,7 +156,7 @@ public class ClrPropertyGetterFactoryTest
 
         Assert.Equal(
             new Fuel(1.0),
-            new ClrPropertyGetterFactory().Create((IPropertyBase)fuelProperty).GetClrValue(
+            ClrPropertyGetterFactory.Instance.Create((IPropertyBase)fuelProperty).GetClrValue(
                 new Customer { Id = 7, Fuel = new Fuel(1.0) }));
     }
 
@@ -164,7 +164,7 @@ public class ClrPropertyGetterFactoryTest
     public void Delegate_getter_is_returned_for_struct_property_info()
         => Assert.Equal(
             new Fuel(1.0),
-            new ClrPropertyGetterFactory().Create(typeof(Customer).GetAnyProperty("Fuel")).GetClrValue(
+            ClrPropertyGetterFactory.Instance.Create(typeof(Customer).GetAnyProperty("Fuel")).GetClrValue(
                 new Customer { Id = 7, Fuel = new Fuel(1.0) }));
 
     [ConditionalFact]
@@ -177,8 +177,8 @@ public class ClrPropertyGetterFactoryTest
         modelBuilder.FinalizeModel();
 
         Assert.Equal(
-            "ValueA", new ClrPropertyGetterFactory().Create((IPropertyBase)propertyA).GetClrValue(new IndexedClass { Id = 7 }));
-        Assert.Equal(123, new ClrPropertyGetterFactory().Create((IPropertyBase)propertyB).GetClrValue(new IndexedClass { Id = 7 }));
+            "ValueA", ClrPropertyGetterFactory.Instance.Create((IPropertyBase)propertyA).GetClrValue(new IndexedClass { Id = 7 }));
+        Assert.Equal(123, ClrPropertyGetterFactory.Instance.Create((IPropertyBase)propertyB).GetClrValue(new IndexedClass { Id = 7 }));
     }
 
     private static TestHelpers.TestModelBuilder CreateModelBuilder()

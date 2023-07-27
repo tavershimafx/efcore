@@ -367,7 +367,7 @@ new LinqToCSharpTranslatorTest.Blog("foo")
     {
         var (translator, _) = CreateTranslator();
         var namespaces = new HashSet<string>();
-        _ = translator.TranslateExpression(Call(FooMethod), namespaces);
+        _ = translator.TranslateExpression(Call(FooMethod), null, null, namespaces, out _);
         Assert.Collection(namespaces,
             ns => Assert.Equal(typeof(LinqToCSharpTranslatorTest).Namespace, ns));
     }
@@ -1842,7 +1842,7 @@ catch
         var namespaces = new HashSet<string>();
         var actual = isStatement
             ? translator.Statement(expression, namespaces)
-            : translator.Expression(expression, namespaces);
+            : translator.Expression(expression, null, null, namespaces, out _);
 
         if (_outputExpressionTrees)
         {

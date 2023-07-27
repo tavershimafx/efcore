@@ -756,13 +756,13 @@ public class RuntimeEntityType : RuntimeTypeBase, IRuntimeEntityType
     {
         get => !base.ClrType.IsAbstract
             ? NonCapturingLazyInitializer.EnsureInitialized(
-                ref _constructorBinding, this, (Action<RuntimeEntityType>)(entityType =>
+                ref _constructorBinding, this, entityType =>
                 {
                     ((IModel)entityType.Model).GetModelDependencies().ConstructorBindingFactory.GetBindings(
                         entityType,
                         out entityType._constructorBinding,
                         out entityType._serviceOnlyConstructorBinding);
-                }))
+                })
             : _constructorBinding;
 
         [DebuggerStepThrough]
@@ -791,8 +791,13 @@ public class RuntimeEntityType : RuntimeTypeBase, IRuntimeEntityType
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    protected override PropertyCounts Counts
-        => NonCapturingLazyInitializer.EnsureInitialized(ref _counts, this, static entityType => entityType.CalculateCounts());
+    [EntityFrameworkInternal]
+    public override PropertyCounts Counts
+    {
+        get => NonCapturingLazyInitializer.EnsureInitialized(ref _counts, this, static entityType =>
+            entityType.CalculateCounts());
+        set => _counts = value;
+    }
 
     /// <summary>
     ///     Returns a string that represents the current object.
@@ -1184,7 +1189,7 @@ public class RuntimeEntityType : RuntimeTypeBase, IRuntimeEntityType
         => NonCapturingLazyInitializer.EnsureInitialized(
             ref _relationshipSnapshotFactory, this,
             static entityType => RuntimeFeature.IsDynamicCodeSupported
-                ? new RelationshipSnapshotFactoryFactory().Create(entityType)
+                ? RelationshipSnapshotFactoryFactory.Instance.Create(entityType)
                 : throw new InvalidOperationException(CoreStrings.NativeAotNoCompiledModel));
 
     /// <inheritdoc />
