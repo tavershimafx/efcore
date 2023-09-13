@@ -132,11 +132,12 @@ FROM [JsonEntitiesBasic] AS [j]
 @p1='2'
 @p2=NULL (DbType = Int32)
 @p3='NewEntity' (Size = 4000)
+@p4='[]' (Nullable = false) (Size = 2)
 
 SET IMPLICIT_TRANSACTIONS OFF;
 SET NOCOUNT ON;
-INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name])
-VALUES (@p0, @p1, @p2, @p3);
+INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name], [OwnedCollectionRoot])
+VALUES (@p0, @p1, @p2, @p3, @p4);
 """,
                 //
                 """
@@ -155,11 +156,12 @@ FROM [JsonEntitiesBasic] AS [j]
 @p1='2'
 @p2=NULL (DbType = Int32)
 @p3='NewEntity' (Size = 4000)
+@p4='[]' (Nullable = false) (Size = 2)
 
 SET IMPLICIT_TRANSACTIONS OFF;
 SET NOCOUNT ON;
-INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name])
-VALUES (@p0, @p1, @p2, @p3);
+INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name], [OwnedCollectionRoot])
+VALUES (@p0, @p1, @p2, @p3, @p4);
 """,
                 //
                 """

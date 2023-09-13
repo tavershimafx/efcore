@@ -993,6 +993,7 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             JsonReaderData? jsonReaderData,
             TIncludingEntity entity,
             Func<QueryContext, object[], JsonReaderData, TIncludedCollectionElement> innerShaper,
+            Action<TIncludingEntity> getOrCreateCollectionObject,
             Action<TIncludingEntity, TIncludedCollectionElement> fixup,
             bool trackingQuery)
             where TIncludingEntity : class
@@ -1011,6 +1012,8 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                 throw new InvalidOperationException(
                     RelationalStrings.JsonReaderInvalidTokenType(tokenType.ToString()));
             }
+
+            getOrCreateCollectionObject(entity);
 
             var newKeyPropertyValues = new object[keyPropertyValues.Length + 1];
             Array.Copy(keyPropertyValues, newKeyPropertyValues, keyPropertyValues.Length);

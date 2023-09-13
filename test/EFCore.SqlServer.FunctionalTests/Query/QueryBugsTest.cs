@@ -10765,79 +10765,85 @@ WHERE [e].[TimeSpan] = @__parameter_0
             //context.SaveChanges();
         }
 
+        using (var context = new TodoContext())
+        {
+            var foo = context.Todos.ToList();
+        }
 
-        //CreateJsonColumnWithNullValue();
-        //CreateJsonColumnOneElement();
-        //CreateJsonColumnWithEmptyArray();
+
+
+            //CreateJsonColumnWithNullValue();
+            //CreateJsonColumnOneElement();
+            //CreateJsonColumnWithEmptyArray();
     }
 
     //void CreateJsonColumnWithNullValue()
     //{
     //    var context = new TodoContext();
 
-    //    context.Database.EnsureCreated();
+        //    context.Database.EnsureCreated();
 
-    //    var todoList = new TodoList
-    //    {
-    //        Title = "List1",
-    //    };
+        //    var todoList = new TodoList
+        //    {
+        //        Title = "List1",
+        //    };
 
-    //    context.Add(todoList);
-    //    context.SaveChanges();
+        //    context.Add(todoList);
+        //    context.SaveChanges();
 
-    //    context.Dispose();
-    //}
+        //    context.Dispose();
+        //}
 
-    //void CreateJsonColumnOneElement()
-    //{
+        //void CreateJsonColumnOneElement()
+        //{
 
-    //    var context = new TodoContext();
+        //    var context = new TodoContext();
 
-    //    context.Database.EnsureCreated();
+        //    context.Database.EnsureCreated();
 
-    //    var todoList = new TodoList
-    //    {
-    //        Title = "List2",
-    //        Items = new List<TodoItem>{
-    //    new TodoItem { Text = "Item" }
-    //}
-    //    };
+        //    var todoList = new TodoList
+        //    {
+        //        Title = "List2",
+        //        Items = new List<TodoItem>{
+        //    new TodoItem { Text = "Item" }
+        //}
+        //    };
 
-    //    context.Add(todoList);
-    //    context.SaveChanges();
+        //    context.Add(todoList);
+        //    context.SaveChanges();
 
-    //    context.Dispose();
-    //}
+        //    context.Dispose();
+        //}
 
-    //void CreateJsonColumnWithEmptyArray()
-    //{
+        //void CreateJsonColumnWithEmptyArray()
+        //{
 
-    //    var context = new TodoContext();
+        //    var context = new TodoContext();
 
-    //    context.Database.EnsureCreated();
+        //    context.Database.EnsureCreated();
 
-    //    var todoList = new TodoList
-    //    {
-    //        Title = "List3",
-    //        Items = new List<TodoItem>{
-    //    new TodoItem { Text = "Item" }
-    //}
-    //    };
+        //    var todoList = new TodoList
+        //    {
+        //        Title = "List3",
+        //        Items = new List<TodoItem>{
+        //    new TodoItem { Text = "Item" }
+        //}
+        //    };
 
-    //    context.Add(todoList);
-    //    context.SaveChanges();
+        //    context.Add(todoList);
+        //    context.SaveChanges();
 
-    //    todoList.Items.Clear();
-    //    context.SaveChanges();
+        //    todoList.Items.Clear();
+        //    context.SaveChanges();
 
-    //    context.Dispose();
-    //}
+        //    context.Dispose();
+        //}
 
     public class TodoList
     {
         public int Id { get; set; }
         public required string Title { get; set; }
-        public IList<TodoItem> Items { get; set; } = new List<TodoItem>();
+        public IList<TodoItem> Items { get; set; }// = new List<TodoItem>();
     }
 
     [Owned]

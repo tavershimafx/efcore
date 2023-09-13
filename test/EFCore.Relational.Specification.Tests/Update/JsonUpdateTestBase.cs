@@ -62,7 +62,7 @@ public abstract class JsonUpdateTestBase<TFixture> : IClassFixture<TFixture>
                 var newEntity = query.Where(e => e.Id == 2).Single();
                 Assert.Equal("NewEntity", newEntity.Name);
                 // TODO: #29348 - collection should be empty here
-                Assert.Null(newEntity.OwnedCollectionRoot);
+                Assert.Empty(newEntity.OwnedCollectionRoot);
                 Assert.Equal("RootName", newEntity.OwnedReferenceRoot.Name);
                 Assert.Equal(42, newEntity.OwnedReferenceRoot.Number);
                 // TODO: #29348 - collection should be empty here
