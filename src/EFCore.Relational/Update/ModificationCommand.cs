@@ -444,6 +444,63 @@ public class ModificationCommand : IModificationCommand, INonTrackedModification
                         HandleNonJson(complexProperty.ComplexType, complexTableMapping);
                     }
                 }
+
+                if (structuralType is IEntityType entityType)
+                {
+                    //foreach (var requiredJsonCollectionNavigation in entityType.GetNavigations())
+                    //{
+                    //    var n = requiredJsonCollectionNavigation;
+                    //    var foo = n.TargetEntityType.IsMappedToJson();
+                    //    var foo2 =
+                    //     n.ForeignKey.IsOwnership;
+                    //    var foo3 =
+                    //     n == n.ForeignKey.PrincipalToDependent;
+                    //    var foo4 = n.ForeignKey.IsRequired;
+                    
+                    //}
+
+
+                    foreach (var nonNullableJsonCollection in entityType.GetNavigations().Where(
+                         n => n.TargetEntityType.IsMappedToJson()
+                         && n.ForeignKey.IsOwnership
+                         && n == n.ForeignKey.PrincipalToDependent
+                         && n.ForeignKey.IsRequired
+                         && !n.ForeignKey.IsUnique))
+                    {
+                        var targetEntityType = nonNullableJsonCollection.TargetEntityType;
+                        var jsonColumn = GetTableMapping(targetEntityType)!.Table.FindColumn(targetEntityType.GetContainerColumnName()!)!;
+
+                        // this is only needed if we haven't modified this json column in the HandleJson section
+                        // TODO: we should be checking actual column rather than type and name, but need extra API for this
+                        if (!columnModifications.Any(x => x.TypeMapping == jsonColumn.StoreTypeMapping && x.ColumnName == jsonColumn.Name))
+                        {
+                            var stream = new MemoryStream();
+                            var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false });
+                            writer.WriteStartArray();
+                            writer.WriteEndArray();
+                            writer.Flush();
+
+                            var value = Encoding.UTF8.GetString(stream.ToArray());
+                            var jsonColumnTypeMapping = jsonColumn.StoreTypeMapping;
+
+                            columnModifications.Add(
+                                new ColumnModification(
+                                    new ColumnModificationParameters(
+                                        jsonColumn.Name,
+                                        value: value,
+                                        property: null,
+                                        columnType: jsonColumnTypeMapping.StoreType,
+                                        typeMapping: jsonColumn.StoreTypeMapping,
+                                        jsonPath: "$",
+                                        read: false,
+                                        write: true,
+                                        key: false,
+                                        condition: false,
+                                        _sensitiveLoggingEnabled)
+                                    { GenerateParameterName = _generateParameterName }));
+                        }
+                    }
+                }
             }
 
             void HandleColumn(IColumnMappingBase columnMapping)
@@ -756,6 +813,18 @@ public class ModificationCommand : IModificationCommand, INonTrackedModification
 
                     columnModifications.Add(
                         new ColumnModification(
+                            //new ColumnModificationParameters(
+                            //    jsonColumn,
+                            //    originalValue: null,
+                            //    value: value,
+                            //    property: updateInfo.Property,
+                            //    typeMapping: jsonColumnTypeMapping,
+                            //    read: false,
+                            //    write: true,
+                            //    key: false,
+                            //    condition: false,
+                            //    _sensitiveLoggingEnabled)
+                            //{ GenerateParameterName = _generateParameterName }));
                             new ColumnModificationParameters(
                                 jsonColumn.Name,
                                 value: value,
