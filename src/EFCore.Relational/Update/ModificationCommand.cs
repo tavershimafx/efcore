@@ -446,6 +446,52 @@ public class ModificationCommand : IModificationCommand, INonTrackedModification
                         HandleNonJson(complexProperty.ComplexType, complexTableMapping);
                     }
                 }
+
+                if (adding && structuralType is IEntityType entityType)
+                {
+                    foreach (var nonNullableJsonCollection in entityType.GetNavigations().Where(
+                         n => n.TargetEntityType.IsMappedToJson()
+                         && n.ForeignKey.IsOwnership
+                         && n == n.ForeignKey.PrincipalToDependent
+                         && n.ForeignKey.IsRequired
+                         && !n.ForeignKey.IsUnique))
+                    {
+                        var targetEntityType = nonNullableJsonCollection.TargetEntityType;
+                        var jsonColumn = GetTableMapping(targetEntityType)!.Table.FindColumn(targetEntityType.GetContainerColumnName()!)!;
+
+                        // adding '[]' for json columns that represent required collection
+                        // this is only needed during Add and only if we haven't modified this json column in the HandleJson section
+                        // TODO: we should be checking actual column rather than type and name, but need extra API for this
+                        // (i.e. overload that takes column and json path)
+                        if (!columnModifications.Any(x => x.TypeMapping == jsonColumn.StoreTypeMapping && x.ColumnName == jsonColumn.Name))
+                        {
+                            var stream = new MemoryStream();
+                            var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false });
+                            writer.WriteStartArray();
+                            writer.WriteEndArray();
+                            writer.Flush();
+
+                            var value = Encoding.UTF8.GetString(stream.ToArray());
+                            var jsonColumnTypeMapping = jsonColumn.StoreTypeMapping;
+
+                            columnModifications.Add(
+                                new ColumnModification(
+                                    new ColumnModificationParameters(
+                                        jsonColumn.Name,
+                                        value: value,
+                                        property: null,
+                                        columnType: jsonColumnTypeMapping.StoreType,
+                                        typeMapping: jsonColumn.StoreTypeMapping,
+                                        jsonPath: "$",
+                                        read: false,
+                                        write: true,
+                                        key: false,
+                                        condition: false,
+                                        _sensitiveLoggingEnabled)
+                                    { GenerateParameterName = _generateParameterName }));
+                        }
+                    }
+                }
             }
 
             void HandleColumn(IColumnMappingBase columnMapping)

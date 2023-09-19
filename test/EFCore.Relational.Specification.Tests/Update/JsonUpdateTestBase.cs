@@ -36,6 +36,20 @@ public abstract class JsonUpdateTestBase<TFixture> : IClassFixture<TFixture>
                         Name = "RootName",
                         Number = 42,
                         OwnedCollectionBranch = new List<JsonOwnedBranch>(),
+                        //OwnedCollectionBranch = new List<JsonOwnedBranch>
+                        //{
+                        //    new JsonOwnedBranch
+                        //    {
+                        //        Date = new DateTime(2010, 10, 10),
+                        //        Enum = JsonEnum.Three,
+                        //        Fraction = 42.42m,
+                        //        OwnedCollectionLeaf = new List<JsonOwnedLeaf>
+                        //        {
+                        //            new() { SomethingSomething = "ss1" }, new() { SomethingSomething = "ss2" },
+                        //        },
+                        //        OwnedReferenceLeaf = new JsonOwnedLeaf { SomethingSomething = "ss3" }
+                        //    }
+                        //},
                         OwnedReferenceBranch = new JsonOwnedBranch
                         {
                             Date = new DateTime(2010, 10, 10),
@@ -56,17 +70,16 @@ public abstract class JsonUpdateTestBase<TFixture> : IClassFixture<TFixture>
             },
             async context =>
             {
-                var query = await context.JsonEntitiesBasic.ToListAsync();
+                var query = await context.JsonEntitiesBasic/*.AsNoTracking()*/.ToListAsync();
                 Assert.Equal(2, query.Count);
 
                 var newEntity = query.Where(e => e.Id == 2).Single();
                 Assert.Equal("NewEntity", newEntity.Name);
-                // TODO: #29348 - collection should be empty here
-                Assert.Null(newEntity.OwnedCollectionRoot);
+                Assert.Empty(newEntity.OwnedCollectionRoot);
                 Assert.Equal("RootName", newEntity.OwnedReferenceRoot.Name);
                 Assert.Equal(42, newEntity.OwnedReferenceRoot.Number);
                 // TODO: #29348 - collection should be empty here
-                Assert.Null(newEntity.OwnedReferenceRoot.OwnedCollectionBranch);
+                Assert.Empty(newEntity.OwnedReferenceRoot.OwnedCollectionBranch);
                 Assert.Equal(new DateTime(2010, 10, 10), newEntity.OwnedReferenceRoot.OwnedReferenceBranch.Date);
                 Assert.Equal(JsonEnum.Three, newEntity.OwnedReferenceRoot.OwnedReferenceBranch.Enum);
                 Assert.Equal(42.42m, newEntity.OwnedReferenceRoot.OwnedReferenceBranch.Fraction);
@@ -122,7 +135,8 @@ public abstract class JsonUpdateTestBase<TFixture> : IClassFixture<TFixture>
 
                 var newEntity = query.Where(e => e.Id == 2).Single();
                 Assert.Equal("NewEntity", newEntity.Name);
-                Assert.Null(newEntity.OwnedCollectionRoot);
+                // TODO: #29348 - should this be empty automatically? we don't see the difference in change tracking between null and empty list
+                Assert.Empty(newEntity.OwnedCollectionRoot);
                 Assert.Equal("RootName", newEntity.OwnedReferenceRoot.Name);
                 Assert.Equal(42, newEntity.OwnedReferenceRoot.Number);
                 Assert.Null(newEntity.OwnedReferenceRoot.OwnedCollectionBranch);

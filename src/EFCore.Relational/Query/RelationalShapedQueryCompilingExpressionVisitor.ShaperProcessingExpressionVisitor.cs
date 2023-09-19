@@ -34,6 +34,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
         private static readonly MemberInfo SingleQueryResultCoordinatorResultReadyMemberInfo
             = typeof(SingleQueryResultCoordinator).GetMember(nameof(SingleQueryResultCoordinator.ResultReady))[0];
 
+        private static readonly MethodInfo CollectionAccessorGetOrCreateMethodInfo
+            = typeof(IClrCollectionAccessor).GetTypeInfo().GetDeclaredMethod(nameof(IClrCollectionAccessor.GetOrCreate))!;
+
         private static readonly MethodInfo CollectionAccessorAddMethodInfo
             = typeof(IClrCollectionAccessor).GetTypeInfo().GetDeclaredMethod(nameof(IClrCollectionAccessor.Add))!;
 
@@ -1416,6 +1419,9 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
                             jsonReaderDataParameter,
                             includingEntityExpression,
                             shaperLambda,
+                            GetOrCreateCollectionObjectLambda(
+                                navigation.DeclaringEntityType.ClrType,
+                                navigation),
                             fixup,
                             Constant(_isTracking));
 
@@ -2368,6 +2374,23 @@ public partial class RelationalShapedQueryCompilingExpressionVisitor
             ParameterExpression relatedEntity,
             INavigationBase navigation)
             => entity.MakeMemberAccess(navigation.GetMemberInfo(forMaterialization: true, forSet: true)).Assign(relatedEntity);
+
+        private static Expression GetOrCreateCollectionObjectLambda(
+            Type entityType,
+            INavigationBase navigation)
+        {
+            var prm = Parameter(entityType);
+
+            return Lambda(
+                Block(
+                    typeof(void),
+                    Call(
+                        Constant(navigation.GetCollectionAccessor()),
+                        CollectionAccessorGetOrCreateMethodInfo,
+                        prm,
+                        Constant(true))),
+                    prm);
+        }
 
         private static Expression AddToCollectionNavigation(
             ParameterExpression entity,

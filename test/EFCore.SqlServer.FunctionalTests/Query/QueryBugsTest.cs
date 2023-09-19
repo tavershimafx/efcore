@@ -10732,6 +10732,144 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+    [ConditionalFact]
+    public void Kupson()
+    {
+        using (var context = new TodoContext())
+        {
+            context.Database.EnsureDeleted();
+            context.Database.EnsureCreated();
+
+            var todoList = new TodoList
+            {
+                Title = "List1",
+            };
+
+            context.Add(todoList);
+            context.SaveChanges();
+
+
+
+
+            //var todoList = new TodoList
+            //{
+            //    Title = "List2",
+            //    Items = new List<TodoItem>
+            //    {
+            //        new TodoItem { Text = "Item" }
+            //    }
+            //};
+
+            //context.Add(todoList);
+            //context.SaveChanges();
+        }
+
+        using (var context = new TodoContext())
+        {
+            var foo = context.Todos.ToList();
+        }
+
+
+
+        //CreateJsonColumnWithNullValue();
+        //CreateJsonColumnOneElement();
+        //CreateJsonColumnWithEmptyArray();
+    }
+
+    //void CreateJsonColumnWithNullValue()
+    //{
+    //    var context = new TodoContext();
+
+    //    context.Database.EnsureCreated();
+
+    //    var todoList = new TodoList
+    //    {
+    //        Title = "List1",
+    //    };
+
+    //    context.Add(todoList);
+    //    context.SaveChanges();
+
+    //    context.Dispose();
+    //}
+
+    //void CreateJsonColumnOneElement()
+    //{
+
+    //    var context = new TodoContext();
+
+    //    context.Database.EnsureCreated();
+
+    //    var todoList = new TodoList
+    //    {
+    //        Title = "List2",
+    //        Items = new List<TodoItem>{
+    //    new TodoItem { Text = "Item" }
+    //}
+    //    };
+
+    //    context.Add(todoList);
+    //    context.SaveChanges();
+
+    //    context.Dispose();
+    //}
+
+    //void CreateJsonColumnWithEmptyArray()
+    //{
+
+    //    var context = new TodoContext();
+
+    //    context.Database.EnsureCreated();
+
+    //    var todoList = new TodoList
+    //    {
+    //        Title = "List3",
+    //        Items = new List<TodoItem>{
+    //    new TodoItem { Text = "Item" }
+    //}
+    //    };
+
+    //    context.Add(todoList);
+    //    context.SaveChanges();
+
+    //    todoList.Items.Clear();
+    //    context.SaveChanges();
+
+    //    context.Dispose();
+    //}
+
+    public class TodoList
+    {
+        public int Id { get; set; }
+        public required string Title { get; set; }
+        public IList<TodoItem> Items { get; set; }// = new List<TodoItem>();
+    }
+
+    [Owned]
+    public class TodoItem
+    {
+        public required string Text { get; set; }
+    }
+
+    public class TodoContext : DbContext
+    {
+        public DbSet<TodoList> Todos { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<TodoList>()
+                .OwnsMany(c => c.Items)
+                .ToJson();
+        }
+    }
+
     protected override string StoreName
         => "QueryBugsTest";
 

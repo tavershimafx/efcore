@@ -127,16 +127,17 @@ FROM [JsonEntitiesBasic] AS [j]
         await base.Add_entity_with_json();
 
         AssertSql(
-            """
+"""
 @p0='{"Name":"RootName","Names":null,"Number":42,"Numbers":null,"OwnedCollectionBranch":[],"OwnedReferenceBranch":{"Date":"2010-10-10T00:00:00","Enum":2,"Enums":null,"Fraction":42.42,"NullableEnum":null,"NullableEnums":null,"OwnedCollectionLeaf":[{"SomethingSomething":"ss1"},{"SomethingSomething":"ss2"}],"OwnedReferenceLeaf":{"SomethingSomething":"ss3"}}}' (Nullable = false) (Size = 352)
 @p1='2'
 @p2=NULL (DbType = Int32)
 @p3='NewEntity' (Size = 4000)
+@p4='[]' (Nullable = false) (Size = 2)
 
 SET IMPLICIT_TRANSACTIONS OFF;
 SET NOCOUNT ON;
-INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name])
-VALUES (@p0, @p1, @p2, @p3);
+INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name], [OwnedCollectionRoot])
+VALUES (@p0, @p1, @p2, @p3, @p4);
 """,
             //
             """
@@ -150,16 +151,17 @@ FROM [JsonEntitiesBasic] AS [j]
         await base.Add_entity_with_json_null_navigations();
 
         AssertSql(
-            """
+"""
 @p0='{"Name":"RootName","Names":null,"Number":42,"Numbers":null,"OwnedCollectionBranch":null,"OwnedReferenceBranch":{"Date":"2010-10-10T00:00:00","Enum":2,"Enums":null,"Fraction":42.42,"NullableEnum":null,"NullableEnums":null,"OwnedCollectionLeaf":[{"SomethingSomething":"ss1"},{"SomethingSomething":"ss2"}],"OwnedReferenceLeaf":null}}' (Nullable = false) (Size = 330)
 @p1='2'
 @p2=NULL (DbType = Int32)
 @p3='NewEntity' (Size = 4000)
+@p4='[]' (Nullable = false) (Size = 2)
 
 SET IMPLICIT_TRANSACTIONS OFF;
 SET NOCOUNT ON;
-INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name])
-VALUES (@p0, @p1, @p2, @p3);
+INSERT INTO [JsonEntitiesBasic] ([OwnedReferenceRoot], [Id], [EntityBasicId], [Name], [OwnedCollectionRoot])
+VALUES (@p0, @p1, @p2, @p3, @p4);
 """,
             //
             """
