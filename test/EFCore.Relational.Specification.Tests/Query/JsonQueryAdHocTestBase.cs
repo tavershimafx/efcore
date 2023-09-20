@@ -889,6 +889,122 @@ public abstract class JsonQueryAdHocTestBase : NonSharedModelTestBase
 
     #endregion
 
+    #region OptionalDependent
+
+
+
+
+
+
+    private abstract void SeedOptionalDependent(MyContextOptionalDependent ctx)
+    {
+        var nested1 = new MyNestedJsonOptionalDependent { Street = "Street1", Zip = "Zip1" };
+        var json1 = new MyJsonOptionalDependent { JsonName = "j1", Number = 1, Nested = nested1 };
+        var e1 = new MyEntityOptionalDependent { Id = 1, Name = "e1", Json = json1 };
+
+        var nested2 = new MyNestedJsonOptionalDependent { Street = "Street2", Zip = null };
+        var json2 = new MyJsonOptionalDependent { JsonName = "j2", Number = 2, Nested = nested2 };
+        var e2 = new MyEntityOptionalDependent { Id = 2, Name = "e2", Json = json2 };
+
+        var nested3 = new MyNestedJsonOptionalDependent { Street = null, Zip = "Zip3" };
+        var json3 = new MyJsonOptionalDependent { JsonName = "j3", Number = 3, Nested = nested3 };
+        var e3 = new MyEntityOptionalDependent { Id = 3, Name = "e3", Json = json3 };
+
+        var nested4 = new MyNestedJsonOptionalDependent { Street = null, Zip = "4321" };
+        var json4 = new MyJsonOptionalDependent { JsonName = "j3", Number = 3, Nested = nested3 };
+        var e4 = new MyEntityOptionalDependent { Id = 3, Name = "e3", Json = json3 };
+
+
+
+
+
+
+
+
+
+        var json4 = new MyJsonOptionalDependent { JsonName = "j4", Number = 4, Nested = null };
+        var e4 = new MyEntityOptionalDependent { Id = 4, Name = "e4", Json = json4 };
+
+
+
+
+
+
+
+        var nested5 = new MyNestedJsonOptionalDependent { Street = "Foo", Zip = "12345" };
+        var json5 = new MyJsonOptionalDependent { JsonName = "j5", Number = null, Nested = nested5 };
+        var e5 = new MyEntityOptionalDependent { Id = 5, Name = "e5", Json = json5 };
+
+        var nested6 = new MyNestedJsonOptionalDependent { Street = "Bar", Zip = null };
+        var json6 = new MyJsonOptionalDependent { JsonName = "j6", Number = null, Nested = nested6 };
+        var e6 = new MyEntityOptionalDependent { Id = 6, Name = "e6", Json = json6 };
+
+        var nested7 = new MyNestedJsonOptionalDependent { Street = null, Zip = "4321" };
+        var json7 = new MyJsonOptionalDependent { JsonName = "j7", Number = null, Nested = nested7 };
+        var e7 = new MyEntityOptionalDependent { Id = 7, Name = "e7", Json = json7 };
+
+        var json8 = new MyJsonOptionalDependent { JsonName = "j8", Number = 8, Nested = null };
+        var e8 = new MyEntityOptionalDependent { Id = 8, Name = "e8", Json = json8 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
+    public class MyEntityOptionalDependent
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+
+        public MyJsonOptionalDependent Json { get; set; }
+    }
+
+    public class MyJsonOptionalDependent
+    {
+        public string JsonName { get; set; }
+        public int? Number { get; set; }
+
+        public MyNestedJsonOptionalDependent Nested { get; set; }
+    }
+
+    public class MyNestedJsonOptionalDependent
+    {
+        public string Street { get; set; }
+        public string Zip { get; set; }
+    }
+
+    public class MyContextOptionalDependent : DbContext
+    {
+        public MyContextOptionalDependent(DbContextOptions options)
+            : base(options)
+        {
+        }
+
+        public DbSet<MyEntityOptionalDependent> Entities { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyEntityOptionalDependent>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<MyEntityOptionalDependent>().OwnsOne(cr => cr.Json, nb =>
+            {
+                nb.ToJson();
+                nb.OwnsOne(x => x.Nested);
+            });
+        }
+    }
+
+    #endregion
+
     protected TestSqlLoggerFactory TestSqlLoggerFactory
         => (TestSqlLoggerFactory)ListLoggerFactory;
 }

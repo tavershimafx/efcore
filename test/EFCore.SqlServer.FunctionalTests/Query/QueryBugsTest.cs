@@ -10732,6 +10732,94 @@ WHERE [e].[TimeSpan] = @__parameter_0
 
     #endregion
 
+
+
+#nullable enable
+
+    public class MyEntity
+    {
+        public int Id { get; set; }
+
+        public MyJson? Reference { get; set; }
+
+        public List<MyJson>? Collection { get; set; }
+    }
+
+    public class MyJson
+    {
+        public string? Foo { get; set; }
+        public int? Bar { get; set; }
+        //public int Bar { get; set; }
+    }
+
+    public class MyContext : DbContext
+    {
+        public DbSet<MyEntity>? Entities { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<MyEntity>().Property(x => x.Id).ValueGeneratedNever();
+            modelBuilder.Entity<MyEntity>().OwnsOne(x => x.Reference).ToJson();
+            modelBuilder.Entity<MyEntity>().OwnsMany(x => x.Collection).ToJson();
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\mssqllocaldb;Database=Repro;Trusted_Connection=True;MultipleActiveResultSets=true");
+        }
+    }
+
+
+    [ConditionalFact]
+    public virtual void Kupson()
+    {
+        using (var ctx = new MyContext())
+        {
+            ctx.Database.EnsureDeleted();
+            ctx.Database.EnsureCreated();
+
+            var e1 = new MyEntity
+            {
+                Id = 1,
+                Reference = new MyJson { Bar = 1, Foo = "r1" },
+                Collection = new List<MyJson>
+                {
+                    new MyJson { Bar = 11, Foo = "c11" },
+                    new MyJson { Bar = 12, Foo = "c12" },
+                }
+            };
+
+            var e2 = new MyEntity
+            {
+                Id = 2,
+                Reference = null,
+                Collection = null,
+            };
+
+            var e3 = new MyEntity
+            {
+                Id = 3,
+                Reference = null,
+                Collection = new List<MyJson>(),
+            };
+
+            ctx.Entities!.AddRange(e1, e2, e3);
+        }
+
+        using (var ctx = new MyContext())
+        {
+            var query = ctx.Entities!.Where(x => x.Reference == null).ToList();
+        }
+    }
+
+
+
+#nullable disable
+
+
+
+
+
     protected override string StoreName
         => "QueryBugsTest";
 

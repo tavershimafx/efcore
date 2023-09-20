@@ -80,6 +80,13 @@ public static class RelationalEntityTypeExtensions
                 continue;
             }
 
+            // JSON non-key properties are "non principal shared" by default
+            if (entityType.IsMappedToJson())
+            {
+                properties.Add(property);
+                continue;
+            }
+
             var column = table.FindColumn(property);
             if (column == null)
             {
