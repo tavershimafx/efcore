@@ -1755,6 +1755,25 @@ public class RelationalSqlTranslatingExpressionVisitor : ExpressionVisitor
             {
                 var nonNullEntityReference = (IsNullSqlConstantExpression(left) ? rightReference : leftReference)!;
                 var nullComparedEntityType = (IEntityType)nonNullEntityReference.StructuralType;
+
+                if (nullComparedEntityType.IsMappedToJson()
+                    && nonNullEntityReference.Parameter is not null
+                    && nonNullEntityReference.Parameter.ValueBufferExpression is JsonQueryExpression jsonQueryExpression)
+                {
+                    var jsonScalarExpression = new JsonScalarExpression(
+                        jsonQueryExpression.JsonColumn,
+                        jsonQueryExpression.Path,
+                        jsonQueryExpression.JsonColumn.Type,
+                        jsonQueryExpression.JsonColumn.TypeMapping!,
+                        jsonQueryExpression.IsNullable);
+
+                    result = nodeType == ExpressionType.Equal
+                        ? _sqlExpressionFactory.IsNull(jsonScalarExpression)
+                        : _sqlExpressionFactory.IsNotNull(jsonScalarExpression);
+
+                    return true;
+                }
+
                 var nullComparedEntityTypePrimaryKeyProperties = nullComparedEntityType.FindPrimaryKey()?.Properties;
                 if (nullComparedEntityTypePrimaryKeyProperties == null)
                 {
