@@ -112,8 +112,8 @@ public class PropertyBuilder : IInfrastructure<IConventionPropertyBuilder>
     /// <summary>
     ///     Configures the precision and scale of the property.
     /// </summary>
-    /// <param name="precision">The precision of the property.</param>
-    /// <param name="scale">The scale of the property.</param>
+    /// <param name="precision">The precision of the property. The precision specifies the total number of digits the property can store including the decimal part.</param>
+    /// <param name="scale">The scale of the property. The scale specifies the number of decimal places.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual PropertyBuilder HasPrecision(int precision, int scale)
     {
@@ -126,7 +126,7 @@ public class PropertyBuilder : IInfrastructure<IConventionPropertyBuilder>
     /// <summary>
     ///     Configures the precision of the property.
     /// </summary>
-    /// <param name="precision">The precision of the property.</param>
+    /// <param name="precision">The precision of the property. The precision specifies the total number of digits the property can store including the decimal part.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public virtual PropertyBuilder HasPrecision(int precision)
     {
