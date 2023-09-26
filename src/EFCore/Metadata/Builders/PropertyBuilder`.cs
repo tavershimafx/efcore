@@ -76,8 +76,8 @@ public class PropertyBuilder<TProperty> : PropertyBuilder
     /// <summary>
     ///     Configures the precision and scale of the property.
     /// </summary>
-    /// <param name="precision">The precision of the property.</param>
-    /// <param name="scale">The scale of the property.</param>
+    /// <param name="precision">The precision specifies the total number of digits the property can store including the decimal part.</param>
+    /// <param name="scale">The scale represents the number of decimal places to preserve for the property.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public new virtual PropertyBuilder<TProperty> HasPrecision(int precision, int scale)
         => (PropertyBuilder<TProperty>)base.HasPrecision(precision, scale);
@@ -85,7 +85,7 @@ public class PropertyBuilder<TProperty> : PropertyBuilder
     /// <summary>
     ///     Configures the precision of the property.
     /// </summary>
-    /// <param name="precision">The precision of the property.</param>
+    /// <param name="precision">The precision specifies the total number of digits the property can store including the decimal part.</param>
     /// <returns>The same builder instance so that multiple configuration calls can be chained.</returns>
     public new virtual PropertyBuilder<TProperty> HasPrecision(int precision)
         => (PropertyBuilder<TProperty>)base.HasPrecision(precision);
