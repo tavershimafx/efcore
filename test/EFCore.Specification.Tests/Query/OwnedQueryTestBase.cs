@@ -103,8 +103,7 @@ public abstract class OwnedQueryTestBase<TFixture> : QueryTestBase<TFixture>
     public virtual Task Query_for_branch_type_loads_all_owned_navs_tracking(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<Branch>().AsTracking(),
-            entryCount: 16);
+            ss => ss.Set<Branch>().AsTracking());
 
     [ConditionalTheory]
     [MemberData(nameof(IsAsyncData))]
@@ -396,8 +395,7 @@ public abstract class OwnedQueryTestBase<TFixture> : QueryTestBase<TFixture>
     public virtual Task Unmapped_property_projection_loads_owned_navigations(bool async)
         => AssertQuery(
             async,
-            ss => ss.Set<OwnedPerson>().Where(e => e.Id == 1).AsTracking().Select(e => new { e.ReadOnlyProperty }),
-            entryCount: 7);
+            ss => ss.Set<OwnedPerson>().Where(e => e.Id == 1).AsTracking().Select(e => new { e.ReadOnlyProperty }));
 
     // Issue#18140
     [ConditionalTheory]

@@ -19,10 +19,10 @@ public abstract class FilteredQueryTestBase<TFixture> : QueryTestBase<TFixture>
         Func<TResult, object> elementSorter = null,
         Action<TResult, TResult> elementAsserter = null,
         bool assertOrder = false,
-        int entryCount = 0,
+        bool assertEmpty = false,
         [CallerMemberName] string testMethodName = null)
         where TResult : class
-        => AssertFilteredQuery(async, query, query, elementSorter, elementAsserter, assertOrder, entryCount, testMethodName);
+        => AssertFilteredQuery(async, query, query, elementSorter, elementAsserter, assertOrder, assertEmpty, testMethodName);
 
     public Task AssertFilteredQuery<TResult>(
         bool async,
@@ -31,29 +31,31 @@ public abstract class FilteredQueryTestBase<TFixture> : QueryTestBase<TFixture>
         Func<TResult, object> elementSorter = null,
         Action<TResult, TResult> elementAsserter = null,
         bool assertOrder = false,
-        int entryCount = 0,
+        bool assertEmpty = false,
         [CallerMemberName] string testMethodName = null)
         where TResult : class
         => QueryAsserter.AssertQuery(
-            actualQuery, expectedQuery, elementSorter, elementAsserter, assertOrder, entryCount, async, testMethodName,
+            actualQuery, expectedQuery, elementSorter, elementAsserter, assertOrder, assertEmpty, async, testMethodName,
             filteredQuery: true);
 
     public Task AssertFilteredQueryScalar<TResult>(
         bool async,
         Func<ISetSource, IQueryable<TResult>> query,
         bool assertOrder = false,
+        bool assertEmpty = false,
         [CallerMemberName] string testMethodName = null)
         where TResult : struct
-        => AssertFilteredQueryScalar(async, query, query, assertOrder, testMethodName);
+        => AssertFilteredQueryScalar(async, query, query, assertOrder, assertEmpty, testMethodName);
 
     public Task AssertFilteredQueryScalar<TResult>(
         bool async,
         Func<ISetSource, IQueryable<TResult>> actualQuery,
         Func<ISetSource, IQueryable<TResult>> expectedQuery,
         bool assertOrder = false,
+        bool assertEmpty = false,
         [CallerMemberName] string testMethodName = null)
         where TResult : struct
-        => QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder, async, testMethodName, filteredQuery: true);
+        => QueryAsserter.AssertQueryScalar(actualQuery, expectedQuery, assertOrder, assertEmpty, async, testMethodName, filteredQuery: true);
 
     protected Task AssertFilteredCount<TResult>(
         bool async,
